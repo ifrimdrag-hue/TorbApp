@@ -270,12 +270,9 @@ def process_rows(rows_raw, cp_lookup):
         pvanz = normalize_num(raw.get("pvanz")) or 0
         pcump = normalize_num(raw.get("pcump")) or 0
         discount = normalize_num(raw.get("discount")) or 0
-        # discproc_p = al doilea discount procentual (promotional), aplicat la val_bruta
-        discproc_p = normalize_num(raw.get("discproc_p")) or 0
 
         val_bruta = round(cantitate * pvanz, 4)
-        discount_p = round(val_bruta * discproc_p / 100, 4)
-        val_neta = round(val_bruta - discount - discount_p, 4)
+        val_neta = round(val_bruta - discount, 4)
         val_achizitie = round(cantitate * pcump, 4)
         marja_bruta = round(val_neta - val_achizitie, 4)
 
@@ -284,7 +281,6 @@ def process_rows(rows_raw, cp_lookup):
         mapped["val_achizitie"] = val_achizitie
         mapped["marja_bruta"] = marja_bruta
         mapped["val_usd"] = None  # not available in direct ERP export
-        mapped["_discproc_p"] = discproc_p  # temp key for aggregation
 
         # Type normalization
         record = {}
@@ -348,13 +344,11 @@ def aggregate_records(records):
         total_discount = sum(r["discount_val"] or 0 for r in group)
         pvanz = base["pret_vanzare"] or 0
         pcump = base["pret_cumparare"] or 0
-        discproc_p = base.get("_discproc_p") or 0
         total_val_bruta = round(total_cantitate * pvanz, 4)
-        total_discount_p = round(total_val_bruta * discproc_p / 100, 4)
         base["cantitate"] = total_cantitate
         base["discount_val"] = total_discount
         base["val_bruta"] = total_val_bruta
-        base["val_neta"] = round(total_val_bruta - total_discount - total_discount_p, 4)
+        base["val_neta"] = round(total_val_bruta - total_discount, 4)
         base["val_achizitie"] = round(total_cantitate * pcump, 4)
         base["marja_bruta"] = round(base["val_neta"] - base["val_achizitie"], 4)
         result.append(base)
