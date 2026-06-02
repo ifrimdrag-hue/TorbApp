@@ -367,7 +367,11 @@ def aggregate_records(records):
 def insert_rows(conn, records):
     placeholders = ", ".join(["?" for _ in DB_COLS])
     col_names = ", ".join(DB_COLS)
-    sql = f"INSERT OR IGNORE INTO tranzactii ({col_names}) VALUES ({placeholders})"
+    sql = (
+        f"INSERT INTO tranzactii ({col_names}) VALUES ({placeholders})"
+        f" ON CONFLICT(nr_dl, cod_produs, nr_factura, pret_vanzare)"
+        f" DO UPDATE SET agent = excluded.agent"
+    )
     data = [[r[c] for c in DB_COLS] for r in records]
     cursor = conn.cursor()
     cursor.executemany(sql, data)
