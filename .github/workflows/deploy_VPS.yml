@@ -80,6 +80,7 @@ jobs:
           port: 2112
           envs: ANTHROPIC_API_KEY
           script: |
+            set -e
             git config --global --add safe.directory /var/www/html/torb-py
             cd /var/www/html/torb-py
 
