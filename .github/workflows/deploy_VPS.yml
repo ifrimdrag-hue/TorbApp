@@ -64,6 +64,7 @@ jobs:
   # 4. Deploy to VPS
   deploy:
     needs: [test, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -87,8 +88,7 @@ jobs:
             git reset --hard origin/main
 
             # Remove dev-only files — no runtime use on the production server
-            rm -rf tests/ context/ extra/
-            rm -f CLAUDE.md STATUS.md plan_strategic_5ani.md torb_background.md CHANGELOG.md
+            rm -rf tests/ context/ docs/
 
             # Inject secrets into .env (create if missing, update if present)
             touch .env
@@ -106,6 +106,7 @@ jobs:
   # 5. Post-deployment smoke tests
   smoke-test-vps:
     needs: deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Wait for service to come up
