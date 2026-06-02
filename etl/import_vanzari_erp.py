@@ -364,13 +364,18 @@ def aggregate_records(records):
     return result
 
 
+_CONFLICT_KEY = {"nr_dl", "cod_produs", "nr_factura", "pret_vanzare"}
+_UPDATE_COLS = [c for c in DB_COLS if c not in _CONFLICT_KEY]
+
+
 def insert_rows(conn, records):
     placeholders = ", ".join(["?" for _ in DB_COLS])
     col_names = ", ".join(DB_COLS)
+    update_clause = ", ".join(f"{c} = excluded.{c}" for c in _UPDATE_COLS)
     sql = (
         f"INSERT INTO tranzactii ({col_names}) VALUES ({placeholders})"
         f" ON CONFLICT(nr_dl, cod_produs, nr_factura, pret_vanzare)"
-        f" DO UPDATE SET agent = excluded.agent"
+        f" DO UPDATE SET {update_clause}"
     )
     data = [[r[c] for c in DB_COLS] for r in records]
     cursor = conn.cursor()
