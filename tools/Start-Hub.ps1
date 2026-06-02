@@ -159,7 +159,7 @@ if (-not (Test-Path $Venv)) {
 if ($Install -or -not (Test-Path $Flask)) {
     Write-Host ""
     Write-Host "  Instalare dependente (poate dura cateva minute la prima rulare)..." -ForegroundColor Cyan
-    & $Pip install -r $Req --quiet
+    & $Pip install -r $Req --prefer-binary --quiet
     if (-not $?) {
         Write-Host "  EROARE: pip install a esuat. Verifica conexiunea la internet si incearca din nou." -ForegroundColor Red
         exit 1
