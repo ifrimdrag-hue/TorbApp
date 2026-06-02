@@ -138,8 +138,12 @@ VIEWS = [
         ROUND(SUM(marja_bruta), 2)         AS marja_totala,
         COUNT(DISTINCT nr_factura)         AS nr_facturi,
         COUNT(DISTINCT furnizor)           AS nr_branduri,
-        agent                              AS agent_principal
-    FROM tranzactii GROUP BY client
+        (SELECT t2.agent FROM tranzactii t2
+         WHERE t2.client = t1.client
+         ORDER BY t2.data_dl DESC, t2.rowid DESC
+         LIMIT 1)                          AS agent_principal
+    FROM tranzactii t1
+    GROUP BY t1.client
     """,
 ]
 
