@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
-from flask import Blueprint, render_template, request, jsonify, abort
+from io import BytesIO
+from flask import Blueprint, render_template, request, jsonify, abort, send_file
 from automations.campanii.models import Campaign, Task
 from automations.campanii import storage as campanii_storage
 from automations.campanii.stock_validator import validate as validate_campaign_stock

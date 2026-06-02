@@ -20,6 +20,18 @@ def _delta_pct(cy, py):
     return round((cy / py - 1) * 100, 1)
 
 
+def _build_trend_series(trend_rows):
+    by_year = {}
+    for row in trend_rows:
+        yr = row['an']
+        if yr not in by_year:
+            by_year[yr] = [0] * 12
+        luna = row['luna']
+        if luna:
+            by_year[yr][int(luna) - 1] = row['val_neta'] or 0
+    return by_year
+
+
 
 # ---------------------------------------------------------------------------
 # Produs (SKU) detaliu
