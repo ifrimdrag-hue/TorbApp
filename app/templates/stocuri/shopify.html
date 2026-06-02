@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Stoc Shopify{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-3">
+  <h4 class="mb-1">Sincronizare stoc — Shopify</h4>
+  <p class="text-secondary small mb-4">
+    Incarca raportul intern si CSV-ul de Inventory exportat din Shopify
+    (Products → Inventory → Export → "Plain CSV file").
+    Aplicatia produce un CSV cu coloana <code>On hand (new)</code> completata,
+    gata de reuploadat pe Shopify (Products → Inventory → Import).
+  </p>
+
+  <div class="d-flex flex-wrap gap-3 mb-3">
+    <div class="dz-card p-3 border rounded" style="max-width:360px;">
+      <div class="fw-semibold small text-secondary mb-1">Pas 1</div>
+      <div class="fw-semibold mb-1">Raport intern stocuri</div>
+      <div class="text-secondary small mb-2">.xls / .xlsx — match dupa coloana <code>codmare</code></div>
+      <div class="dropzone" id="dzShopReport">
+        <input type="file" id="fileShopReport" accept=".xls,.xlsx" hidden />
+        <div class="dz-inner text-center py-3">
+          <strong>Trage fisierul aici</strong><br>
+          <span class="text-secondary small">sau click pentru a alege</span><br>
+          <small id="nameShopReport" class="text-info"></small>
+        </div>
+      </div>
+    </div>
+
+    <div class="dz-card p-3 border rounded" style="max-width:360px;">
+      <div class="fw-semibold small text-secondary mb-1">Pas 2</div>
+      <div class="fw-semibold mb-1">Shopify Inventory CSV</div>
+      <div class="text-secondary small mb-2">.csv exportat din Shopify (Plain CSV, NU "for Excel")</div>
+      <div class="dropzone" id="dzShopInventory">
+        <input type="file" id="fileShopInventory" accept=".csv" hidden />
+        <div class="dz-inner text-center py-3">
+          <strong>Trage fisierul aici</strong><br>
+          <span class="text-secondary small">sau click pentru a alege</span><br>
+          <small id="nameShopInventory" class="text-info"></small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <button id="btnRunShop" class="btn btn-primary" disabled>Genereaza CSV pentru Shopify</button>
+  </div>
+
+  <div id="statusShop" class="status mb-2"></div>
+
+  <div id="resultShop" hidden>
+    <div id="summaryShop" class="d-flex flex-wrap gap-2 mb-3"></div>
+    <div class="mb-3">
+      <button id="btnDownloadShop" class="btn btn-success">⬇ Descarca .csv pentru Shopify</button>
+    </div>
+    <div id="issuesShop"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/stocuri-shopify.js') }}"></script>
+{% endblock %}

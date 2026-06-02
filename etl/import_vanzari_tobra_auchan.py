@@ -1,0 +1,319 @@
+"""
+Import vânzări Tobra → Auchan, atașate ca tranzacții Torb cu agent Oana Filip.
+
+Excepție de business: vânzările Torb către Auchan sunt facturate prin Tobra.
+Acest script preia tot istoricul facturat de Tobra către Auchan și îl injectează
+în `tranzactii` ca și cum ar fi vânzări Torb→Auchan, cu agentul Oana Filip
+(care e deja alocat pentru Auchan în Torb).
+
+Fisier sursa:    docs_input/rapoarte/auchan tobra 2024-2026.xls
+Suprascrieri:    agent='Oana Filip', cod_client='732', client='AUCHAN ROMANIA SA'
+Pastrate:        nr_factura (prefix 'TOBRA' = marker), nr_dl, cod_produs, etc.
+Dedup:           UNIQUE(nr_dl, cod_produs, nr_factura)
+
+Usage:
+    python import_vanzari_tobra_auchan.py [<cale_fisier.xls>]
+"""
+
+import sys
+import os
+import sqlite3
+import xlrd
+
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+DB_PATH = "data/torb.db"
+DEFAULT_FILE = "docs_input/rapoarte/auchan tobra 2024-2026.xls"
+
+# Hard-coded overrides — Tobra invoicing of Auchan must appear as Torb sales
+AGENT_OVERRIDE       = "Oana Filip"
+COD_CLIENT_OVERRIDE  = "732"
+CLIENT_OVERRIDE      = "AUCHAN ROMANIA SA"
+TIP_CLIENT_OVERRIDE  = "HYPERMARKET"
+
+# Cod client TOBRA INVEST SRL în Torb DB — facturile Torb→Tobra sunt fictive
+# (intermediarul economic), trebuie șterse pentru a evita dublu-numărare cu
+# înregistrările Tobra→Auchan importate aici.
+TOBRA_COD_CLIENT     = "719"
+
+DB_COLS = [
+    "luna", "an", "data_dl", "nr_dl", "nr_factura", "nr_comanda",
+    "cod_produs", "sku", "furnizor", "um",
+    "cantitate", "pret_vanzare", "tva_pct", "pret_cumparare",
+    "val_bruta", "val_neta", "val_achizitie", "val_usd", "marja_bruta",
+    "discount_pct", "discount_val",
+    "client", "cod_client", "cui_client", "tip_client",
+    "oras_client", "judet_client", "adresa_client",
+    "agent", "adr_livrare", "locatie",
+]
+
+
+def derive_furnizor(sku: str, cp_lookup: dict, cod_produs: str) -> str:
+    if cod_produs and cod_produs in cp_lookup:
+        return cp_lookup[cod_produs]
+    if not sku:
+        return "Altele"
+    s = str(sku).strip()
+    if s.startswith("B.") or s.startswith('B."') or s.startswith("WB."):
+        return "Basilur"
+    if s.startswith("KL "):
+        return "KingsLeaf"
+    if s.upper().startswith("CELMAR") or s.startswith("C."):
+        return "Celmar"
+    if "5902795" in s or "5902480" in s:
+        return "Celmar"
+    if s.startswith("T."):
+        return "Toras"
+    if s.startswith("TS "):
+        return "Tipson"
+    if s.startswith("DEL.") or s.startswith("ALM."):
+        return "Delaviuda"
+    su = s.upper()
+    for leonex_prefix in ("LEONEX", "BETISOARE", "DISCURI", "VATA ", "BILUTE", "SERVETELE",
+                          "W.BETISOARE", "W.DISCURI", "W.SERVETELE"):
+        if su.startswith(leonex_prefix):
+            return "Leonex"
+    for solvex_marker in ("MISS MAGIC", "SAMPON BLUE MAGIC", "STAND VOPSEA"):
+        if solvex_marker in su:
+            return "Solvex"
+    if su.startswith("IMAJ "):
+        return "Solvex"
+    if su.startswith("HORECA ") or su.startswith("H "):
+        return "Basilur"
+    if (su.startswith("CUTIE HORECA") or su.startswith("CUTIE LEMN")
+            or su.startswith("CUTIE INCHISA") or su.startswith("PUNGA ")
+            or su.startswith("PUNGI ") or su.startswith("PAHAR ")):
+        return "Basilur"
+    cosm_markers = ("PRIME RENEWING", "INTENSE REGEN", "REGENERATING MASK",
+                    "V-LIFT", "V-FIRM", "ELIXIR ", "VITAL ", "DETO2X",
+                    "LUMI BOOST", "LUMIMASK", "H2O BOOST", "FLUID FALLS",
+                    "BUBBLE FALLS", "ICY FALLS", "HYDRA3",
+                    "MOISTURIZING ", "HUILE ", "LADY CODE", "BIO REV ",
+                    "PURIFYING PACK", "SEA BLISS", "CREME DE MASQUE",
+                    "HAND 24 HOUR", "PRIMARY VEIL", "BATHROBE ",
+                    "HAIR BRUSH", "HEADBAND ")
+    for m in cosm_markers:
+        if su.startswith(m):
+            return "Cosmetice"
+    return "Altele"
+
+
+def xlrd_date_str(val, datemode):
+    if val in (None, ""):
+        return None
+    try:
+        if isinstance(val, (int, float)) and val > 0:
+            t = xlrd.xldate_as_datetime(val, datemode)
+            return t.strftime("%Y-%m-%d"), t.date()
+    except Exception:
+        pass
+    return None
+
+
+def normalize_str(val):
+    if val is None:
+        return None
+    s = str(val).strip()
+    return s if s else None
+
+
+def normalize_num(val):
+    if val in (None, ""):
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def build_cod_furnizor_lookup(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT cod_produs, furnizor FROM tranzactii WHERE furnizor IS NOT NULL")
+    return {str(row[0]): row[1] for row in cur.fetchall()}
+
+
+def build_cod_sku_lookup(conn):
+    """Returns {cod_produs: sku} from ERP records (non-Auchan) for SKU name normalization.
+    Tobra XLS may omit parentheses around EAN codes that ERP includes."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT cod_produs, MAX(sku) AS sku FROM tranzactii "
+        "WHERE cod_produs IS NOT NULL AND cod_produs != '' "
+        f"  AND cod_client != '{COD_CLIENT_OVERRIDE}' "
+        "GROUP BY cod_produs"
+    )
+    return {str(row[0]): row[1] for row in cur.fetchall() if row[1]}
+
+
+def read_tobra_xls(filepath):
+    print(f"  Citesc: {filepath}")
+    book = xlrd.open_workbook(filepath)
+    ws = book.sheet_by_index(0)
+    if ws.nrows < 2:
+        print("    → Fișier gol.")
+        return [], book.datemode
+
+    header = [str(ws.cell_value(0, c)).strip() for c in range(ws.ncols)]
+    col = {name: i for i, name in enumerate(header)}
+
+    def get(row_idx, name, default=None):
+        i = col.get(name)
+        if i is None:
+            return default
+        v = ws.cell_value(row_idx, i)
+        return v if v != "" else default
+
+    rows = []
+    for ri in range(1, ws.nrows):
+        rows.append({h: get(ri, h) for h in header})
+    print(f"    → {len(rows):,} rânduri brute citite")
+    return rows, book.datemode
+
+
+def process_rows(rows_raw, cp_lookup, datemode, cod_sku_lookup=None):
+    records = []
+    skipped_no_date = 0
+    for raw in rows_raw:
+        data_dl_raw = raw.get("datadl")
+        if data_dl_raw in (None, ""):
+            skipped_no_date += 1
+            continue
+        try:
+            dt = xlrd.xldate_as_datetime(float(data_dl_raw), datemode).date()
+        except Exception:
+            skipped_no_date += 1
+            continue
+
+        sku        = normalize_str(raw.get("den_b"))
+        cod_produs = normalize_str(raw.get("codprod"))
+        # Normalize SKU to match ERP canonical form (Tobra XLS may omit parentheses around EAN)
+        if cod_produs and cod_sku_lookup and cod_produs in cod_sku_lookup:
+            sku = cod_sku_lookup[cod_produs]
+        cantitate = normalize_num(raw.get("cantit")) or 0
+        pvanz     = normalize_num(raw.get("pvanz")) or 0
+        pcump     = normalize_num(raw.get("pcump")) or 0
+        discount  = normalize_num(raw.get("discount")) or 0
+
+        val_bruta     = round(cantitate * pvanz, 4)
+        val_neta      = round(val_bruta - discount, 4)
+        val_achizitie = round(cantitate * pcump, 4)
+        marja_bruta   = round(val_neta - val_achizitie, 4)
+
+        record = {
+            "luna":           dt.month,
+            "an":             dt.year,
+            "data_dl":        dt.strftime("%Y-%m-%d"),
+            "nr_dl":          normalize_str(raw.get("nrdl")),
+            "nr_factura":     normalize_str(raw.get("factout")),
+            "nr_comanda":     normalize_str(raw.get("nrcomandametro")),
+            "cod_produs":     cod_produs,
+            "sku":            sku,
+            "furnizor":       derive_furnizor(sku or "", cp_lookup, cod_produs or ""),
+            "um":             normalize_str(raw.get("um")) or "BUC",
+            "cantitate":      cantitate,
+            "pret_vanzare":   pvanz,
+            "tva_pct":        normalize_num(raw.get("tva")),
+            "pret_cumparare": pcump,
+            "val_bruta":      val_bruta,
+            "val_neta":       val_neta,
+            "val_achizitie":  val_achizitie,
+            "val_usd":        None,
+            "marja_bruta":    marja_bruta,
+            "discount_pct":   normalize_num(raw.get("procent")) or normalize_num(raw.get("discproc")),
+            "discount_val":   discount,
+            # Hard-coded overrides — Tobra→Auchan attached as Torb→Auchan via Oana
+            "client":         CLIENT_OVERRIDE,
+            "cod_client":     COD_CLIENT_OVERRIDE,
+            "cui_client":     normalize_str(raw.get("cfcli")),
+            "tip_client":     TIP_CLIENT_OVERRIDE,
+            "oras_client":    normalize_str(raw.get("localcli")),
+            "judet_client":   normalize_str(raw.get("judet")),
+            "adresa_client":  normalize_str(raw.get("adresa")),
+            "agent":          AGENT_OVERRIDE,
+            "adr_livrare":    normalize_str(raw.get("adr_livr")),
+            "locatie":        normalize_str(raw.get("locatie")),
+        }
+        records.append(record)
+
+    if skipped_no_date:
+        print(f"    → {skipped_no_date} rânduri sărite (data lipsă)")
+    return records
+
+
+def insert_rows(conn, records):
+    placeholders = ", ".join(["?" for _ in DB_COLS])
+    cols = ", ".join(DB_COLS)
+    sql = f"INSERT OR IGNORE INTO tranzactii ({cols}) VALUES ({placeholders})"
+    data = [[r[c] for c in DB_COLS] for r in records]
+    cur = conn.cursor()
+    cur.executemany(sql, data)
+    inserted = cur.rowcount
+    conn.commit()
+    return inserted
+
+
+def delete_torb_to_tobra_entries(conn):
+    """Șterge facturile Torb→Tobra (cod_client=719) — sunt redundante cu
+    Tobra→Auchan importate aici și ar duce la dublu-numărare."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT COUNT(*), COALESCE(SUM(val_neta), 0) FROM tranzactii WHERE cod_client = ?",
+        (TOBRA_COD_CLIENT,),
+    )
+    n, val = cur.fetchone()
+    if n == 0:
+        print("    → Nicio factură Torb→Tobra de șters.")
+        return 0
+    cur.execute("DELETE FROM tranzactii WHERE cod_client = ?", (TOBRA_COD_CLIENT,))
+    conn.commit()
+    print(f"    → Șterse {n:,} facturi Torb→Tobra (cod_client={TOBRA_COD_CLIENT}) "
+          f"= {val:,.0f} RON (anti-dublu-numărare)")
+    return n
+
+
+def run(filepath=None):
+    filepath = filepath or DEFAULT_FILE
+    if not os.path.exists(filepath):
+        print(f"EROARE: nu găsesc fișierul {filepath}")
+        return 0
+
+    conn = sqlite3.connect(DB_PATH)
+    cp_lookup = build_cod_furnizor_lookup(conn)
+    cod_sku_lookup = build_cod_sku_lookup(conn)
+
+    rows_raw, datemode = read_tobra_xls(filepath)
+    records = process_rows(rows_raw, cp_lookup, datemode, cod_sku_lookup)
+    print(f"    → {len(records):,} rânduri procesate")
+
+    inserted = insert_rows(conn, records)
+    skipped = len(records) - inserted
+    print(f"    → Inserate: {inserted:,} | Duplicate ignorate: {skipped:,}")
+
+    # După import: șterge intrările Torb→Tobra (cod_client=719) ca să eviți
+    # dublu-numărarea cu noile înregistrări Tobra→Auchan.
+    delete_torb_to_tobra_entries(conn)
+
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT COUNT(*), SUM(val_neta), MIN(data_dl), MAX(data_dl)
+        FROM tranzactii WHERE nr_factura LIKE 'TOBRA%'
+    """)
+    n, vn, d_min, d_max = cur.fetchone()
+    print(f"    → Total Tobra→Auchan în DB: {n:,} tranz | {(vn or 0):,.0f} RON | {d_min} → {d_max}")
+
+    cur.execute("""
+        SELECT COUNT(*), SUM(val_neta) FROM tranzactii
+        WHERE cod_client='732' AND agent=? AND nr_factura LIKE 'TOBRA%'
+    """, (AGENT_OVERRIDE,))
+    n_oa, v_oa = cur.fetchone()
+    print(f"    → Atribuite la {AGENT_OVERRIDE} pentru Auchan: {n_oa:,} tranz | {(v_oa or 0):,.0f} RON")
+
+    conn.close()
+    return inserted
+
+
+if __name__ == "__main__":
+    fp = sys.argv[1] if len(sys.argv) > 1 else None
+    run(fp)

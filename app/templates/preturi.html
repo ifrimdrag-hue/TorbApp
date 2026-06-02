@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+{% block title %}Prețuri & Marje — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-tags-fill text-primary"></i> Prețuri & Marje</h4>
+  <div class="d-flex gap-2 align-items-center">
+    <!-- Cursuri rapide -->
+    {% for moneda, curs in rate.items() %}
+    {% if moneda != 'RON' %}
+    <span class="badge bg-secondary">
+      1 {{ moneda }} = <span class="curs-val" data-moneda="{{ moneda }}">{{ curs }}</span> RON
+      <button class="btn btn-link btn-sm p-0 ms-1 text-white edit-curs"
+              data-moneda="{{ moneda }}" data-curs="{{ curs }}" data-an="{{ an }}" title="Editează">
+        <i class="bi bi-pencil-fill" style="font-size:10px"></i>
+      </button>
+    </span>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="get" class="card shadow-sm border-0 mb-3">
+  <div class="card-body py-2">
+    <div class="row g-2 align-items-end">
+      <input type="hidden" name="tab" value="{{ tab }}">
+      <div class="col-auto">
+        <select name="an" class="form-select form-select-sm" style="width:85px">
+          {% for yr in [2025,2026] %}
+          <option value="{{ yr }}" {% if an==yr %}selected{% endif %}>{{ yr }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <select name="furnizor" class="form-select form-select-sm">
+          <option value="">Toți furnizorii</option>
+          {% for f in furnizori %}
+          <option value="{{ f.furnizor }}" {% if sel_furnizor==f.furnizor %}selected{% endif %}>{{ f.furnizor }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col">
+        <input type="text" name="q" class="form-control form-control-sm"
+               placeholder="Cod, SKU sau descriere..." value="{{ q }}">
+      </div>
+      <div class="col-auto">
+        <input type="number" name="sub_marja" class="form-control form-control-sm"
+               style="width:120px" placeholder="Marjă < %" value="{{ sub_marja }}"
+               title="Filtrează SKU-uri cu marjă brută sub această valoare">
+      </div>
+      <div class="col-auto">
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" name="fara_pret" value="1"
+                 id="fpCheck" {% if fara_pret %}checked{% endif %}>
+          <label class="form-check-label small" for="fpCheck">Fără preț vânzare</label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary">Filtrează</button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Summary cards -->
+{% set cu_pret = catalog | selectattr('pret_vanzare_ron') | list %}
+{% set cu_marja = cu_pret | selectattr('marja_bruta_pct') | list %}
+{% set avg_marja = (cu_marja | sum(attribute='marja_bruta_pct') / cu_marja|length) if cu_marja else 0 %}
+{% set sub20 = cu_marja | selectattr('marja_bruta_pct', 'lt', 20) | list %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-2">
+      <div class="text-muted small">SKU-uri</div>
+      <div class="fs-5 fw-bold">{{ catalog|length }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-2">
+      <div class="text-muted small">Cu preț vânzare</div>
+      <div class="fs-5 fw-bold text-success">{{ cu_pret|length }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-2">
+      <div class="text-muted small">Marjă brută medie</div>
+      <div class="fs-5 fw-bold {% if avg_marja < 20 %}text-danger{% elif avg_marja < 35 %}text-warning{% else %}text-success{% endif %}">
+        {{ "%.1f"|format(avg_marja) }}%
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-2">
+      <div class="text-muted small">Marjă &lt; 20%</div>
+      <div class="fs-5 fw-bold text-danger">{{ sub20|length }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Catalog table -->
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Catalog prețuri {{ an }} — {{ catalog|length }} SKU-uri</span>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('pricing.preturi', an=an, sub_marja=20) }}" class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-exclamation-triangle me-1"></i>Marjă &lt; 20%
+      </a>
+      <a href="{{ url_for('reports.export_excel', report='preturi', an=an,
+                           furnizor=sel_furnizor or None,
+                           q=q or None,
+                           sub_marja=sub_marja or None,
+                           fara_pret='1' if fara_pret else None) }}"
+         class="btn btn-sm btn-outline-success" title="Export Excel">
+        <i class="bi bi-file-earmark-excel me-1"></i>Excel
+      </a>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th style="width:80px">Cod</th>
+          <th>SKU</th>
+          <th>Produs</th>
+          <th>Furnizor</th>
+          <th class="text-center">Monedă</th>
+          <th class="text-end">Preț ach.<br><small class="fw-normal">valută</small></th>
+          <th class="text-end">Landing cost<br><small class="fw-normal">RON/buc</small></th>
+          <th class="text-end">Preț vânz.<br><small class="fw-normal">RON fără TVA</small></th>
+          <th class="text-end">Marjă brută<br><small class="fw-normal">RON</small></th>
+          <th class="text-center">Marjă %</th>
+          <th class="text-center">Acțiuni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in catalog %}
+        <tr class="{% if r.marja_bruta_pct is not none and r.marja_bruta_pct < 15 %}table-danger{% elif r.marja_bruta_pct is not none and r.marja_bruta_pct < 25 %}table-warning{% endif %}">
+          <td class="text-muted small fw-semibold">{{ (sku_cod_mare.get(r.sku) or r.cod_produs) or '—' }}</td>
+          <td><code class="small">{{ r.sku }}</code></td>
+          <td class="small" style="max-width:280px">
+            <div class="text-truncate" title="{{ r.descriere }}">{{ r.descriere }}</div>
+            {% if r.hs_code %}<span class="badge bg-secondary-subtle text-secondary-emphasis border" style="font-size:10px">HS {{ r.hs_code }}</span>{% endif %}
+          </td>
+          <td class="small">{{ r.furnizor }}</td>
+          <td class="text-center">
+            <span class="badge bg-secondary">{{ r.moneda or '—' }}</span>
+          </td>
+          <td class="text-end small">
+            {% if r.pret_achizitie_valuta %}
+              {{ "%.4f"|format(r.pret_achizitie_valuta) }}
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-end fw-semibold">
+            {% if r.landing_cost_ron %}
+              {{ "%.4f"|format(r.landing_cost_ron) }}
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td class="text-end">
+            {% if r.pret_vanzare_ron %}
+              {{ "%.2f"|format(r.pret_vanzare_ron) }}
+            {% else %}<span class="badge bg-warning text-dark">lipsă</span>{% endif %}
+          </td>
+          <td class="text-end">
+            {% if r.marja_bruta_ron is not none %}
+              {{ "%.2f"|format(r.marja_bruta_ron) }}
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-center fw-bold">
+            {% if r.marja_bruta_pct is not none %}
+              <span class="{% if r.marja_bruta_pct < 15 %}text-danger{% elif r.marja_bruta_pct < 25 %}text-warning{% else %}text-success{% endif %}">
+                {{ "%.1f"|format(r.marja_bruta_pct) }}%
+              </span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-center">
+            <a href="{{ url_for('pricing.preturi_sku', sku=r.sku, an=an) }}"
+               class="btn btn-xs btn-outline-primary py-0 px-1" title="Detalii & editare">
+              <i class="bi bi-pencil-square"></i>
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="text-center text-muted py-4">
+          Nicio dată. Rulează <code>ruleaza_import_preturi.bat</code> pentru a importa SKU-urile.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal cursuri -->
+<div class="modal fade" id="modalCurs" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title">Editează curs <span id="mc-moneda"></span></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label small">1 <span id="mc-moneda2"></span> = ? RON</label>
+        <input type="number" id="mc-curs" class="form-control form-control-sm"
+               step="0.0001" min="0">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anulează</button>
+        <button class="btn btn-sm btn-primary" id="mc-save">Salvează</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let mcMoneda = '', mcAn = {{ an }};
+
+document.querySelectorAll('.edit-curs').forEach(btn => {
+  btn.addEventListener('click', function() {
+    mcMoneda = this.dataset.moneda;
+    mcAn = parseInt(this.dataset.an);
+    document.getElementById('mc-moneda').textContent  = mcMoneda;
+    document.getElementById('mc-moneda2').textContent = mcMoneda;
+    document.getElementById('mc-curs').value = this.dataset.curs;
+    new bootstrap.Modal(document.getElementById('modalCurs')).show();
+  });
+});
+
+document.getElementById('mc-save').addEventListener('click', async function() {
+  const curs = parseFloat(document.getElementById('mc-curs').value);
+  if (!curs) return;
+  const resp = await fetch('/api/preturi/curs', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({an: mcAn, moneda: mcMoneda, curs})
+  });
+  if ((await resp.json()).ok) location.reload();
+});
+</script>
+{% endblock %}

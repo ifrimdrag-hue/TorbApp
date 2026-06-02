@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }} — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <div class="d-flex align-items-center mb-3 gap-2">
+      <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <h5 class="mb-0">{{ title }}</h5>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <form method="POST" action="{{ action }}" novalidate>
+          {{ form.hidden_tag() }}
+
+          <div class="mb-3">
+            {{ form.username.label(class="form-label small fw-semibold") }}
+            {{ form.username(class="form-control" + (' is-invalid' if form.username.errors else '')) }}
+            {% for err in form.username.errors %}
+            <div class="invalid-feedback">{{ err }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-3">
+            {{ form.email.label(class="form-label small fw-semibold") }}
+            {{ form.email(class="form-control" + (' is-invalid' if form.email.errors else '')) }}
+            {% for err in form.email.errors %}
+            <div class="invalid-feedback">{{ err }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-3">
+            {{ form.role.label(class="form-label small fw-semibold") }}
+            {{ form.role(class="form-select") }}
+          </div>
+
+          {% if form.is_active is defined %}
+          <div class="mb-4 form-check">
+            {{ form.is_active(class="form-check-input") }}
+            {{ form.is_active.label(class="form-check-label") }}
+          </div>
+          {% endif %}
+
+          <button type="submit" class="btn btn-success w-100">
+            <i class="bi bi-check-circle me-1"></i> Salvează
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

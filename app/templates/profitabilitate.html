@@ -1,0 +1,352 @@
+{% extends 'base.html' %}
+{% block title %}Profitabilitate {{ an }} — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0 fw-bold">
+    <i class="bi bi-graph-up-arrow text-success me-1"></i> Analiză Profitabilitate
+  </h4>
+  <div class="d-flex gap-2 align-items-center">
+    {% for yr in display_years %}
+    <a href="{{ url_for('reports.profitabilitate', an=yr, tab=tab) }}"
+       class="btn btn-sm {% if an == yr %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ yr }}</a>
+    {% endfor %}
+    <a href="{{ url_for('reports.export_excel', report='profitabilitate', an=an) }}"
+       class="btn btn-sm btn-outline-success ms-2">
+      <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+    <a href="{{ url_for('reports.export_ppt_profitabilitate', an=an) }}"
+       class="btn btn-sm btn-outline-danger">
+      <i class="bi bi-file-earmark-slides"></i> PPT
+    </a>
+  </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="profTabs">
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'agenti' %}active{% endif %}"
+       href="{{ url_for('reports.profitabilitate', an=an, tab='agenti') }}">
+      <i class="bi bi-people me-1"></i> Agenți
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'clienti' %}active{% endif %}"
+       href="{{ url_for('reports.profitabilitate', an=an, tab='clienti') }}">
+      <i class="bi bi-building me-1"></i> Clienți
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'produse' %}active{% endif %}"
+       href="{{ url_for('reports.profitabilitate', an=an, tab='produse') }}">
+      <i class="bi bi-box-seam me-1"></i> Produse
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'matrice' %}active{% endif %}"
+       href="{{ url_for('reports.profitabilitate', an=an, tab='matrice') }}">
+      <i class="bi bi-grid-3x3 me-1"></i> Matrice Agent × Brand
+    </a>
+  </li>
+</ul>
+
+<!-- ── Tab: Agenți ── -->
+{% if tab == 'agenti' %}
+<div class="row g-3 mb-4">
+  {% for a in agents[:4] %}
+  <div class="col-6 col-xl-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center">
+        <p class="fw-bold mb-1">{{ a.agent | truncate(22, True, '…') }}</p>
+        <p class="display-6 fw-bold mb-0 {% if (a.marja_neta or 0) < 0 %}text-danger{% else %}text-success{% endif %}">
+          {{ a.marja_neta_pct | pct }}
+        </p>
+        <p class="text-muted small mb-1">Marjă Netă %</p>
+        <p class="small fw-semibold">{{ a.marja_neta | ron }}</p>
+        <div class="d-flex justify-content-between text-muted small">
+          <span>{{ a.nr_clienti }} clienți</span>
+          <span>
+            {% if a.delta_mn_pct is not none %}
+            <span class="{{ a.delta_mn_pct | delta_class }}">
+              {% if a.delta_mn_pct >= 0 %}▲{% else %}▼{% endif %}{{ a.delta_mn_pct | abs | round(1) }}%
+            </span>
+            {% else %}—{% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white fw-semibold">
+    Ranking Agenți după Marjă Netă — {{ an }}{% if max_luna and max_luna < 12 %} YTD (Ian–{{ ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','Nov','Dec'][max_luna-1] }}){% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>#</th>
+          <th>Agent</th>
+          <th class="text-end">Val Netă</th>
+          <th class="text-end">vs {{ an-1 }}{% if max_luna and max_luna < 12 %} YTD{% endif %}</th>
+          <th class="text-end">MB (RON)</th>
+          <th class="text-end">MB%</th>
+          <th class="text-end">MN (RON)</th>
+          <th class="text-end">MN%</th>
+          <th class="text-end">Clienți</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in agents %}
+        <tr>
+          <td class="text-muted small">{{ loop.index }}</td>
+          <td>
+            <a href="{{ url_for('analytics.agent_detail', name=a.agent, an=an) }}"
+               class="text-decoration-none fw-semibold">{{ a.agent }}</a>
+          </td>
+          <td class="text-end small">{{ a.val_neta | ron }}</td>
+          <td class="text-end small">
+            {% if a.val_neta_py %}
+            {% set delta = ((a.val_neta|float(0)) / (a.val_neta_py|float(0)) - 1.0) * 100.0 %}
+            <span class="{{ delta | delta_class }}">
+              {{ delta | round(1) }}%
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-end small">{{ a.marja_bruta | ron }}</td>
+          <td class="text-end small text-success">{{ a.marja_bruta_pct | pct }}</td>
+          <td class="text-end fw-semibold {% if (a.marja_neta or 0) < 0 %}text-danger{% endif %}">
+            {{ a.marja_neta | ron }}
+          </td>
+          <td class="text-end fw-bold {% if (a.marja_neta_pct or 0) >= 10 %}text-success{% elif (a.marja_neta_pct or 0) >= 5 %}text-primary{% elif (a.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+            {{ a.marja_neta_pct | pct }}
+          </td>
+          <td class="text-end small">{{ a.nr_clienti }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Tab: Clienți ── -->
+{% elif tab == 'clienti' %}
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between">
+    <span>Top {{ clients | length }} Clienți după Marjă Netă — {{ an }}{% if max_luna and max_luna < 12 %} YTD (Ian–{{ ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','Nov','Dec'][max_luna-1] }}){% endif %}</span>
+    <input type="text" class="form-control form-control-sm w-auto" id="cliSearch"
+           placeholder="Filtrare…" oninput="filterTable('cliTable',this.value)">
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0" id="cliTable">
+      <thead class="table-dark">
+        <tr>
+          <th>#</th>
+          <th>Client</th>
+          <th>Agent</th>
+          <th class="text-end">Val Netă</th>
+          <th class="text-end">vs {{ an-1 }}{% if max_luna and max_luna < 12 %} YTD{% endif %}</th>
+          <th class="text-end">MB (RON)</th>
+          <th class="text-end">MB%</th>
+          <th class="text-end">MN (RON)</th>
+          <th class="text-end">MN%</th>
+          <th class="text-end">vs {{ an-1 }}{% if max_luna and max_luna < 12 %} YTD{% endif %}</th>
+          <th>Profil</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clients %}
+        <tr>
+          <td class="text-muted small">{{ loop.index }}</td>
+          <td>
+            <a href="{{ url_for('analytics.client_detail', cod_client=c.cod_client, an=an) }}"
+               class="text-decoration-none small">{{ c.client | truncate(35, True, '…') }}</a>
+          </td>
+          <td class="small text-muted">{{ c.agent or '—' }}</td>
+          <td class="text-end small">{{ c.val_neta | ron }}</td>
+          <td class="text-end small">
+            {% if c.delta_vn_pct is not none %}
+            <span class="{{ c.delta_vn_pct | delta_class }}">
+              {% if c.delta_vn_pct >= 0 %}+{% endif %}{{ c.delta_vn_pct }}%
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-end small">{{ c.marja_bruta | ron }}</td>
+          <td class="text-end small text-success">{{ c.marja_bruta_pct | pct }}</td>
+          <td class="text-end fw-semibold {% if (c.marja_neta or 0) < 0 %}text-danger{% endif %}">
+            {{ c.marja_neta | ron }}
+          </td>
+          <td class="text-end fw-bold {% if (c.marja_neta_pct or 0) >= 10 %}text-success{% elif (c.marja_neta_pct or 0) >= 5 %}text-primary{% elif (c.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+            {{ c.marja_neta_pct | pct }}
+          </td>
+          <td class="text-end small">
+            {% if c.delta_mn_pct is not none %}
+            <span class="{{ c.delta_mn_pct | delta_class }}">
+              {% if c.delta_mn_pct >= 0 %}+{% endif %}{{ c.delta_mn_pct }}%
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% set mn = c.marja_neta_pct or 0 %}
+            {% if mn >= 10 %}
+              <span class="badge bg-success">Premium</span>
+            {% elif mn >= 5 %}
+              <span class="badge bg-primary">Bun</span>
+            {% elif mn >= 0 %}
+              <span class="badge bg-warning text-dark">Marginal</span>
+            {% else %}
+              <span class="badge bg-danger">Negativ</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Tab: Produse ── -->
+{% elif tab == 'produse' %}
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between">
+    <span>Top {{ products | length }} Produse după Marjă Netă — {{ an }}{% if max_luna and max_luna < 12 %} YTD (Ian–{{ ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','Nov','Dec'][max_luna-1] }}){% endif %}</span>
+    <input type="text" class="form-control form-control-sm w-auto" id="prodSearch"
+           placeholder="Filtrare…" oninput="filterTable('prodTable',this.value)">
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0" id="prodTable">
+      <thead class="table-dark">
+        <tr>
+          <th>#</th>
+          <th>Produs</th>
+          <th>Brand</th>
+          <th class="text-end">Val Netă</th>
+          <th class="text-end">vs {{ an-1 }}{% if max_luna and max_luna < 12 %} YTD{% endif %}</th>
+          <th class="text-end">Cant.</th>
+          <th class="text-end">MB (RON)</th>
+          <th class="text-end">MB%</th>
+          <th class="text-end">MN (RON)</th>
+          <th class="text-end">MN%</th>
+          <th class="text-end">vs {{ an-1 }}{% if max_luna and max_luna < 12 %} YTD{% endif %}</th>
+          <th class="text-end">Clienți</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in products %}
+        <tr>
+          <td class="text-muted small">{{ loop.index }}</td>
+          <td class="small" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ p.sku }}">
+            <a href="{{ url_for('reports.produs_detail', sku=p.sku, an=an) }}" class="text-decoration-none">
+              {{ p.sku | truncate(35, True, '…') }}
+            </a>
+          </td>
+          <td class="small"><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ p.furnizor }}</span></td>
+          <td class="text-end small">{{ p.val_neta | ron }}</td>
+          <td class="text-end small">
+            {% if p.delta_vn_pct is not none %}
+            <span class="{{ p.delta_vn_pct | delta_class }}">
+              {% if p.delta_vn_pct >= 0 %}+{% endif %}{{ p.delta_vn_pct }}%
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-end small">{{ p.cantitate }}</td>
+          <td class="text-end small">{{ p.marja_bruta | ron }}</td>
+          <td class="text-end small text-success">{{ p.marja_bruta_pct | pct }}</td>
+          <td class="text-end fw-semibold {% if (p.marja_neta or 0) < 0 %}text-danger{% endif %}">{{ p.marja_neta | ron }}</td>
+          <td class="text-end fw-bold {% if (p.marja_neta_pct or 0) >= 10 %}text-success{% elif (p.marja_neta_pct or 0) >= 5 %}text-primary{% elif (p.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+            {{ p.marja_neta_pct | pct }}
+          </td>
+          <td class="text-end small">
+            {% if p.delta_mn_pct is not none %}
+            <span class="{{ p.delta_mn_pct | delta_class }}">
+              {% if p.delta_mn_pct >= 0 %}+{% endif %}{{ p.delta_mn_pct }}%
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-end small">{{ p.nr_clienti }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Tab: Matrice ── -->
+{% elif tab == 'matrice' %}
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-grid-3x3 me-1 text-info"></i>
+    Marjă Netă % — Agent × Brand ({{ an }}{% if max_luna and max_luna < 12 %} YTD Ian–{{ ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','Nov','Dec'][max_luna-1] }}{% endif %})
+    <small class="text-muted ms-2">
+      <span class="badge" style="background:#198754">≥10%</span>
+      <span class="badge ms-1" style="background:#0d6efd">5–10%</span>
+      <span class="badge ms-1" style="background:#ffc107;color:#000">0–5%</span>
+      <span class="badge ms-1 bg-danger">negativ</span>
+      <span class="badge ms-1 bg-secondary">—</span>
+    </small>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered mb-0" id="matriceTable">
+      <thead class="table-dark">
+        <tr>
+          <th>Agent</th>
+          {% for brand in matrice_brands %}
+          <th class="text-center small">{{ brand }}</th>
+          {% endfor %}
+          <th class="text-center">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for agent_row in matrice_agents %}
+        <tr>
+          <td class="fw-semibold small">
+            <a href="{{ url_for('analytics.agent_detail', name=agent_row, an=an) }}" class="text-decoration-none">
+              {{ agent_row | truncate(20, True, '…') }}
+            </a>
+          </td>
+          {% for brand in matrice_brands %}
+          {% set val = matrice[agent_row].get(brand) %}
+          <td class="text-center small fw-bold"
+              {% if val is not none %}
+              style="background-color: {{ 'rgba(25,135,84,0.2)' if val >= 10 else 'rgba(13,110,253,0.15)' if val >= 5 else 'rgba(255,193,7,0.2)' if val >= 0 else 'rgba(220,53,69,0.2)' }}"
+              {% endif %}>
+            {% if val is not none %}
+              <span class="{{ 'text-success' if val >= 10 else 'text-primary' if val >= 5 else 'text-warning' if val >= 0 else 'text-danger' }}">
+                {{ val | pct }}
+              </span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          {% endfor %}
+          <td class="text-center small fw-bold">
+            {% for a in agents %}
+            {% if a.agent == agent_row %}
+              <span class="{% if (a.marja_neta_pct or 0) >= 10 %}text-success{% elif (a.marja_neta_pct or 0) >= 5 %}text-primary{% elif (a.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+                {{ a.marja_neta_pct | pct }}
+              </span>
+            {% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterTable(tableId, q) {
+  const lq = q.toLowerCase();
+  document.querySelectorAll('#' + tableId + ' tbody tr').forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(lq) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

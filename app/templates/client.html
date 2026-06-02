@@ -1,0 +1,260 @@
+{% extends 'base.html' %}
+{% block title %}{{ info.client }} — Torb Logistic{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('analytics.clients') }}">Clienți</a></li>
+    <li class="breadcrumb-item active">{{ info.client | truncate(50, True, '…') }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-building text-primary me-1"></i>{{ info.client }}</h4>
+    <small class="text-muted">
+      {{ info.tip_client or '' }} · {{ info.oras_client or '' }}, {{ info.judet_client or '' }} ·
+      CUI: {{ info.cui_client or '—' }} · Agent: <strong>{{ info.agent or '—' }}</strong>
+    </small>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <a href="{{ url_for('reports.export_excel', report='client', cod_client=info.cod_client, an=an) }}"
+       class="btn btn-sm btn-outline-success">
+      <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+    <a href="{{ url_for('reports.export_ppt_client', cod_client=info.cod_client, an=an) }}"
+       class="btn btn-sm btn-outline-danger">
+      <i class="bi bi-file-earmark-slides"></i> PPT
+    </a>
+  </div>
+</div>
+{% include '_period_selector.html' %}
+
+<!-- KPI cards -->
+<div class="row g-3 mb-4">
+  {% set yr_row = yearly | selectattr('an', 'eq', an) | first %}
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center p-2">
+      <i class="bi bi-currency-euro text-primary fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Val Netă {{ an }}</p>
+      <p class="fw-bold mb-0">{{ yr_row.val_neta | ron if yr_row else '—' }}</p>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center p-2">
+      <i class="bi bi-graph-up text-success fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Marjă Brută {{ an }}</p>
+      <p class="fw-bold mb-0">{{ yr_row.marja_bruta | ron if yr_row else '—' }}</p>
+      <small class="text-success">{{ yr_row.marja_bruta_pct | pct if yr_row else '' }}</small>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center p-2">
+      <i class="bi bi-graph-down-arrow text-warning fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Marjă Netă {{ an }}</p>
+      <p class="fw-bold mb-0 {% if yr_row and (yr_row.marja_neta or 0) < 0 %}text-danger{% endif %}">
+        {{ yr_row.marja_neta | ron if yr_row else '—' }}
+      </p>
+      <small class="{% if yr_row and (yr_row.marja_neta_pct or 0) >= 5 %}text-success{% else %}text-warning{% endif %}">
+        {{ yr_row.marja_neta_pct | pct if yr_row else '' }}
+      </small>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center p-2">
+      <i class="bi bi-file-earmark-text text-dark fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Total Facturi</p>
+      <p class="fw-bold mb-0">{{ info.nr_facturi }}</p>
+      <small class="text-muted">Prima: {{ info.prima_comanda or '—' }}</small>
+    </div>
+  </div>
+</div>
+
+<!-- Charts + Yearly -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-7">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-bar-chart-line text-primary me-1"></i> Trend Lunar</span>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-primary active" onclick="switchMetric('vn',this)">Val Netă</button>
+          <button class="btn btn-outline-success" onclick="switchMetric('mb',this)">Marjă Brută</button>
+        </div>
+      </div>
+      <div class="card-body"><canvas id="clientTrend" height="130"></canvas></div>
+    </div>
+  </div>
+
+  <div class="col-xl-5">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-calendar3 text-secondary me-1"></i> Evoluție Anuală
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>An</th>
+              <th class="text-end">Val Netă</th>
+              <th class="text-end">MB%</th>
+              <th class="text-end">MN (RON)</th>
+              <th class="text-end">MN%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in yearly %}
+            <tr {% if r.an == an %}class="table-active fw-semibold"{% endif %}>
+              <td>{{ r.an }}</td>
+              <td class="text-end small">{{ r.val_neta | ron }}</td>
+              <td class="text-end small text-success">{{ r.marja_bruta_pct | pct }}</td>
+              <td class="text-end small {% if (r.marja_neta or 0) < 0 %}text-danger{% endif %}">{{ r.marja_neta | ron }}</td>
+              <td class="text-end small {% if (r.marja_neta_pct or 0) >= 5 %}text-success{% elif (r.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+                {{ r.marja_neta_pct | pct }}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-muted text-center py-2">—</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-body pt-0 pb-2">
+        <canvas id="brandChart" height="100"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Produse cumpărate -->
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center fw-semibold">
+    <span><i class="bi bi-box-seam text-secondary me-1"></i>
+      Produse Cumpărate {{ period_cy }}
+      <span class="badge bg-secondary ms-1">{{ products | length }}</span>
+    </span>
+    <input type="text" id="prodSearch" class="form-control form-control-sm w-auto"
+           placeholder="Filtrare produs…" oninput="filterProds(this.value)">
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0" id="prodTable">
+      <thead class="table-dark">
+        <tr>
+          <th>Cod</th>
+          <th>Produs</th>
+          <th>Brand</th>
+          <th class="text-end">Preț Med</th>
+          <th class="text-end">Cant.</th>
+          <th class="text-end">Δ Cant %</th>
+          <th class="text-end">Val Netă</th>
+          <th class="text-end">Δ VN %</th>
+          <th class="text-end">MB (RON)</th>
+          <th class="text-end">MB%</th>
+          <th class="text-end">MN (RON)</th>
+          <th class="text-end">MN%</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in products %}
+        <tr>
+          <td class="small text-muted">{{ (sku_cod_mare.get(p.sku) or p.cod_produs) or '—' }}</td>
+          <td class="small" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ p.sku }}">
+            <a href="{{ url_for('reports.produs_detail', sku=p.sku, an=an, luna=luna) if luna else url_for('reports.produs_detail', sku=p.sku, an=an) }}" class="text-decoration-none">
+              {{ p.sku | truncate(40, True, '…') }}
+            </a>
+          </td>
+          <td class="small"><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ p.furnizor }}</span></td>
+          <td class="text-end small">{{ '%.2f RON' % p.pret_mediu if p.pret_mediu else '—' }}</td>
+          <td class="text-end small">{{ p.cantitate }}</td>
+          <td class="text-end small {% if p.delta_cant_pct is not none %}{% if p.delta_cant_pct > 0 %}text-success{% elif p.delta_cant_pct < 0 %}text-danger{% else %}text-muted{% endif %}{% else %}text-muted{% endif %}">
+            {% if p.delta_cant_pct is not none %}{{ '%+.1f' % p.delta_cant_pct }}%{% else %}—{% endif %}
+          </td>
+          <td class="text-end small fw-semibold">{{ p.val_neta | ron }}</td>
+          <td class="text-end small {% if p.delta_vn_pct is not none %}{% if p.delta_vn_pct > 0 %}text-success{% elif p.delta_vn_pct < 0 %}text-danger{% else %}text-muted{% endif %}{% else %}text-muted{% endif %}">
+            {% if p.delta_vn_pct is not none %}{{ '%+.1f' % p.delta_vn_pct }}%{% else %}—{% endif %}
+          </td>
+          <td class="text-end small">{{ p.marja_bruta | ron }}</td>
+          <td class="text-end small text-success">{{ p.marja_bruta_pct | pct }}</td>
+          <td class="text-end small fw-semibold {% if (p.marja_neta or 0) < 0 %}text-danger{% endif %}">{{ p.marja_neta | ron }}</td>
+          <td class="text-end small {% if (p.marja_neta_pct or 0) >= 5 %}text-success{% elif (p.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+            {{ p.marja_neta_pct | pct }}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="12" class="text-center text-muted py-3">Nicio dată pentru {{ an }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MONTHS    = {{ months_json | safe }};
+const M_VN      = {{ monthly_vn_json | safe }};
+const M_MB      = {{ monthly_mb_json | safe }};
+const BRAND_MIX = {{ brand_mix_json | safe }};
+
+const PALETTE = {
+  2024: {vn:'rgba(173,181,189,0.6)', mb:'rgba(173,181,189,0.45)'},
+  2025: {vn:'rgba(13,110,253,0.6)',  mb:'rgba(13,202,240,0.6)'},
+  2026: {vn:'rgba(25,135,84,0.85)', mb:'rgba(25,135,84,0.6)'},
+};
+let trendChart, currentM = 'vn';
+
+function switchMetric(m, btn) {
+  currentM = m;
+  document.querySelectorAll('.btn-group .btn').forEach(b => {
+    b.classList.remove('active','btn-primary','btn-success');
+    if (b.textContent.trim() === 'Val Netă') b.classList.add('btn-outline-primary');
+    else b.classList.add('btn-outline-success');
+  });
+  btn.classList.remove('btn-outline-primary','btn-outline-success');
+  btn.classList.add(m === 'vn' ? 'btn-primary' : 'btn-success','active');
+  const src = m === 'vn' ? M_VN : M_MB;
+  trendChart.data.datasets = Object.entries(src).sort(([a],[b])=>a-b).map(([yr,data]) => ({
+    label: yr, data, backgroundColor: (PALETTE[yr]||{})[m]||'#adb5bd', borderRadius: 3,
+  }));
+  trendChart.update();
+}
+
+(function() {
+  const ctx = document.getElementById('clientTrend').getContext('2d');
+  trendChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: MONTHS,
+      datasets: Object.entries(M_VN).sort(([a],[b])=>a-b).map(([yr,data]) => ({
+        label: yr, data, backgroundColor: (PALETTE[yr]||{}).vn||'#adb5bd', borderRadius: 3,
+      })),
+    },
+    options: {
+      responsive: true,
+      plugins: {legend: {position: 'top'}},
+      scales: {y: {beginAtZero: true, ticks: {callback: v => v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v}}},
+    },
+  });
+
+  const bctx = document.getElementById('brandChart').getContext('2d');
+  new Chart(bctx, {
+    type: 'doughnut',
+    data: {
+      labels: BRAND_MIX.map(d => d.label),
+      datasets: [{
+        data: BRAND_MIX.map(d => d.value),
+        backgroundColor: ['#0d6efd','#198754','#ffc107','#dc3545','#0dcaf0','#6c757d','#fd7e14','#6610f2'],
+        borderWidth: 1,
+      }],
+    },
+    options: {plugins: {legend: {position:'right',labels:{font:{size:9}}}}, cutout:'60%'},
+  });
+})();
+
+function filterProds(q) {
+  const lq = q.toLowerCase();
+  document.querySelectorAll('#prodTable tbody tr').forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(lq) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

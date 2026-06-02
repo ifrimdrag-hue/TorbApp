@@ -1,0 +1,692 @@
+{% extends 'base.html' %}
+{% block title %}Simulator Bonus — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0 fw-bold">
+    <i class="bi bi-calculator-fill text-success"></i> Simulator Bonus Agent
+  </h4>
+  <div class="d-flex gap-2">
+    <button class="btn btn-sm btn-success" onclick="exportSimulator()">
+      <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
+    </button>
+    <button class="btn btn-sm btn-danger" onclick="exportSimulatorPPT()">
+      <i class="bi bi-file-earmark-ppt me-1"></i> Export PPT
+    </button>
+    <a href="{{ url_for('bonus.bonus') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Înapoi la Bonus
+    </a>
+  </div>
+</div>
+
+<!-- ── Config ── -->
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-sliders me-1 text-primary"></i> Configurare
+  </div>
+  <div class="card-body pb-2">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label small fw-semibold mb-1">Agent (preset)</label>
+        <select id="preset" class="form-select form-select-sm">
+          <option value="">— manual —</option>
+          {% for name in presets %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small fw-semibold mb-1">Bonus lunar (RON)</label>
+        <input type="number" id="monthly_bonus" class="form-control form-control-sm" value="3000" min="0">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label small fw-semibold mb-1">Creștere %</label>
+        <input type="number" id="growth_pct" class="form-control form-control-sm" value="20" min="0" max="100">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label small fw-semibold mb-1">Pond. Vânz.</label>
+        <input type="number" id="w_sales" class="form-control form-control-sm" value="45" min="0" max="100">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label small fw-semibold mb-1">Pond. Marjă</label>
+        <input type="number" id="w_margin" class="form-control form-control-sm" value="25" min="0" max="100">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label small fw-semibold mb-1">Pond. Strat.</label>
+        <input type="number" id="w_strategic" class="form-control form-control-sm" value="30" min="0" max="100">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label small fw-semibold mb-1">Prag Vânz. %</label>
+        <input type="number" id="gate_sales" class="form-control form-control-sm" value="80" min="0" max="100">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label small fw-semibold mb-1">Prag Marjă %</label>
+        <input type="number" id="gate_margin" class="form-control form-control-sm" value="80" min="0" max="100">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label small fw-semibold mb-1">Penalizare %</label>
+        <input type="number" id="penalty" class="form-control form-control-sm" value="0" min="0" max="100">
+      </div>
+    </div>
+    <div id="weights-warning" class="alert alert-warning py-1 px-2 mt-2 mb-0 small d-none">
+      <i class="bi bi-exclamation-triangle-fill me-1"></i>
+      Suma ponderilor = <span id="weights-sum"></span>% (ar trebui 100%).
+    </div>
+  </div>
+</div>
+
+<!-- ── Strategic KPIs — lunar per brand ── -->
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-tags-fill me-1 text-info"></i> KPI Strategic — Lunar per Brand</span>
+    <div class="d-flex align-items-center gap-3">
+      <!-- Brand weights config -->
+      {% for b in strat_brands %}
+      <div class="d-flex align-items-center gap-1">
+        <label class="small text-muted mb-0">{{ b.name }}</label>
+        <input type="number" id="sw_{{ b.name }}" class="form-control form-control-sm strat-weight-global text-end"
+               style="width:55px" value="{{ (b.weight * 100) | int }}" min="0" max="100"
+               title="Pondere {{ b.name }} %">
+        <span class="small text-muted">%</span>
+      </div>
+      {% endfor %}
+      <div id="sw-warn" class="badge bg-danger d-none">Σ≠100%</div>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered align-middle mb-0" id="strat-table">
+      <thead class="table-secondary">
+        <tr>
+          <th rowspan="2">Lună</th>
+          {% for b in strat_brands %}
+          <th colspan="3" class="text-center border-start">{{ b.name }}</th>
+          {% endfor %}
+          <th rowspan="2" class="text-center text-info fw-bold" style="min-width:90px">Scor<br>Strategic</th>
+        </tr>
+        <tr>
+          {% for b in strat_brands %}
+          <th class="text-end border-start small">Baza 2025</th>
+          <th class="text-end small text-info">Actual 2026</th>
+          <th class="text-center small">Real.%</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody id="strat-body">
+        {% for m in sim_months %}
+        <tr data-month="{{ m.num }}" {% if m.num <= 3 %}class="table-light"{% endif %}>
+          <td class="fw-semibold">
+            {{ m.label }}
+            {% if m.num <= 3 %}<span class="badge bg-info ms-1" style="font-size:10px">DB</span>{% endif %}
+          </td>
+          {% for b in strat_brands %}
+          <td class="border-start">
+            <input type="number" class="form-control form-control-sm text-end strat-base-{{ b.name }}" style="min-width:75px" value="0" min="0">
+          </td>
+          <td>
+            <input type="number" class="form-control form-control-sm text-end strat-actual-{{ b.name }}" style="min-width:75px" value="0" min="0">
+          </td>
+          <td class="text-center strat-att-{{ b.name }} fw-semibold small">—</td>
+          {% endfor %}
+          <td class="text-center fw-bold strat-score">—</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="table-secondary fw-semibold">
+        <tr>
+          <td>TOTAL</td>
+          {% for b in strat_brands %}
+          <td class="text-end border-start strat-foot-base-{{ b.name }}">—</td>
+          <td class="text-end strat-foot-actual-{{ b.name }}">—</td>
+          <td class="text-center strat-foot-att-{{ b.name }}">—</td>
+          {% endfor %}
+          <td class="text-center text-info" id="strat-score-avg">—</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- ── Monthly Sales + Margin table ── -->
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-table me-1 text-secondary"></i> Vânzări &amp; Marjă Lunară
+    <small class="text-muted ms-2 fw-normal">Ian–Mar 2026 populat din DB · Apr–Dec = date viitoare</small>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered align-middle mb-0" id="sim-table">
+      <thead class="table-dark">
+        <tr>
+          <th rowspan="2">Lună</th>
+          <th colspan="3" class="text-center">Vânzări (RON)</th>
+          <th colspan="3" class="text-center border-end">Marjă (RON)</th>
+          <th rowspan="2" class="text-center" style="min-width:75px">Factor<br>Încasare</th>
+          <th colspan="2" class="text-center" style="background:#1a6b3a">Realizare</th>
+          <th colspan="3" class="text-center" style="background:#856404">Bonus (RON)</th>
+          <th rowspan="2" class="text-center fw-bold" style="background:#6f4e0a;min-width:100px">Total<br>Bonus</th>
+        </tr>
+        <tr>
+          <th class="text-end">Baza 2025</th>
+          <th class="text-end text-info">Target 2026</th>
+          <th class="text-end">Actual 2026</th>
+          <th class="text-end">Baza 2025</th>
+          <th class="text-end text-info">Target 2026</th>
+          <th class="text-end border-end">Actual 2026</th>
+          <th class="text-center" style="background:#1a6b3a">Vânz.%</th>
+          <th class="text-center" style="background:#1a6b3a">Marjă%</th>
+          <th class="text-end" style="background:#856404">Vânz.</th>
+          <th class="text-end" style="background:#856404">Marjă</th>
+          <th class="text-end" style="background:#856404">Strat.</th>
+        </tr>
+      </thead>
+      <tbody id="sim-body">
+        {% for m in sim_months %}
+        <tr data-month="{{ m.num }}" {% if m.num <= 3 %}class="table-light"{% endif %}>
+          <td class="fw-semibold">
+            {{ m.label }}
+            {% if m.num <= 3 %}<span class="badge bg-info ms-1" style="font-size:10px">DB</span>{% endif %}
+          </td>
+          <td><input type="number" class="form-control form-control-sm input-base-sales text-end" style="min-width:90px" value="0" min="0"></td>
+          <td class="text-end text-info fw-semibold target-sales">—</td>
+          <td><input type="number" class="form-control form-control-sm input-actual-sales text-end" style="min-width:90px" value="0" min="0"></td>
+          <td><input type="number" class="form-control form-control-sm input-base-margin text-end" style="min-width:80px" value="0" min="0"></td>
+          <td class="text-end text-info fw-semibold target-margin">—</td>
+          <td><input type="number" class="form-control form-control-sm input-actual-margin text-end" style="min-width:80px" value="0" min="0"></td>
+          <td><input type="number" class="form-control form-control-sm input-collection text-end" style="width:65px" value="100" min="0" max="100"></td>
+          <td class="text-center att-sales fw-semibold">—</td>
+          <td class="text-center att-margin fw-semibold border-end">—</td>
+          <td class="text-end bonus-sales text-muted small">—</td>
+          <td class="text-end bonus-margin text-muted small">—</td>
+          <td class="text-end bonus-strategic text-muted small">—</td>
+          <td class="text-end fw-bold bonus-total">—</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="table-secondary fw-bold">
+          <td colspan="8" class="text-end">TOTAL ANUAL</td>
+          <td class="text-center" id="foot-att-sales">—</td>
+          <td class="text-center border-end" id="foot-att-margin">—</td>
+          <td colspan="3"></td>
+          <td class="text-end fs-6 text-success" id="foot-total">—</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- ── Summary cards ── -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="text-muted small">Bonus Realizat</div>
+      <div class="fs-4 fw-bold text-success" id="s-bonus">0 RON</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="text-muted small">Bonus Target</div>
+      <div class="fs-4 fw-bold text-secondary" id="s-target">0 RON</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="text-muted small">Realizare</div>
+      <div class="fs-4 fw-bold" id="s-pct">0%</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="text-muted small">Luni cu bonus &gt; 0</div>
+      <div class="fs-4 fw-bold text-info" id="s-months">0 / 12</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Payout grid (editabilă) ── -->
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center" data-bs-toggle="collapse" data-bs-target="#grid-collapse" style="cursor:pointer">
+    <span><i class="bi bi-sliders me-1 text-info"></i> Grilă de plată <span class="badge bg-info text-dark ms-1" style="font-size:11px">editabilă</span></span>
+    <i class="bi bi-chevron-down"></i>
+  </div>
+  <div class="collapse show" id="grid-collapse">
+    <div class="card-body">
+      <p class="text-muted small mb-2">Modifică pragurile și multiplicatorii — calculul se actualizează automat.</p>
+      <table class="table table-sm table-bordered w-auto" id="payout-grid-table">
+        <thead class="table-dark">
+          <tr><th>Prag minim (%)</th><th>Multiplicator (×)</th><th class="text-muted">Interval</th></tr>
+        </thead>
+        <tbody id="grid-body">
+          <tr>
+            <td><input type="number" class="form-control form-control-sm grid-threshold" value="0"   min="0" max="500" step="1"    style="width:90px"></td>
+            <td><input type="number" class="form-control form-control-sm grid-mult"      value="0"   min="0" max="10"  step="0.05" style="width:90px"></td>
+            <td class="text-muted small align-middle grid-label"></td>
+          </tr>
+          <tr>
+            <td><input type="number" class="form-control form-control-sm grid-threshold" value="80"  min="0" max="500" step="1"    style="width:90px"></td>
+            <td><input type="number" class="form-control form-control-sm grid-mult"      value="0.5" min="0" max="10"  step="0.05" style="width:90px"></td>
+            <td class="text-muted small align-middle grid-label"></td>
+          </tr>
+          <tr>
+            <td><input type="number" class="form-control form-control-sm grid-threshold" value="95"  min="0" max="500" step="1"    style="width:90px"></td>
+            <td><input type="number" class="form-control form-control-sm grid-mult"      value="0.8" min="0" max="10"  step="0.05" style="width:90px"></td>
+            <td class="text-muted small align-middle grid-label"></td>
+          </tr>
+          <tr>
+            <td><input type="number" class="form-control form-control-sm grid-threshold" value="100" min="0" max="500" step="1"    style="width:90px"></td>
+            <td><input type="number" class="form-control form-control-sm grid-mult"      value="1"   min="0" max="10"  step="0.05" style="width:90px"></td>
+            <td class="text-muted small align-middle grid-label"></td>
+          </tr>
+          <tr>
+            <td><input type="number" class="form-control form-control-sm grid-threshold" value="102" min="0" max="500" step="1"    style="width:90px"></td>
+            <td><input type="number" class="form-control form-control-sm grid-mult"      value="1.1" min="0" max="10"  step="0.05" style="width:90px"></td>
+            <td class="text-muted small align-middle grid-label"></td>
+          </tr>
+          <tr>
+            <td><input type="number" class="form-control form-control-sm grid-threshold" value="110" min="0" max="500" step="1"    style="width:90px"></td>
+            <td><input type="number" class="form-control form-control-sm grid-mult"      value="1.2" min="0" max="10"  step="0.05" style="width:90px"></td>
+            <td class="text-muted small align-middle grid-label"></td>
+          </tr>
+          <tr>
+            <td><input type="number" class="form-control form-control-sm grid-threshold" value="120" min="0" max="500" step="1"    style="width:90px"></td>
+            <td><input type="number" class="form-control form-control-sm grid-mult"      value="1.5" min="0" max="10"  step="0.05" style="width:90px"></td>
+            <td class="text-muted small align-middle grid-label"></td>
+          </tr>
+        </tbody>
+      </table>
+      <button class="btn btn-sm btn-outline-secondary mt-1" onclick="resetGrid()">
+        <i class="bi bi-arrow-counterclockwise me-1"></i> Reset valori implicite
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PRESETS      = {{ presets_json | safe }};
+const STRAT_BRANDS = {{ strat_brands_json | safe }};
+const DEFAULT_GRID = [[0,0],[80,0.5],[95,0.8],[100,1],[102,1.1],[110,1.2],[120,1.5]];
+
+let lastCalcResults = null;
+
+function getPayoutGrid() {
+  return [...document.querySelectorAll('#grid-body tr')]
+    .map(r => [
+      (parseFloat(r.querySelector('.grid-threshold').value) || 0) / 100,
+      parseFloat(r.querySelector('.grid-mult').value) || 0
+    ])
+    .sort((a, b) => a[0] - b[0]);
+}
+
+function payoutMult(score) {
+  const grid = getPayoutGrid();
+  let result = grid.length > 0 ? grid[0][1] : 0;
+  for (const [t, m] of grid) { if (score >= t) result = m; else break; }
+  return result;
+}
+
+function updateGridLabels() {
+  const rows = [...document.querySelectorAll('#grid-body tr')];
+  rows.forEach((row, i) => {
+    const t    = parseFloat(row.querySelector('.grid-threshold').value) || 0;
+    const next = rows[i + 1];
+    const lbl  = row.querySelector('.grid-label');
+    if (next) {
+      const tNext = parseFloat(next.querySelector('.grid-threshold').value) || 0;
+      lbl.textContent = i === 0 ? `< ${tNext}%` : `${t}% – ${tNext - 1}%`;
+    } else {
+      lbl.textContent = `≥ ${t}%`;
+    }
+  });
+}
+
+function resetGrid() {
+  const rows = document.querySelectorAll('#grid-body tr');
+  DEFAULT_GRID.forEach(([t, m], i) => {
+    if (rows[i]) {
+      rows[i].querySelector('.grid-threshold').value = t;
+      rows[i].querySelector('.grid-mult').value      = m;
+    }
+  });
+  updateGridLabels();
+  recalculate();
+}
+function fmtPct(v) {
+  if (isNaN(v)) return '—';
+  const p = v * 100;
+  const cls = p >= 100 ? 'text-success' : p >= 85 ? 'text-warning' : 'text-danger';
+  return `<span class="${cls} fw-semibold">${p.toFixed(1)}%</span>`;
+}
+function fmtNum(v) { return Math.round(v).toLocaleString('ro-RO'); }
+
+// ── Strategic weights from header inputs ──
+function getStratWeights() {
+  const w = {};
+  let total = 0;
+  STRAT_BRANDS.forEach(b => {
+    const v = (parseFloat(document.getElementById('sw_' + b).value) || 0) / 100;
+    w[b] = v;
+    total += v;
+  });
+  const warn = document.getElementById('sw-warn');
+  if (Math.abs(total - 1.0) > 0.01) warn.classList.remove('d-none');
+  else warn.classList.add('d-none');
+  return w;
+}
+
+// ── Compute per-month strategic scores, update strategic table ──
+function calcStrategicTable() {
+  const growth = (parseFloat(document.getElementById('growth_pct').value) || 0) / 100;
+  const weights = getStratWeights();
+  const scoreByMonth = {};
+
+  // Brand-level totals for footer
+  const footBase = {}, footActual = {}, footBaseW = {}, footActualW = {};
+  STRAT_BRANDS.forEach(b => { footBase[b] = 0; footActual[b] = 0; footBaseW[b] = 0; footActualW[b] = 0; });
+
+  let sumScores = 0, monthCount = 0;
+
+  document.querySelectorAll('#strat-body tr').forEach(row => {
+    const monthNum = parseInt(row.dataset.month);
+    let weightedAtt = 0, totalW = 0;
+
+    let anyActual = false;
+    STRAT_BRANDS.forEach(b => {
+      const base   = parseFloat(row.querySelector('.strat-base-'   + b).value) || 0;
+      const actual = parseFloat(row.querySelector('.strat-actual-' + b).value) || 0;
+      const target = base * (1 + growth);
+      const att    = target > 0 ? actual / target : 0;
+
+      row.querySelector('.strat-att-' + b).innerHTML = target > 0 ? fmtPct(att) : '<span class="text-muted">—</span>';
+
+      const w = weights[b] || 0;
+      weightedAtt += att * w;
+      totalW      += w;
+
+      footBase[b]   += base;
+      footActual[b] += actual;
+      footBaseW[b]  += base;
+      if (actual > 0) anyActual = true;
+    });
+
+    // If no actual data entered for this month, mark as null (no data → neutral in recalc)
+    const score = (totalW > 0 && anyActual) ? weightedAtt / totalW : null;
+    scoreByMonth[monthNum] = score;
+
+    const sc = row.querySelector('.strat-score');
+    sc.innerHTML = score !== null ? fmtPct(score) : '<span class="text-muted small">n/a</span>';
+
+    if (totalW > 0) { sumScores += score; monthCount++; }
+  });
+
+  // Footer totals per brand
+  STRAT_BRANDS.forEach(b => {
+    const tgt = footBase[b] * (1 + growth);
+    const att = tgt > 0 ? footActual[b] / tgt : 0;
+    document.querySelector('.strat-foot-base-'   + b).textContent = fmtNum(footBase[b]);
+    document.querySelector('.strat-foot-actual-' + b).textContent = fmtNum(footActual[b]);
+    document.querySelector('.strat-foot-att-'    + b).innerHTML   = tgt > 0 ? fmtPct(att) : '—';
+  });
+
+  const avgScore = monthCount > 0 ? sumScores / monthCount : 0;
+  document.getElementById('strat-score-avg').innerHTML = fmtPct(avgScore);
+
+  return scoreByMonth;
+}
+
+// ── Main monthly bonus recalculation ──
+function recalculate() {
+  const mb    = parseFloat(document.getElementById('monthly_bonus').value) || 0;
+  const growth= (parseFloat(document.getElementById('growth_pct').value)  || 0) / 100;
+  const wS    = (parseFloat(document.getElementById('w_sales').value)     || 0) / 100;
+  const wM    = (parseFloat(document.getElementById('w_margin').value)    || 0) / 100;
+  const wSt   = (parseFloat(document.getElementById('w_strategic').value) || 0) / 100;
+  const gS    = (parseFloat(document.getElementById('gate_sales').value)  || 0) / 100;
+  const gM    = (parseFloat(document.getElementById('gate_margin').value) || 0) / 100;
+  const pen   = (parseFloat(document.getElementById('penalty').value)     || 0) / 100;
+
+  const sumW = wS + wM + wSt;
+  const wWarn = document.getElementById('weights-warning');
+  if (Math.abs(sumW - 1.0) > 0.01) {
+    wWarn.classList.remove('d-none');
+    document.getElementById('weights-sum').textContent = (sumW * 100).toFixed(0);
+  } else { wWarn.classList.add('d-none'); }
+
+  updateGridLabels();
+  const stratScores = calcStrategicTable();
+
+  let annualBonus = 0, annualTarget = 0, activeMonths = 0;
+  let sumSalesAtt = 0, sumMarginAtt = 0, validM = 0;
+  const monthsResults = [];
+
+  document.querySelectorAll('#sim-body tr').forEach(row => {
+    const monthNum  = parseInt(row.dataset.month);
+    const monthLabel = row.querySelector('td:first-child').textContent.replace('DB', '').trim();
+    const bS   = parseFloat(row.querySelector('.input-base-sales').value)   || 0;
+    const aS   = parseFloat(row.querySelector('.input-actual-sales').value)  || 0;
+    const bM   = parseFloat(row.querySelector('.input-base-margin').value)   || 0;
+    const aM   = parseFloat(row.querySelector('.input-actual-margin').value) || 0;
+    const coll = (parseFloat(row.querySelector('.input-collection').value)  || 100) / 100;
+    const stAt = stratScores[monthNum] !== null ? (stratScores[monthNum] ?? 1.0) : 1.0;
+
+    const tS = bS * (1 + growth);
+    const tM = bM * (1 + growth);
+    row.querySelector('.target-sales').textContent  = tS > 0 ? fmtNum(tS) : '—';
+    row.querySelector('.target-margin').textContent = tM > 0 ? fmtNum(tM) : '—';
+
+    const salesAtt  = tS > 0 ? aS / tS : 0;
+    const marginAtt = tM > 0 ? aM / tM : 0;
+    row.querySelector('.att-sales').innerHTML  = fmtPct(salesAtt);
+    row.querySelector('.att-margin').innerHTML = fmtPct(marginAtt);
+
+    const factor  = coll * (1 - pen);
+    const gatesOk = salesAtt >= gS && marginAtt >= gM;
+    const sBonus  = mb && salesAtt  >= gS ? mb * wS  * payoutMult(salesAtt)  * factor : 0;
+    const mBonus  = mb && marginAtt >= gM ? mb * wM  * payoutMult(marginAtt) * factor : 0;
+    const stBonus = mb && gatesOk         ? mb * wSt * payoutMult(stAt)      * factor : 0;
+    const total   = sBonus + mBonus + stBonus;
+
+    row.querySelector('.bonus-sales').textContent     = sBonus  > 0 ? fmtNum(sBonus)  : '—';
+    row.querySelector('.bonus-margin').textContent    = mBonus  > 0 ? fmtNum(mBonus)  : '—';
+    row.querySelector('.bonus-strategic').textContent = stBonus > 0 ? fmtNum(stBonus) : '—';
+
+    const tc = row.querySelector('.bonus-total');
+    tc.textContent = fmtNum(total) + ' RON';
+    tc.className = 'text-end fw-bold bonus-total ' + (total > 0 ? 'text-success' : 'text-muted');
+
+    annualBonus  += total;
+    annualTarget += mb;
+    if (total > 0) activeMonths++;
+    if (tS > 0 || tM > 0) { sumSalesAtt += salesAtt; sumMarginAtt += marginAtt; validM++; }
+
+    monthsResults.push({
+      luna:                  monthLabel,
+      baza_vanzari:          Math.round(bS),
+      target_vanzari:        Math.round(tS),
+      actual_vanzari:        Math.round(aS),
+      realizare_vanzari_pct: tS > 0 ? +((salesAtt * 100).toFixed(1)) : 0,
+      baza_marja:            Math.round(bM),
+      target_marja:          Math.round(tM),
+      actual_marja:          Math.round(aM),
+      realizare_marja_pct:   tM > 0 ? +((marginAtt * 100).toFixed(1)) : 0,
+      strategic_pct:         +((stAt * 100).toFixed(1)),
+      gate_ok:               gatesOk,
+      bonus_vanzari:         Math.round(sBonus),
+      bonus_marja:           Math.round(mBonus),
+      bonus_strategic:       Math.round(stBonus),
+      total_bonus:           Math.round(total),
+    });
+  });
+
+  const avgS = validM > 0 ? sumSalesAtt  / validM : 0;
+  const avgM = validM > 0 ? sumMarginAtt / validM : 0;
+  document.getElementById('foot-att-sales').innerHTML  = fmtPct(avgS);
+  document.getElementById('foot-att-margin').innerHTML = fmtPct(avgM);
+  document.getElementById('foot-total').textContent    = fmtNum(annualBonus) + ' RON';
+
+  document.getElementById('s-bonus').textContent  = fmtNum(annualBonus) + ' RON';
+  document.getElementById('s-target').textContent = fmtNum(annualTarget) + ' RON';
+  const pct = annualTarget > 0 ? annualBonus / annualTarget * 100 : 0;
+  const sEl = document.getElementById('s-pct');
+  sEl.textContent = pct.toFixed(1) + '%';
+  sEl.className = 'fs-4 fw-bold ' + (pct >= 100 ? 'text-success' : pct >= 85 ? 'text-warning' : 'text-danger');
+  document.getElementById('s-months').textContent = activeMonths + ' / 12';
+
+  // Build strategic rows for export
+  const strategicRows = [];
+  const stratWeightsExport = getStratWeights();
+  document.querySelectorAll('#strat-body tr').forEach(stratRow => {
+    const monthLabel = stratRow.querySelector('td:first-child').textContent.replace('DB', '').trim();
+    const srow = { 'Lună': monthLabel };
+    let weightedAtt = 0, totalW = 0, anyActual = false;
+    STRAT_BRANDS.forEach(b => {
+      const base   = parseFloat(stratRow.querySelector('.strat-base-'   + b).value) || 0;
+      const actual = parseFloat(stratRow.querySelector('.strat-actual-' + b).value) || 0;
+      const target = base * (1 + growth);
+      const att    = target > 0 ? actual / target : 0;
+      const w      = stratWeightsExport[b] || 0;
+      srow['Baza 2025 ' + b]   = Math.round(base);
+      srow['Target 2026 ' + b] = Math.round(target);
+      srow['Actual 2026 ' + b] = Math.round(actual);
+      srow['Real.% ' + b]      = target > 0 ? +((att * 100).toFixed(1)) : null;
+      weightedAtt += att * w;
+      totalW      += w;
+      if (actual > 0) anyActual = true;
+    });
+    const score = (totalW > 0 && anyActual) ? weightedAtt / totalW : null;
+    srow['Scor Strategic %'] = score !== null ? +((score * 100).toFixed(1)) : null;
+    strategicRows.push(srow);
+  });
+
+  lastCalcResults = {
+    agent:        document.getElementById('preset').value || 'Manual',
+    months:       monthsResults,
+    strategic:    strategicRows,
+    annual_bonus: Math.round(annualBonus),
+    annual_target: Math.round(annualTarget),
+    payout_pct:   annualTarget > 0 ? +((annualBonus / annualTarget * 100).toFixed(1)) : 0,
+    active_months: activeMonths,
+    config: {
+      w_sales:      wS,
+      w_margin:     wM,
+      w_strategic:  wSt,
+      monthly_bonus: mb,
+      growth_pct:   growth,
+      gate_sales:   gS,
+      gate_margin:  gM,
+      penalty:      pen,
+      strat_weights: getStratWeights(),
+    },
+    payout_grid: getPayoutGrid(),
+    summary: {
+      annual_bonus:  Math.round(annualBonus),
+      annual_target: Math.round(annualTarget),
+      payout_pct:    annualTarget > 0 ? +((annualBonus / annualTarget * 100).toFixed(1)) : 0,
+      active_months: activeMonths,
+    },
+  };
+}
+
+// ── Export Excel ──
+async function exportSimulator() {
+  if (!lastCalcResults) recalculate();
+  try {
+    const resp = await fetch('/bonus/simulator/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lastCalcResults),
+    });
+    if (!resp.ok) { alert('Eroare la export.'); return; }
+    const blob = await resp.blob();
+    const cd   = resp.headers.get('Content-Disposition') || '';
+    const fname = cd.match(/filename="?([^";\n]+)"?/)?.[1] || 'bonus_simulator.xlsx';
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = fname; a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) { alert('Eroare: ' + e.message); }
+}
+
+// ── Export PPT ──
+async function exportSimulatorPPT() {
+  if (!lastCalcResults) recalculate();
+  try {
+    const resp = await fetch('/bonus/simulator/export-ppt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lastCalcResults),
+    });
+    if (!resp.ok) { alert('Eroare la export PPT.'); return; }
+    const blob = await resp.blob();
+    const cd   = resp.headers.get('Content-Disposition') || '';
+    const fname = cd.match(/filename="?([^";\n]+)"?/)?.[1] || 'bonus_simulator.pptx';
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = fname; a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) { alert('Eroare: ' + e.message); }
+}
+
+// ── Preset selection ──
+document.getElementById('preset').addEventListener('change', async function() {
+  const name = this.value;
+  if (!name || !PRESETS[name]) return;
+  const p = PRESETS[name];
+  document.getElementById('monthly_bonus').value = p.monthly_bonus;
+  document.getElementById('growth_pct').value    = Math.round(p.growth_pct   * 100);
+  document.getElementById('w_sales').value       = Math.round(p.w_sales      * 100);
+  document.getElementById('w_margin').value      = Math.round(p.w_margin     * 100);
+  document.getElementById('w_strategic').value   = Math.round(p.w_strategic  * 100);
+  document.getElementById('gate_sales').value    = Math.round(p.gate_sales   * 100);
+  document.getElementById('gate_margin').value   = Math.round(p.gate_margin  * 100);
+  document.getElementById('penalty').value       = Math.round(p.penalty      * 100);
+
+  try {
+    const resp = await fetch(`/api/bonus/agent-data/${encodeURIComponent(name)}`);
+    const data = await resp.json();
+    // py = prior year (baseline), cy = current year (actuals)
+    const m25 = data.months_py || {};
+    const m26 = data.months_cy || {};
+    const b25 = data.brands_py || {};  // {month: {brand: val}}
+    const b26 = data.brands_cy || {};
+
+    // Sales + margin per month
+    document.querySelectorAll('#sim-body tr').forEach(row => {
+      const m = parseInt(row.dataset.month);
+      if (m25[m]) {
+        row.querySelector('.input-base-sales').value  = m25[m].val_neta    || 0;
+        row.querySelector('.input-base-margin').value = m25[m].marja_bruta || 0;
+      }
+      if (m26[m]) {
+        row.querySelector('.input-actual-sales').value  = m26[m].val_neta    || 0;
+        row.querySelector('.input-actual-margin').value = m26[m].marja_bruta || 0;
+      }
+    });
+
+    // Strategic brand data per month
+    document.querySelectorAll('#strat-body tr').forEach(row => {
+      const m = parseInt(row.dataset.month);
+      STRAT_BRANDS.forEach(b => {
+        const base25  = (b25[m] && b25[m][b]) ? b25[m][b] : 0;
+        const actual26= (b26[m] && b26[m][b]) ? b26[m][b] : 0;
+        row.querySelector('.strat-base-'   + b).value = base25;
+        row.querySelector('.strat-actual-' + b).value = actual26;
+      });
+    });
+
+  } catch(e) { console.warn('Nu s-au putut încărca datele:', e); }
+
+  recalculate();
+});
+
+// ── Live recalc ──
+document.getElementById('sim-table').addEventListener('input',        () => recalculate());
+document.getElementById('strat-table').addEventListener('input',      () => recalculate());
+document.getElementById('payout-grid-table').addEventListener('input',() => recalculate());
+['monthly_bonus','growth_pct','w_sales','w_margin','w_strategic','gate_sales','gate_margin','penalty'].forEach(id =>
+  document.getElementById(id).addEventListener('input', () => recalculate())
+);
+STRAT_BRANDS.forEach(b =>
+  document.getElementById('sw_' + b).addEventListener('input', () => recalculate())
+);
+
+updateGridLabels();
+recalculate();
+</script>
+{% endblock %}

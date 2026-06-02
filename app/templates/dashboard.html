@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — Torb Logistic{% endblock %}
+
+{% block content %}
+<!-- Page header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-speedometer2 text-primary"></i> Dashboard Executiv</h4>
+  <div class="d-flex gap-2 align-items-center">
+    <span class="text-muted small">An: <strong>{{ an }}</strong> &nbsp;|&nbsp; YTD vs {{ an - 1 }}</span>
+    <a href="{{ url_for('reports.export_ppt_dashboard', an=an) }}"
+       class="btn btn-sm btn-outline-danger ms-2" title="Export PowerPoint">
+      <i class="bi bi-file-earmark-slides"></i> Export PPT
+    </a>
+  </div>
+</div>
+
+<!-- KPI cards -->
+<div class="row g-3 mb-4">
+  {% set kpi_cards = [
+    ('Vânzări Nete YTD', cy.val_neta | ron,    delta_vn,   'currency-euro',   'primary'),
+    ('Marjă Brută YTD',  cy.marja_bruta | ron, delta_mb,   'graph-up-arrow',  'success'),
+    ('Marjă Netă YTD',   cy.marja_neta | ron,  delta_mn,   'graph-down-arrow','warning'),
+    ('Marjă %',          cy.marja_pct | pct,   delta_mpct, 'percent',         'info'),
+    ('Clienți Activi',   cy.clienti_activi,     delta_clnt, 'people-fill',     'secondary'),
+  ] %}
+  {% for label, value, delta, icon, color in kpi_cards %}
+  <div class="col-sm-6 col-xl-3">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <p class="text-muted small mb-1">{{ label }}</p>
+            <h4 class="mb-0 fw-bold">{{ value }}</h4>
+          </div>
+          <div class="rounded-circle bg-{{ color }} bg-opacity-10 p-2">
+            <i class="bi bi-{{ icon }} text-{{ color }} fs-5"></i>
+          </div>
+        </div>
+        {% if delta is not none %}
+        <p class="mt-2 mb-0 small {{ delta | delta_class }}">
+          <i class="bi bi-arrow-{{ 'up' if delta >= 0 else 'down' }}-short"></i>
+          {% if delta >= 0 %}+{% endif %}{{ delta }}{% if label != 'Clienți Activi' %}%{% endif %} față de {{ an - 1 }}
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- KPI luna curenta -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-xl-4">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <p class="text-muted small mb-1">Vânzări {{ luna_nume }} {{ an }} (realizat)</p>
+            <h4 class="mb-0 fw-bold">{{ luna_kpi.vn_cy | ron }}</h4>
+          </div>
+          <div class="rounded-circle bg-primary bg-opacity-10 p-2">
+            <i class="bi bi-currency-euro text-primary fs-5"></i>
+          </div>
+        </div>
+        {% if delta_luna is not none %}
+        <p class="mt-2 mb-0 small {{ delta_luna | delta_class }}">
+          <i class="bi bi-arrow-{{ 'up' if delta_luna >= 0 else 'down' }}-short"></i>
+          {% if delta_luna >= 0 %}+{% endif %}{{ delta_luna }}% față de {{ luna_nume }} {{ an - 1 }} (total)
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Risk alerts -->
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-header bg-white border-bottom fw-semibold">
+    <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i> Alerte de Risc
+  </div>
+  <div class="card-body d-flex flex-wrap gap-3 align-items-center py-3">
+    <span class="badge {% if kaufland_pct > 40 %}bg-danger{% elif kaufland_pct > 30 %}bg-warning text-dark{% else %}bg-success{% endif %} fs-6 px-3 py-2">
+      <i class="bi bi-building me-1"></i>Kaufland {{ kaufland_pct | pct }} din vânzări
+      {% if kaufland_pct > 40 %} — RISC RIDICAT{% endif %}
+    </span>
+    <span class="badge {% if bogdan_pct > 50 %}bg-danger{% elif bogdan_pct > 40 %}bg-warning text-dark{% else %}bg-success{% endif %} fs-6 px-3 py-2">
+      <i class="bi bi-person-fill me-1"></i>Bogdan Dragnea {{ bogdan_pct | pct }} din vânzări
+      {% if bogdan_pct > 50 %} — RISC CONCENTRARE{% endif %}
+    </span>
+    <a href="{{ url_for('analytics.clients', churn='red') }}" class="badge {% if churn_count > 20 %}bg-danger{% elif churn_count > 10 %}bg-warning text-dark{% else %}bg-secondary{% endif %} fs-6 px-3 py-2 text-decoration-none">
+      <i class="bi bi-clock-history me-1"></i>{{ churn_count }} clienți inactivi >60 zile
+    </a>
+  </div>
+</div>
+
+<!-- Charts row -->
+<div class="row g-3 mb-4">
+  <!-- Monthly trend -->
+  <div class="col-xl-7">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-white border-bottom fw-semibold">
+        <i class="bi bi-bar-chart-line me-1 text-primary"></i> Vânzări Lunare (RON)
+      </div>
+      <div class="card-body">
+        <canvas id="trendChart" height="110"></canvas>
+      </div>
+    </div>
+  </div>
+  <!-- Brand mix -->
+  <div class="col-xl-5">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-white border-bottom fw-semibold">
+        <i class="bi bi-pie-chart-fill me-1 text-info"></i> Mix Branduri {{ an }}
+      </div>
+      <div class="card-body d-flex justify-content-center align-items-center">
+        <canvas id="brandChart" style="max-height:260px"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Channel mix + Top clients -->
+<div class="row g-3 mb-4">
+  <!-- Channel mix -->
+  <div class="col-xl-5">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-white border-bottom fw-semibold">
+        <i class="bi bi-bar-chart-steps me-1 text-success"></i> Mix Canal/Agent {{ an }}
+      </div>
+      <div class="card-body">
+        <canvas id="channelChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+  <!-- Top 10 clients -->
+  <div class="col-xl-7">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-white border-bottom fw-semibold">
+        <i class="bi bi-trophy me-1 text-warning"></i> Top 10 Clienți {{ an }}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>Client</th>
+              <th>Agent</th>
+              <th class="text-end">Val Netă</th>
+              <th class="text-end">MB%</th>
+              <th class="text-end">MN (RON)</th>
+              <th class="text-end">MN%</th>
+              <th>Ultima Livrare</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in top_10 %}
+            <tr>
+              <td class="text-muted">{{ loop.index }}</td>
+              <td>
+                <a href="{{ url_for('analytics.client_detail', cod_client=c.cod_client) }}" class="text-decoration-none">
+                  {{ c.client | truncate(30, True, '…') }}
+                </a>
+              </td>
+              <td><span class="badge bg-secondary">{{ c.agent }}</span></td>
+              <td class="text-end fw-semibold">{{ c.val_neta | ron }}</td>
+              <td class="text-end small {% if (c.marja_pct or 0) > 40 %}text-success{% elif (c.marja_pct or 0) > 25 %}text-warning{% else %}text-danger{% endif %}">
+                {{ c.marja_pct | pct }}
+              </td>
+              <td class="text-end fw-semibold {% if (c.marja_neta or 0) > 0 %}text-success{% elif (c.marja_neta or 0) < 0 %}text-danger{% else %}text-muted{% endif %}">
+                {{ c.marja_neta | ron if c.marja_neta is not none else '—' }}
+              </td>
+              <td class="text-end small {% if (c.marja_neta_pct or 0) >= 5 %}text-success{% elif (c.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+                {{ c.marja_neta_pct | pct if c.marja_neta_pct is not none else '—' }}
+              </td>
+              <td class="text-muted small">{{ c.ultima_comanda or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MONTHS  = {{ months_json | safe }};
+const TREND   = {{ trend_json | safe }};
+const BRANDS  = {{ brands_json | safe }};
+const CHANNELS = {{ channels_json | safe }};
+
+const PALETTE = [
+  '#0d6efd','#198754','#0dcaf0','#ffc107','#dc3545',
+  '#6f42c1','#fd7e14','#20c997','#6c757d','#d63384',
+  '#adb5bd','#495057'
+];
+
+// Monthly trend chart
+(function () {
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  const styles = {
+    2024: {color: 'rgba(108,117,125,0.7)', type: 'bar'},
+    2025: {color: 'rgba(13,110,253,0.75)', type: 'bar'},
+    2026: {color: 'rgba(25,135,84,0.9)',   type: 'bar'},
+  };
+  const datasets = Object.entries(TREND)
+    .sort(([a],[b]) => a - b)
+    .map(([yr, data]) => ({
+      label: yr,
+      data: data,
+      backgroundColor: (styles[yr] || {color: '#adb5bd'}).color,
+      borderRadius: 3,
+    }));
+  new Chart(ctx, {
+    type: 'bar',
+    data: {labels: MONTHS, datasets},
+    options: {
+      responsive: true,
+      plugins: {legend: {position: 'top'}},
+      scales: {
+        y: {beginAtZero: true, ticks: {callback: v => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v}},
+      },
+    },
+  });
+})();
+
+// Brand donut chart
+(function () {
+  const ctx = document.getElementById('brandChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: BRANDS.map(b => b.label),
+      datasets: [{
+        data: BRANDS.map(b => b.value),
+        backgroundColor: PALETTE,
+        hoverOffset: 6,
+      }],
+    },
+    options: {
+      responsive: true,
+      cutout: '55%',
+      plugins: {
+        legend: {position: 'right', labels: {boxWidth: 12, font: {size: 11}}},
+        tooltip: {callbacks: {label: ctx => ` ${ctx.label}: ${(ctx.raw/1e6).toFixed(2)}M RON`}},
+      },
+    },
+  });
+})();
+
+// Channel/agent horizontal bar
+(function () {
+  const ctx = document.getElementById('channelChart').getContext('2d');
+  const sorted = [...CHANNELS].sort((a,b) => a.value - b.value);
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(c => c.label),
+      datasets: [{
+        label: 'Val Netă (RON)',
+        data: sorted.map(c => c.value),
+        backgroundColor: PALETTE,
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {legend: {display: false}},
+      scales: {
+        x: {beginAtZero: true, ticks: {callback: v => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v}},
+      },
+    },
+  });
+})();
+</script>
+{% endblock %}

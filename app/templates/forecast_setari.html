@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+{% block title %}Setări Forecast{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0"><i class="bi bi-gear"></i> Setări Forecast</h4>
+  <a href="{{ url_for('forecast.forecast') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Înapoi la Forecast
+  </a>
+</div>
+
+<!-- Termene aprovizionare -->
+<div class="card mb-4">
+  <div class="card-header">
+    <strong><i class="bi bi-clock"></i> Termene aprovizionare</strong>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Furnizor</th>
+          <th>Tip produs</th>
+          <th class="text-center">Zile min</th>
+          <th class="text-center">Zile max</th>
+          <th>Monedă</th>
+          <th class="text-center">Sezon Crăciun</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for t in termene %}
+      <tr id="termen-{{ t.furnizor }}">
+        <td class="fw-semibold">{{ t.furnizor }}</td>
+        <td>
+          <select class="form-select form-select-sm" style="width:120px"
+                  onchange="saveTermen('{{ t.furnizor }}')">
+            {% for opt in ['Ceai','Ciocolata','Altele'] %}
+            <option {% if t.tip_produs==opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td class="text-center">
+          <input type="number" class="form-control form-control-sm text-center"
+                 id="zile_min_{{ t.furnizor }}" style="width:70px"
+                 value="{{ t.zile_livrare_min or 30 }}"
+                 onchange="saveTermen('{{ t.furnizor }}')">
+        </td>
+        <td class="text-center">
+          <input type="number" class="form-control form-control-sm text-center"
+                 id="zile_max_{{ t.furnizor }}" style="width:70px"
+                 value="{{ t.zile_livrare or 60 }}"
+                 onchange="saveTermen('{{ t.furnizor }}')">
+        </td>
+        <td>
+          <select class="form-select form-select-sm" style="width:80px"
+                  onchange="saveTermen('{{ t.furnizor }}')">
+            {% for m in ['EUR','USD','PLN'] %}
+            <option {% if t.moneda==m %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td class="text-center">
+          <input type="checkbox" class="form-check-input"
+                 id="sezon_{{ t.furnizor }}"
+                 {% if t.sezon_craciun %}checked{% endif %}
+                 onchange="saveTermen('{{ t.furnizor }}')">
+        </td>
+        <td>
+          <span class="text-success small" id="saved-{{ t.furnizor }}" style="display:none">✓ Salvat</span>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-3">Niciun furnizor configurat.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Țări export -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong><i class="bi bi-globe"></i> Țări export</strong>
+    <button class="btn btn-sm btn-primary" onclick="showAddTara()">
+      <i class="bi bi-plus-lg"></i> Adaugă țară
+    </button>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead class="table-light">
+        <tr><th>Țară</th><th>Bucket calcul</th><th>Activ</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for t in tari %}
+      <tr>
+        <td>{{ t.tara }}</td>
+        <td>
+          <span class="badge {% if t.piata=='HU' %}bg-warning text-dark{% else %}bg-primary{% endif %}">
+            {{ t.piata }}
+          </span>
+        </td>
+        <td>{% if t.activ %}<span class="text-success">✓</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-secondary"
+                  onclick="editTara({{ t.id }}, '{{ t.tara|e }}', '{{ t.piata }}')">
+            Editează
+          </button>
+          <button class="btn btn-sm btn-outline-danger"
+                  onclick="deleteTara({{ t.id }}, '{{ t.tara|e }}')">
+            Șterge
+          </button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="text-center text-muted py-3">Nicio țară configurată.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Clienți export -->
+<div class="card">
+  <div class="card-header">
+    <strong><i class="bi bi-people"></i> Clienți export (grupați pe țară)</strong>
+  </div>
+  <div class="card-body">
+    {% if tari %}
+    {% for t in tari %}
+    <div class="mb-4">
+      <div class="d-flex align-items-center mb-2">
+        <h6 class="mb-0">{{ t.tara }}</h6>
+        <span class="badge ms-2 {% if t.piata=='HU' %}bg-warning text-dark{% else %}bg-primary{% endif %}">
+          {{ t.piata }}
+        </span>
+      </div>
+      <table class="table table-sm table-bordered mb-2">
+        <thead class="table-light">
+          <tr><th>Client</th><th>Cod client</th><th>Activ</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% set clients = clienti_by_tara.get(t.id, []) %}
+        {% for c in clients %}
+        <tr class="{% if not c.activ %}table-secondary{% endif %}">
+          <td>{{ c.nume_client }}</td>
+          <td><code>{{ c.cod_client }}</code></td>
+          <td>{% if c.activ %}<span class="text-success">✓</span>{% else %}<em class="text-muted">inactiv</em>{% endif %}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-secondary"
+                    onclick="toggleClient({{ c.id }})">
+              {% if c.activ %}Dezactivează{% else %}Activează{% endif %}
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted small text-center">(niciun client adăugat)</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <button class="btn btn-sm btn-outline-primary"
+              onclick="showAddClient({{ t.id }}, '{{ t.tara|e }}')">
+        <i class="bi bi-plus-lg"></i> Adaugă client în {{ t.tara }}
+      </button>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-muted">Adaugă mai întâi o țară export.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal țară -->
+<div class="modal fade" id="modalTara" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="modalTaraTitle">Țară export</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="taraId">
+        <div class="mb-2">
+          <label class="form-label small fw-semibold">Denumire țară</label>
+          <input type="text" id="taraNume" class="form-control form-control-sm">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold">Bucket calcul</label>
+          <select id="taraPiata" class="form-select form-select-sm">
+            <option value="RO">RO — gestiune România</option>
+            <option value="HU">HU — gestiune Ungaria</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anulează</button>
+        <button class="btn btn-sm btn-primary" onclick="saveTara()">Salvează</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal client -->
+<div class="modal fade" id="modalClient" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="modalClientTitle">Client export</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="clientTaraId">
+        <div class="mb-2">
+          <label class="form-label small fw-semibold">Cod client (din ERP)</label>
+          <input type="text" id="clientCod" class="form-control form-control-sm"
+                 placeholder="ex: 1429">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold">Denumire client</label>
+          <input type="text" id="clientNume" class="form-control form-control-sm">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anulează</button>
+        <button class="btn btn-sm btn-primary" onclick="saveClient()">Salvează</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function saveTermen(furnizor) {
+  const row = document.getElementById('termen-' + furnizor);
+  const selects = row.querySelectorAll('select');
+  const inputs  = row.querySelectorAll('input[type=number]');
+  const data = {
+    furnizor:       furnizor,
+    tip_produs:     selects[0].value,
+    zile_min:       parseInt(inputs[0].value) || 30,
+    zile_max:       parseInt(inputs[1].value) || 60,
+    moneda:         selects[1].value,
+    sezon_craciun:  document.getElementById('sezon_' + furnizor).checked ? 1 : 0,
+  };
+  fetch('/api/forecast/termene', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  }).then(r => r.json()).then(() => {
+    const el = document.getElementById('saved-' + furnizor);
+    if (el) { el.style.display = 'inline'; setTimeout(() => el.style.display = 'none', 2000); }
+  });
+}
+
+function showAddTara() {
+  document.getElementById('taraId').value = '';
+  document.getElementById('taraNume').value = '';
+  document.getElementById('taraPiata').value = 'HU';
+  document.getElementById('modalTaraTitle').textContent = 'Adaugă țară';
+  new bootstrap.Modal(document.getElementById('modalTara')).show();
+}
+function editTara(id, tara, piata) {
+  document.getElementById('taraId').value = id;
+  document.getElementById('taraNume').value = tara;
+  document.getElementById('taraPiata').value = piata;
+  document.getElementById('modalTaraTitle').textContent = 'Editează: ' + tara;
+  new bootstrap.Modal(document.getElementById('modalTara')).show();
+}
+function saveTara() {
+  const id = document.getElementById('taraId').value;
+  const data = {
+    tara:  document.getElementById('taraNume').value.trim(),
+    piata: document.getElementById('taraPiata').value,
+    activ: 1,
+  };
+  if (id) data.id = parseInt(id);
+  fetch('/api/forecast/tari', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  }).then(() => location.reload());
+}
+function deleteTara(id, tara) {
+  if (!confirm('Șterge țara "' + tara + '" și toți clienții din ea?')) return;
+  fetch('/api/forecast/tari/' + id, {method: 'DELETE'})
+    .then(() => location.reload());
+}
+
+function showAddClient(taraId, taraNume) {
+  document.getElementById('clientTaraId').value = taraId;
+  document.getElementById('clientCod').value = '';
+  document.getElementById('clientNume').value = '';
+  document.getElementById('modalClientTitle').textContent = 'Adaugă client — ' + taraNume;
+  new bootstrap.Modal(document.getElementById('modalClient')).show();
+}
+function saveClient() {
+  const data = {
+    tara_id:     parseInt(document.getElementById('clientTaraId').value),
+    cod_client:  document.getElementById('clientCod').value.trim().toUpperCase(),
+    nume_client: document.getElementById('clientNume').value.trim(),
+    activ: 1,
+  };
+  fetch('/api/forecast/clienti', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  }).then(() => location.reload());
+}
+function toggleClient(id) {
+  fetch('/api/forecast/clienti/' + id + '/toggle', {method: 'POST'})
+    .then(() => location.reload());
+}
+</script>
+{% endblock %}

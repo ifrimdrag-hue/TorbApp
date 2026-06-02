@@ -1,0 +1,46 @@
+{% extends 'auth/base_auth.html' %}
+{% block title %}Parolă nouă — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-sm-10 col-md-6 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-dark text-white py-3">
+        <i class="bi bi-key-fill text-warning me-2"></i>
+        <span class="fw-bold">Parolă nouă</span>
+      </div>
+      <div class="card-body p-4">
+        {% if invalid %}
+        <div class="alert alert-danger py-2">
+          <i class="bi bi-x-circle me-1"></i>
+          Link-ul de resetare este invalid sau a expirat.
+        </div>
+        <a href="{{ url_for('auth.reset_request') }}" class="btn btn-outline-secondary w-100 mt-2">
+          Solicită un link nou
+        </a>
+        {% else %}
+        {% if error is defined and error %}
+        <div class="alert alert-danger py-2">{{ error }}</div>
+        {% endif %}
+        <p class="text-muted small mb-3">Introduceți noua parolă.</p>
+        <form method="POST" novalidate>
+          {{ form.hidden_tag() }}
+          <div class="mb-3">
+            {{ form.new_password.label(class="form-label small fw-semibold") }}
+            {{ form.new_password(class="form-control") }}
+            <div class="form-text">Minim 6 caractere.</div>
+          </div>
+          <div class="mb-4">
+            {{ form.confirm.label(class="form-label small fw-semibold") }}
+            {{ form.confirm(class="form-control") }}
+          </div>
+          <button type="submit" class="btn btn-success w-100">
+            <i class="bi bi-check-circle me-1"></i> Salvează parola
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

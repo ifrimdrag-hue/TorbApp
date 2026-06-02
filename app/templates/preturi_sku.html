@@ -1,0 +1,481 @@
+{% extends 'base.html' %}
+{% block title %}{{ prod.sku }} — Prețuri{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <a href="{{ url_for('pricing.preturi', an=an) }}" class="text-muted small">
+      <i class="bi bi-arrow-left"></i> Înapoi la catalog
+    </a>
+    <h5 class="mb-0 fw-bold mt-1">
+      {% set cod_display = sku_cod_mare.get(prod.sku) or prod.cod_produs %}{% if cod_display %}<span class="badge bg-secondary me-2">Cod {{ cod_display }}</span>{% endif %}
+      <code>{{ prod.sku }}</code>
+      <span class="text-muted fw-normal ms-2">{{ prod.furnizor }}</span>
+    </h5>
+    <div class="text-muted small">{{ prod.descriere }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if prod.hs_code %}
+    <span class="badge bg-secondary fs-6">HS {{ prod.hs_code }}</span>
+    {% endif %}
+    <span class="badge bg-info text-dark fs-6">TVA {{ (prod.tva_pct * 100) | int }}%</span>
+    {% if prod.tara_origine %}
+    <span class="badge bg-secondary-subtle text-secondary-emphasis border">{{ prod.tara_origine }}</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- ── Col stânga: Landing cost + Produs ── -->
+  <div class="col-lg-5">
+
+    <!-- Landing cost card -->
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-box-arrow-in-right me-1 text-primary"></i> Cost Landing {{ an }}
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Monedă</label>
+            <select id="lc-moneda" class="form-select form-select-sm">
+              {% for m in ['USD','EUR','PLN','RON'] %}
+              <option value="{{ m }}" {% if prod.moneda == m %}selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Curs RON</label>
+            <input type="number" id="lc-curs" class="form-control form-control-sm"
+                   step="0.0001" value="{{ prod.curs_ron or prod.curs_default or 4.32 }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Preț achiziție (valută/buc)</label>
+            <input type="number" id="lc-pret" class="form-control form-control-sm"
+                   step="0.000001" value="{{ prod.pret_achizitie_valuta or 0 }}"
+                   oninput="recalcLC()">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">
+              Transport %
+              <span class="text-muted fw-normal">(din preț ach.)</span>
+            </label>
+            <input type="number" id="lc-transport" class="form-control form-control-sm"
+                   step="0.1" value="{{ prod.transport_pct or 10 }}" oninput="recalcLC()">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">
+              Taxă vamală %
+              <span class="text-muted fw-normal">
+                MFN: {{ prod.taxa_vamala_mfn_pct or 0 }}%
+              </span>
+            </label>
+            <input type="number" id="lc-taxa" class="form-control form-control-sm"
+                   step="0.1" value="{{ prod.lc_taxa_vamala_pct or prod.taxa_vamala_pct or 0 }}"
+                   oninput="recalcLC()">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Alte costuri (RON/buc)</label>
+            <input type="number" id="lc-alte" class="form-control form-control-sm"
+                   step="0.001" value="{{ prod.alte_costuri_ron or 0 }}" oninput="recalcLC()">
+          </div>
+        </div>
+
+        <!-- Landing breakdown -->
+        <div class="mt-3 p-2 bg-light rounded small">
+          <div class="d-flex justify-content-between">
+            <span>Preț achiziție RON</span>
+            <span id="show-pret-ron" class="fw-semibold">{{ "%.4f"|format(prod.pret_achizitie_ron or 0) }}</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span>+ Transport</span>
+            <span id="show-transport">—</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span>+ Taxă vamală</span>
+            <span id="show-taxa">—</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span>+ Alte costuri</span>
+            <span id="show-alte">—</span>
+          </div>
+          <hr class="my-1">
+          <div class="d-flex justify-content-between fw-bold">
+            <span>= Landing cost RON/buc</span>
+            <span id="show-landing" class="text-primary fs-6">
+              {{ "%.4f"|format(prod.landing_cost_ron or 0) }}
+            </span>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-sm w-100 mt-2" onclick="saveLanding()">
+          <i class="bi bi-save me-1"></i>Salvează landing cost
+        </button>
+        <div id="lc-msg" class="small mt-1"></div>
+      </div>
+    </div>
+
+    <!-- Produs config -->
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-upc me-1 text-secondary"></i> Configurare produs
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Cod HS vamal</label>
+            <input type="text" id="p-hs" class="form-control form-control-sm"
+                   value="{{ prod.hs_code or '' }}" placeholder="ex: 09023000" maxlength="10">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">TVA %</label>
+            <select id="p-tva" class="form-select form-select-sm">
+              <option value="0.09" {% if prod.tva_pct == 0.09 %}selected{% endif %}>9%</option>
+              <option value="0.19" {% if prod.tva_pct == 0.19 %}selected{% endif %}>19%</option>
+              <option value="0.05" {% if prod.tva_pct == 0.05 %}selected{% endif %}>5%</option>
+              <option value="0.00" {% if prod.tva_pct == 0.00 %}selected{% endif %}>0%</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Taxă vamală MFN %</label>
+            <input type="number" id="p-mfn" class="form-control form-control-sm"
+                   step="0.1" value="{{ prod.taxa_vamala_mfn_pct or 0 }}">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Taxă vamală aplicată %</label>
+            <input type="number" id="p-taxa" class="form-control form-control-sm"
+                   step="0.1" value="{{ prod.taxa_vamala_pct or 0 }}">
+            <div class="form-text">0% = GSP+ Sri Lanka</div>
+          </div>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="saveProdus()">
+          Salvează configurare produs
+        </button>
+        <div id="p-msg" class="small mt-1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Col dreapta: Prețuri vânzare + Simulator ── -->
+  <div class="col-lg-7">
+
+    <!-- Prețuri vânzare -->
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">
+          <i class="bi bi-currency-dollar me-1 text-success"></i> Prețuri Vânzare {{ an }}
+        </span>
+        <button class="btn btn-sm btn-success" onclick="showAddPret()">
+          <i class="bi bi-plus-lg me-1"></i>Adaugă preț
+        </button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0" id="pv-table">
+          <thead class="table-secondary">
+            <tr>
+              <th>Client</th>
+              <th class="text-end">Preț RON (fără TVA)</th>
+              <th class="text-end">Marjă brută</th>
+              <th class="text-end">Marjă %</th>
+              <th class="text-center">Acțiuni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set landing = prod.landing_cost_ron or 0 %}
+            {% for pv in client_prices %}
+            {% set mb = pv.pret_vanzare_ron - landing if landing else none %}
+            {% set mb_pct = (mb / pv.pret_vanzare_ron * 100) if (mb is not none and pv.pret_vanzare_ron) else none %}
+            <tr>
+              <td>
+                {% if pv.cod_client %}
+                  <span class="fw-semibold">{{ pv.client or pv.cod_client }}</span>
+                  <span class="text-muted small ms-1">{{ pv.cod_client }}</span>
+                {% else %}
+                  <span class="badge bg-primary">Standard</span>
+                {% endif %}
+              </td>
+              <td class="text-end fw-semibold">{{ "%.2f"|format(pv.pret_vanzare_ron) }}</td>
+              <td class="text-end">
+                {% if mb is not none %}
+                  <span class="{% if mb < 0 %}text-danger{% else %}text-success{% endif %}">
+                    {{ "%.2f"|format(mb) }}
+                  </span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-end fw-bold">
+                {% if mb_pct is not none %}
+                  <span class="{% if mb_pct < 15 %}text-danger{% elif mb_pct < 25 %}text-warning{% else %}text-success{% endif %}">
+                    {{ "%.1f"|format(mb_pct) }}%
+                  </span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-center">
+                <button class="btn btn-xs btn-outline-primary py-0 px-1 btn-edit-pret"
+                        data-pret="{{ pv.pret_vanzare_ron }}"
+                        data-cod="{{ pv.cod_client or '' }}"
+                        data-client="{{ pv.client or 'Standard' }}">
+                  <i class="bi bi-pencil"></i>
+                </button>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-3">Niciun preț de vânzare.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <!-- Add/edit form inline -->
+      <div id="pret-form" class="card-body border-top d-none">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-5">
+            <label class="form-label small fw-semibold">Client (gol = standard)</label>
+            <select id="pf-client" class="form-select form-select-sm">
+              <option value="">— Standard (toți clienții) —</option>
+              {% for c in client_opts %}
+              <option value="{{ c.cod_client }}">{{ c.client }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Preț RON (fără TVA)</label>
+            <input type="number" id="pf-pret" class="form-control form-control-sm"
+                   step="0.01" min="0" oninput="recalcSim()">
+          </div>
+          <div class="col-md-4">
+            <button class="btn btn-sm btn-success me-1" onclick="savePret()">
+              <i class="bi bi-check-lg"></i> Salvează
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="hidePretForm()">
+              Anulează
+            </button>
+          </div>
+        </div>
+        <div id="pf-msg" class="small mt-1"></div>
+      </div>
+    </div>
+
+    <!-- Simulator marjă -->
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-sliders me-1 text-warning"></i> Simulator Marjă
+      </div>
+      <div class="card-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Preț vânzare simulat (RON)</label>
+            <input type="number" id="sim-pret" class="form-control form-control-sm"
+                   step="0.01" value="{{ prod.pret_vanzare_ron or '' }}"
+                   oninput="recalcSim()">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Condiții comerciale (RON/buc)</label>
+            <input type="number" id="sim-cond" class="form-control form-control-sm"
+                   step="0.001" value="0" oninput="recalcSim()">
+            <div class="form-text">Ex: rabat % aplicat</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Marjă netă minimă %</label>
+            <input type="number" id="sim-threshold" class="form-control form-control-sm"
+                   step="1" value="15" oninput="recalcSim()">
+          </div>
+        </div>
+
+        <!-- Rezultate simulator -->
+        <div class="mt-3 row g-2 text-center" id="sim-results">
+          <div class="col-6 col-md-3">
+            <div class="card border-0 bg-light py-2">
+              <div class="text-muted" style="font-size:11px">Landing cost</div>
+              <div class="fw-bold text-primary" id="sim-landing">
+                {{ "%.4f"|format(prod.landing_cost_ron or 0) }}
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="card border-0 bg-light py-2">
+              <div class="text-muted" style="font-size:11px">Marjă brută</div>
+              <div class="fw-bold" id="sim-mb">—</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="card border-0 bg-light py-2">
+              <div class="text-muted" style="font-size:11px">Marjă brută %</div>
+              <div class="fw-bold" id="sim-mb-pct">—</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="card border-0 py-2" id="sim-net-card">
+              <div class="text-muted" style="font-size:11px">Marjă netă %</div>
+              <div class="fw-bold" id="sim-mn-pct">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="sim-alert" class="alert mt-2 d-none py-2 small"></div>
+
+        <!-- Preț minim recomandat -->
+        <div class="mt-2 text-muted small" id="sim-recomandat"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const LANDING = {{ prod.landing_cost_ron or 0 }};
+const SKU     = {{ prod.sku | tojson }};
+const AN      = {{ an }};
+
+// ── Landing cost recalc ──────────────────────────────────────────────────────
+function recalcLC() {
+  const pret   = parseFloat(document.getElementById('lc-pret').value)      || 0;
+  const curs   = parseFloat(document.getElementById('lc-curs').value)       || 1;
+  const transp = parseFloat(document.getElementById('lc-transport').value)  || 0;
+  const taxa   = parseFloat(document.getElementById('lc-taxa').value)       || 0;
+  const alte   = parseFloat(document.getElementById('lc-alte').value)       || 0;
+
+  const pretRON    = pret * curs;
+  const transpRON  = pretRON * transp / 100;
+  const taxaRON    = pretRON * taxa / 100;
+  const landing    = pretRON + transpRON + taxaRON + alte;
+
+  document.getElementById('show-pret-ron').textContent  = pretRON.toFixed(4);
+  document.getElementById('show-transport').textContent = '+' + transpRON.toFixed(4);
+  document.getElementById('show-taxa').textContent      = '+' + taxaRON.toFixed(4);
+  document.getElementById('show-alte').textContent      = '+' + alte.toFixed(4);
+  document.getElementById('show-landing').textContent   = landing.toFixed(4);
+  document.getElementById('sim-landing').textContent    = landing.toFixed(4);
+}
+
+async function saveLanding() {
+  const body = {
+    sku: SKU, an: AN,
+    pret_valuta:     parseFloat(document.getElementById('lc-pret').value)      || 0,
+    moneda:          document.getElementById('lc-moneda').value,
+    curs:            parseFloat(document.getElementById('lc-curs').value)       || 1,
+    transport_pct:   parseFloat(document.getElementById('lc-transport').value)  || 0,
+    taxa_vamala_pct: parseFloat(document.getElementById('lc-taxa').value)       || 0,
+    alte_costuri:    parseFloat(document.getElementById('lc-alte').value)       || 0,
+  };
+  const resp = await fetch('/api/preturi/landing', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  const msg = document.getElementById('lc-msg');
+  if (data.ok) {
+    msg.className = 'small text-success';
+    msg.textContent = 'Salvat! Landing cost: ' + data.landing_cost_ron.toFixed(4) + ' RON';
+    recalcSim();
+  } else {
+    msg.className = 'small text-danger';
+    msg.textContent = data.error;
+  }
+}
+
+// ── Produs config ────────────────────────────────────────────────────────────
+async function saveProdus() {
+  const body = {
+    sku: SKU,
+    hs_code:      document.getElementById('p-hs').value,
+    taxa_mfn:     parseFloat(document.getElementById('p-mfn').value)   || 0,
+    taxa_aplicata:parseFloat(document.getElementById('p-taxa').value)  || 0,
+    tva_pct:      parseFloat(document.getElementById('p-tva').value)   || 0.09,
+  };
+  const resp = await fetch('/api/preturi/produs', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  const msg = document.getElementById('p-msg');
+  msg.className = data.ok ? 'small text-success' : 'small text-danger';
+  msg.textContent = data.ok ? 'Salvat!' : data.error;
+}
+
+// ── Preț vânzare ─────────────────────────────────────────────────────────────
+function showAddPret() {
+  document.getElementById('pret-form').classList.remove('d-none');
+  document.getElementById('pf-client').value = '';
+  document.getElementById('pf-pret').value = '';
+}
+function hidePretForm() {
+  document.getElementById('pret-form').classList.add('d-none');
+}
+
+document.querySelectorAll('.btn-edit-pret').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.getElementById('pf-client').value = this.dataset.cod;
+    document.getElementById('pf-pret').value   = this.dataset.pret;
+    document.getElementById('pret-form').classList.remove('d-none');
+    document.getElementById('pf-pret').focus();
+  });
+});
+
+async function savePret() {
+  const body = {
+    sku: SKU, an: AN,
+    pret:       parseFloat(document.getElementById('pf-pret').value),
+    cod_client: document.getElementById('pf-client').value || null,
+  };
+  const msg = document.getElementById('pf-msg');
+  if (!body.pret) { msg.textContent = 'Introdu un preț valid.'; return; }
+  const resp = await fetch('/api/preturi/vanzare', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  if (data.ok) location.reload();
+  else { msg.className = 'small text-danger'; msg.textContent = data.error; }
+}
+
+// ── Simulator ────────────────────────────────────────────────────────────────
+function recalcSim() {
+  const landing   = parseFloat(document.getElementById('sim-landing').textContent) || LANDING;
+  const pretNou   = parseFloat(document.getElementById('sim-pret').value) || 0;
+  const cond      = parseFloat(document.getElementById('sim-cond').value) || 0;
+  const threshold = parseFloat(document.getElementById('sim-threshold').value) || 15;
+
+  if (!pretNou) {
+    ['sim-mb','sim-mb-pct','sim-mn-pct'].forEach(id =>
+      document.getElementById(id).textContent = '—');
+    return;
+  }
+
+  const mb     = pretNou - landing;
+  const mbPct  = pretNou > 0 ? mb / pretNou * 100 : 0;
+  const mn     = mb - cond;
+  const mnPct  = pretNou > 0 ? mn / pretNou * 100 : 0;
+
+  const mbEl = document.getElementById('sim-mb');
+  mbEl.textContent = mb.toFixed(2) + ' RON';
+  mbEl.className = 'fw-bold ' + (mb < 0 ? 'text-danger' : 'text-success');
+
+  const mbPctEl = document.getElementById('sim-mb-pct');
+  mbPctEl.textContent = mbPct.toFixed(1) + '%';
+  mbPctEl.className = 'fw-bold ' + (mbPct < 15 ? 'text-danger' : mbPct < 25 ? 'text-warning' : 'text-success');
+
+  const mnPctEl = document.getElementById('sim-mn-pct');
+  mnPctEl.textContent = mnPct.toFixed(1) + '%';
+  mnPctEl.className = 'fw-bold ' + (mnPct < threshold ? 'text-danger' : 'text-success');
+
+  const card = document.getElementById('sim-net-card');
+  card.className = 'card border-0 py-2 ' + (mnPct < threshold ? 'bg-danger bg-opacity-10' : 'bg-success bg-opacity-10');
+
+  const alert = document.getElementById('sim-alert');
+  if (mnPct < threshold) {
+    alert.className = 'alert alert-danger mt-2 py-2 small';
+    const pretMin = (landing + cond) / (1 - threshold / 100);
+    alert.textContent = `Marjă netă (${mnPct.toFixed(1)}%) sub pragul de ${threshold}%. ` +
+      `Preț minim recomandat: ${pretMin.toFixed(2)} RON`;
+    alert.classList.remove('d-none');
+    document.getElementById('sim-recomandat').textContent =
+      `Preț minim pentru marjă netă ≥ ${threshold}%: ${pretMin.toFixed(2)} RON`;
+  } else {
+    alert.classList.add('d-none');
+    document.getElementById('sim-recomandat').textContent = '';
+  }
+}
+
+// Init
+recalcLC();
+recalcSim();
+</script>
+{% endblock %}

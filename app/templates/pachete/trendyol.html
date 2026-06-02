@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+{% block title %}Pachete Trendyol{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <h4 class="mb-1"><i class="bi bi-bag-fill text-warning me-2"></i>Pachete Trendyol</h4>
+    <p class="text-secondary small mb-0">Calculează prețuri bundle (produs + cantitate + transport 11 RON) pentru listare Trendyol.</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <button class="btn btn-sm btn-outline-secondary" id="btnAddManual">
+      <i class="bi bi-plus me-1"></i>Adaugă manual
+    </button>
+    <button class="btn btn-sm btn-outline-secondary" id="btnGenerateAll">
+      <i class="bi bi-lightning-fill me-1"></i>Generează tot catalogul
+    </button>
+    <button class="btn btn-sm" id="btnAiSuggest"
+            style="background:linear-gradient(135deg,#4f8cff,#7c5cff);color:white;border:none;">
+      <i class="bi bi-stars me-1"></i>Sugestii AI
+    </button>
+  </div>
+</div>
+
+<div id="alertArea" class="mb-3"></div>
+<div id="noProducts" class="alert alert-warning small d-none">
+  <i class="bi bi-exclamation-triangle me-1"></i>
+  Snapshot-ul de prețuri nu e încărcat. Mergi la <a href="/preturi" class="alert-link">Prețuri</a> și încarcă fișierul Excel.
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div id="emptyState" class="text-center py-5 text-muted">
+      <i class="bi bi-bag fs-1 d-block mb-2 opacity-25"></i>
+      Niciun bundle creat. Apasă „Generează tot catalogul" sau „Adaugă manual".
+    </div>
+    <div class="table-responsive d-none" id="tableWrap">
+      <table class="table table-hover align-middle mb-0" id="bundleTable">
+        <thead class="table-dark">
+          <tr>
+            <th class="ps-3">Produs</th>
+            <th>Brand</th>
+            <th class="text-center">Cant.</th>
+            <th class="text-end">Cost real</th>
+            <th class="text-end">Preț final</th>
+            <th class="text-end">Marjă</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="bundleTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Manual / Edit modal -->
+<div class="modal fade" id="bundleModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Bundle Trendyol</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="searchSection" class="mb-3">
+          <label class="form-label small fw-semibold">Caută produs</label>
+          <div class="input-group input-group-sm mb-2">
+            <input type="text" class="form-control" id="productSearch"
+                   placeholder="Cod articol, nume, brand…">
+          </div>
+          <div id="searchResults" class="list-group mb-2" style="max-height:160px;overflow-y:auto;"></div>
+        </div>
+
+        <div id="productInfo" class="d-none">
+          <div class="p-2 rounded bg-dark-subtle mb-3 d-flex align-items-center gap-2 flex-wrap">
+            <span id="piBrand" class="badge bg-primary"></span>
+            <span id="piName" class="small fw-semibold flex-fill"></span>
+            <span class="text-muted small">Preț standard: <strong id="piPriceV"></strong></span>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-3">
+              <label class="form-label small">Cantitate bundle</label>
+              <input type="number" class="form-control form-control-sm" id="bQty"
+                     min="1" max="20" value="3">
+            </div>
+            <div class="col-md-9 d-flex align-items-end">
+              <button class="btn btn-sm btn-outline-secondary" id="btnPreview">
+                <i class="bi bi-calculator me-1"></i>Calculează prețuri
+              </button>
+            </div>
+          </div>
+
+          <div id="pricePreview" class="d-none">
+            <hr>
+            <h6 class="small fw-semibold mb-2">Calcul preț bundle (transport 11 RON inclus)</h6>
+            <div class="row g-2 mb-3" id="totalsRow"></div>
+            <div class="row g-2 mb-3" id="variantsRow"></div>
+            <div class="mt-2">
+              <label class="form-label small">Preț final ales (RON)</label>
+              <input type="number" class="form-control form-control-sm" id="bFinalPrice"
+                     step="0.01" style="width:140px;">
+            </div>
+          </div>
+
+          <div class="mb-2 mt-3">
+            <label class="form-label small">Note</label>
+            <textarea class="form-control form-control-sm" id="bNotes" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <input type="hidden" id="bId">
+        <input type="hidden" id="bCod">
+        <input type="hidden" id="bAiPrice">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anulează</button>
+        <button class="btn btn-success btn-sm" id="btnSaveBundle" disabled>
+          <i class="bi bi-floppy me-1"></i>Salvează
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const modal = new bootstrap.Modal(document.getElementById('bundleModal'));
+  let searchTimer = null;
+
+  async function loadState() {
+    const r = await fetch('/api/pachete/state');
+    const d = await r.json();
+    if (!d.products_loaded) document.getElementById('noProducts').classList.remove('d-none');
+    renderBundles(d.trendyol || []);
+  }
+
+  function renderBundles(bundles) {
+    const wrap  = document.getElementById('tableWrap');
+    const tbody = document.getElementById('bundleTableBody');
+    const empty = document.getElementById('emptyState');
+    if (!bundles.length) {
+      wrap.classList.add('d-none');
+      empty.classList.remove('d-none');
+      return;
+    }
+    empty.classList.add('d-none');
+    wrap.classList.remove('d-none');
+    tbody.innerHTML = bundles.map(b => {
+      const margin = b.margin_pct != null
+        ? `<span class="text-${b.margin_pct >= 20 ? 'success' : 'warning'}">${b.margin_pct.toFixed(1)}%</span>` : '—';
+      return `<tr>
+        <td class="ps-3">
+          <span class="small">${esc(b.name)}</span>
+          ${b.ean ? `<br><span class="text-muted" style="font-size:0.7rem;">EAN ${b.ean}</span>` : ''}
+        </td>
+        <td><span class="badge bg-secondary">${esc(b.brand || '—')}</span></td>
+        <td class="text-center">${b.qty}×</td>
+        <td class="text-end small">${fmtRon(b.cost_real)}</td>
+        <td class="text-end small fw-bold">${fmtRon(b.final_price)}</td>
+        <td class="text-end">${margin}</td>
+        <td class="text-end pe-2">
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2 me-1"
+                  onclick="editBundle(${JSON.stringify(b).replace(/"/g,'&quot;')})">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                  onclick="deleteBundle('${b.id}')">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  window.deleteBundle = async function (id) {
+    if (!confirm('Ștergi bundle-ul?')) return;
+    await fetch('/api/pachete/trendyol/' + id, { method: 'DELETE' });
+    loadState();
+  };
+
+  window.editBundle = function (b) {
+    openModal(b);
+  };
+
+  function openModal(existing) {
+    document.getElementById('bId').value       = existing?.id || '';
+    document.getElementById('bCod').value      = existing?.cod_articol || '';
+    document.getElementById('bAiPrice').value  = existing?.ai_suggested_price || '';
+    document.getElementById('bQty').value      = existing?.qty || 3;
+    document.getElementById('bFinalPrice').value = existing?.final_price || '';
+    document.getElementById('bNotes').value    = existing?.notes || '';
+    document.getElementById('productSearch').value = '';
+    document.getElementById('searchResults').innerHTML = '';
+    document.getElementById('pricePreview').classList.add('d-none');
+    document.getElementById('btnSaveBundle').disabled = !existing;
+
+    if (existing) {
+      document.getElementById('searchSection').classList.add('d-none');
+      document.getElementById('productInfo').classList.remove('d-none');
+      document.getElementById('piBrand').textContent  = existing.brand || '';
+      document.getElementById('piName').textContent   = existing.name || '';
+      document.getElementById('piPriceV').textContent = fmtRon(existing.price_v);
+    } else {
+      document.getElementById('searchSection').classList.remove('d-none');
+      document.getElementById('productInfo').classList.add('d-none');
+    }
+    modal.show();
+  }
+
+  document.getElementById('btnAddManual').addEventListener('click', () => openModal(null));
+
+  document.getElementById('productSearch').addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    const q = this.value.trim();
+    if (!q) { document.getElementById('searchResults').innerHTML = ''; return; }
+    searchTimer = setTimeout(async () => {
+      const r = await fetch('/api/pachete/products?q=' + encodeURIComponent(q) + '&limit=15');
+      const d = await r.json();
+      const el = document.getElementById('searchResults');
+      el.innerHTML = (d.products || []).map(p =>
+        `<button type="button" class="list-group-item list-group-item-action list-group-item-dark py-1 small"
+                 onclick="selectProduct(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+          <strong>${esc(p.brand || '')}</strong> · ${esc(p.name || '')}
+          <span class="float-end text-muted">${fmtRon(p.price_v)}</span>
+        </button>`).join('');
+    }, 250);
+  });
+
+  window.selectProduct = function (p) {
+    document.getElementById('bCod').value = p.cod_articol;
+    document.getElementById('searchResults').innerHTML = '';
+    document.getElementById('productSearch').value = '';
+    document.getElementById('piBrand').textContent  = p.brand || '';
+    document.getElementById('piName').textContent   = p.name || '';
+    document.getElementById('piPriceV').textContent = fmtRon(p.price_v);
+    document.getElementById('pricePreview').classList.add('d-none');
+    document.getElementById('bFinalPrice').value = '';
+    document.getElementById('btnSaveBundle').disabled = false;
+    document.getElementById('searchSection').classList.add('d-none');
+    document.getElementById('productInfo').classList.remove('d-none');
+    document.getElementById('btnPreview').click();
+  };
+
+  document.getElementById('btnPreview').addEventListener('click', async function () {
+    const cod = document.getElementById('bCod').value;
+    const qty = parseInt(document.getElementById('bQty').value) || 3;
+    if (!cod) { showAlert('Selectează un produs mai întâi.', 'warning'); return; }
+    const r = await fetch('/api/pachete/trendyol/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cod_articol: cod, qty }),
+    });
+    const d = await r.json();
+    if (!d.ok) { showAlert(d.error, 'danger'); return; }
+    const c = d.calc;
+    document.getElementById('totalsRow').innerHTML = `
+      <div class="col-4"><div class="card border-0 bg-dark-subtle p-2 text-center">
+        <div class="small text-muted">Cost real</div>
+        <div class="fw-bold">${fmtRon(c.cost_real)}</div>
+        <div class="text-muted" style="font-size:0.7rem;">${c.qty}× + ${fmtRon(c.shipping_cost)} transp.</div>
+      </div></div>
+      <div class="col-4"><div class="card border-0 bg-dark-subtle p-2 text-center">
+        <div class="small text-muted">Standard + transp.</div>
+        <div class="fw-bold">${fmtRon(c.standard_bundle_with_shipping)}</div>
+      </div></div>
+      <div class="col-4"><div class="card border-0 bg-dark-subtle p-2 text-center">
+        <div class="small text-muted">Cant. sugerată</div>
+        <div class="fw-bold">${d.suggested_qty}×</div>
+      </div></div>`;
+    document.getElementById('variantsRow').innerHTML = [
+      { val: c.percent_off.value, label: c.percent_off.label, m: c.percent_off.margin_pct },
+      { val: c.psychological.value, label: c.psychological.label, m: c.psychological.margin_pct },
+    ].map(x => `
+      <div class="col-6">
+        <div class="card border-0 bg-dark-subtle p-2 text-center" style="cursor:pointer;"
+             onclick="document.getElementById('bFinalPrice').value='${x.val}';document.getElementById('bAiPrice').value='${x.val}'">
+          <div class="small text-muted">${x.label}</div>
+          <div class="fw-bold">${fmtRon(x.val)}</div>
+          <div class="small text-success">${x.m.toFixed(1)}% marjă</div>
+        </div>
+      </div>`).join('');
+    document.getElementById('pricePreview').classList.remove('d-none');
+  });
+
+  document.getElementById('btnSaveBundle').addEventListener('click', async function () {
+    const cod = document.getElementById('bCod').value;
+    const finalPrice = parseFloat(document.getElementById('bFinalPrice').value);
+    if (!cod) { showAlert('Selectează un produs.', 'warning'); return; }
+    if (!finalPrice) { showAlert('Introdu prețul final.', 'warning'); return; }
+    const payload = {
+      id:                document.getElementById('bId').value || undefined,
+      cod_articol:       cod,
+      qty:               parseInt(document.getElementById('bQty').value) || 3,
+      final_price:       finalPrice,
+      ai_suggested_price: parseFloat(document.getElementById('bAiPrice').value) || null,
+      notes:             document.getElementById('bNotes').value.trim(),
+    };
+    const r = await fetch('/api/pachete/trendyol/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (d.ok) { modal.hide(); loadState(); }
+    else showAlert(d.error, 'danger');
+  });
+
+  document.getElementById('btnGenerateAll').addEventListener('click', async function () {
+    if (!confirm('Generezi bundle-uri pentru TOATE produsele din catalog?\nProdusele existente NU vor fi suprascrise.')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Se generează…';
+    try {
+      const r = await fetch('/api/pachete/trendyol/generate-all', { method: 'POST' });
+      const d = await r.json();
+      if (d.ok) {
+        showAlert(`Generat: ${d.added} bundle-uri noi (${d.skipped} omise, ${d.total_now} total).`, 'success');
+        loadState();
+      } else showAlert(d.error, 'danger');
+    } finally {
+      this.disabled = false;
+      this.innerHTML = '<i class="bi bi-lightning-fill me-1"></i>Generează tot catalogul';
+    }
+  });
+
+  document.getElementById('btnAiSuggest').addEventListener('click', async function () {
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>AI generează…';
+    showAlert('AI selectează cele mai bune produse pentru Trendyol… poate dura 15–30s.', 'info');
+    try {
+      const r = await fetch('/api/pachete/trendyol/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const d = await r.json();
+      if (d.ok) { showAlert(`${d.bundles.length} bundle-uri generate de AI.`, 'success'); loadState(); }
+      else showAlert(d.error, 'danger');
+    } finally {
+      this.disabled = false;
+      this.innerHTML = '<i class="bi bi-stars me-1"></i>Sugestii AI';
+    }
+  });
+
+  function showAlert(msg, type) {
+    const el = document.getElementById('alertArea');
+    el.innerHTML = `<div class="alert alert-${type} alert-dismissible py-2 small">
+      ${msg}<button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button></div>`;
+  }
+
+  function fmtRon(v) {
+    if (v == null) return '—';
+    return parseFloat(v).toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' RON';
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  loadState();
+}());
+</script>
+{% endblock %}

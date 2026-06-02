@@ -1,0 +1,473 @@
+{% extends 'base.html' %}
+{% block title %}Condiții Comerciale — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-file-earmark-text-fill text-primary"></i> Condiții Comerciale</h4>
+  <form method="get" class="d-flex gap-2 align-items-center">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <select name="an" class="form-select form-select-sm" style="width:90px">
+      {% for yr in [2024,2025,2026] %}
+      <option value="{{ yr }}" {% if an==yr %}selected{% endif %}>{{ yr }}</option>
+      {% endfor %}
+    </select>
+    <select name="client" class="form-select form-select-sm" style="width:200px">
+      <option value="">Toți clienții</option>
+      {% for c in client_opts %}
+      <option value="{{ c.cod_client }}" {% if sel_client==c.cod_client %}selected{% endif %}>
+        {{ c.client }}
+      </option>
+      {% endfor %}
+    </select>
+    <select name="brand" class="form-select form-select-sm" style="width:130px">
+      <option value="">Toate brandurile</option>
+      {% for b in brand_opts %}
+      <option value="{{ b.furnizor }}" {% if sel_brand==b.furnizor %}selected{% endif %}>{{ b.furnizor }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-sm btn-primary">Filtrează</button>
+  </form>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if tab=='conditii' %}active{% endif %}"
+       href="{{ url_for('pricing.conditii', an=an, tab='conditii') }}">
+      <i class="bi bi-percent me-1"></i>Condiții Comerciale
+      <span class="badge bg-secondary ms-1">{{ cond_rows|length }}</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab=='termene' %}active{% endif %}"
+       href="{{ url_for('pricing.conditii', an=an, tab='termene') }}">
+      <i class="bi bi-calendar-check me-1"></i>Termene Plată
+      <span class="badge bg-secondary ms-1">{{ termen_rows|length }}</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab=='analiza' %}active{% endif %}"
+       href="{{ url_for('pricing.conditii', an=an, tab='analiza') }}">
+      <i class="bi bi-graph-down-arrow me-1"></i>Analiză Marjă Ajustată
+    </a>
+  </li>
+</ul>
+
+<!-- ── Tab: Condiții ── -->
+{% if tab == 'conditii' %}
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Condiții comerciale {{ an }}</span>
+    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalConditie">
+      <i class="bi bi-plus-lg me-1"></i>Adaugă condiție
+    </button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>Client</th>
+          <th>Brand</th>
+          <th class="text-center">Tip</th>
+          <th class="text-center">Periodicitate</th>
+          <th class="text-end">Valoare</th>
+          <th>Descriere</th>
+          <th class="text-center">Acțiuni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in cond_rows %}
+        <tr>
+          <td>
+            {% if r.client %}
+              <span class="fw-semibold">{{ r.client }}</span>
+              <div class="text-muted small">cod: {{ r.cod_client }}</div>
+            {% else %}
+              <span class="text-muted fst-italic">Toți clienții</span>
+            {% endif %}
+          </td>
+          <td>{{ r.furnizor or '— toate brandurile —' }}</td>
+          <td class="text-center">
+            {% if r.tip_valoare == 'pct' %}
+              <span class="badge bg-info text-dark">%</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">RON fix</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if r.periodicitate == 'lunar' %}
+              <span class="badge bg-primary">lunar</span>
+            {% elif r.periodicitate == 'anual' %}
+              <span class="badge bg-secondary">anual</span>
+            {% else %}
+              <span class="badge bg-dark">unic</span>
+            {% endif %}
+          </td>
+          <td class="text-end fw-semibold">
+            {% if r.tip_valoare == 'pct' %}
+              {{ r.valoare }}%
+            {% else %}
+              {{ r.valoare | int | string | replace(',','.') }} RON
+            {% endif %}
+          </td>
+          <td class="text-muted small">{{ r.descriere or '—' }}</td>
+          <td class="text-center">
+            <button class="btn btn-xs btn-outline-primary py-0 px-1 btn-edit-conditie"
+                    data-id="{{ r.id }}"
+                    data-an="{{ r.an }}"
+                    data-cod-client="{{ r.cod_client or '' }}"
+                    data-client="{{ r.client or '' }}"
+                    data-furnizor="{{ r.furnizor or '' }}"
+                    data-tip="{{ r.tip_valoare }}"
+                    data-periodicitate="{{ r.periodicitate }}"
+                    data-valoare="{{ r.valoare }}"
+                    data-descriere="{{ r.descriere or '' }}"
+                    title="Editează">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-xs btn-outline-danger py-0 px-1 ms-1 btn-del-conditie"
+                    data-id="{{ r.id }}" title="Șterge">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Nicio condiție introdusă pentru {{ an }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Modal Condiție ── -->
+<div class="modal fade" id="modalConditie" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalConditieTitle">Adaugă condiție comercială</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="cc-id" value="">
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">An</label>
+            <select id="cc-an" class="form-select form-select-sm">
+              {% for yr in [2024,2025,2026] %}
+              <option value="{{ yr }}" {% if an==yr %}selected{% endif %}>{{ yr }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">
+              Brand
+              <span class="text-muted fw-normal">(Ctrl+click = mai multe)</span>
+            </label>
+            <select id="cc-furnizor" class="form-select form-select-sm" multiple size="6">
+              <option value="">— toate brandurile —</option>
+              {% for b in brand_opts %}
+              <option value="{{ b.furnizor }}">{{ b.furnizor }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Neselectat = se aplică tuturor brandurilor</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Client</label>
+            <select id="cc-cod-client" class="form-select form-select-sm">
+              <option value="">— toți clienții —</option>
+              {% for c in client_opts %}
+              <option value="{{ c.cod_client }}">{{ c.client }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Tip valoare</label>
+            <select id="cc-tip" class="form-select form-select-sm">
+              <option value="pct">% din vânzări nete</option>
+              <option value="suma_fixa">Sumă fixă (RON)</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Periodicitate</label>
+            <select id="cc-periodicitate" class="form-select form-select-sm">
+              <option value="lunar">Lunar</option>
+              <option value="anual">Anual</option>
+              <option value="unic">Unică (one-time)</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold" id="cc-val-label">Valoare (%)</label>
+            <input type="number" id="cc-valoare" class="form-control form-control-sm"
+                   step="0.01" min="0" placeholder="ex: 2.5">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Descriere (opțional)</label>
+            <input type="text" id="cc-descriere" class="form-control form-control-sm"
+                   placeholder="ex: Rabat anual Kaufland Basilur 2025">
+          </div>
+        </div>
+        <div id="cc-error" class="alert alert-danger mt-3 d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anulează</button>
+        <button class="btn btn-primary btn-sm" id="btn-save-conditie">Salvează</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Tab: Termene ── -->
+{% if tab == 'termene' %}
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Termene de plată {{ an }}</span>
+    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalTermen">
+      <i class="bi bi-plus-lg me-1"></i>Adaugă termen
+    </button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>Client</th>
+          <th class="text-center">Zile termen</th>
+          <th>Observații</th>
+          <th class="text-center">Acțiuni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in termen_rows %}
+        <tr>
+          <td>
+            <span class="fw-semibold">{{ r.client or r.cod_client }}</span>
+          </td>
+          <td class="text-center">
+            <span class="badge {% if r.zile_termen > 60 %}bg-danger{% elif r.zile_termen > 30 %}bg-warning text-dark{% else %}bg-success{% endif %} fs-6">
+              {{ r.zile_termen }}z
+            </span>
+          </td>
+          <td class="text-muted small">{{ r.observatii or '—' }}</td>
+          <td class="text-center">
+            <button class="btn btn-xs btn-outline-danger py-0 px-1 btn-del-termen"
+                    data-id="{{ r.id }}" title="Șterge">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-4">Niciun termen introdus pentru {{ an }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal Termen -->
+<div class="modal fade" id="modalTermen" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Adaugă termen de plată</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-4">
+            <label class="form-label small fw-semibold">An</label>
+            <select id="tp-an" class="form-select form-select-sm">
+              {% for yr in [2024,2025,2026] %}
+              <option value="{{ yr }}" {% if an==yr %}selected{% endif %}>{{ yr }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-8">
+            <label class="form-label small fw-semibold">Client</label>
+            <select id="tp-cod-client" class="form-select form-select-sm">
+              <option value="">— selectează client —</option>
+              {% for c in client_opts %}
+              <option value="{{ c.cod_client }}">{{ c.client }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="form-label small fw-semibold">Zile termen</label>
+            <input type="number" id="tp-zile" class="form-control form-control-sm" min="0" value="30">
+          </div>
+          <div class="col-8">
+            <label class="form-label small fw-semibold">Observații</label>
+            <input type="text" id="tp-observatii" class="form-control form-control-sm" placeholder="ex: net 30 EOM">
+          </div>
+        </div>
+        <div id="tp-error" class="alert alert-danger mt-3 d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anulează</button>
+        <button class="btn btn-primary btn-sm" id="btn-save-termen">Salvează</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Tab: Analiză ── -->
+{% if tab == 'analiza' %}
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-graph-down-arrow me-1 text-danger"></i>
+    Marjă ajustată după condiții comerciale — {{ an }}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>Client</th>
+          <th>Brand</th>
+          <th class="text-end">Vânzări nete</th>
+          <th class="text-end">Marjă brută</th>
+          <th class="text-end text-warning">Cost condiții</th>
+          <th class="text-end text-success">Marjă ajustată</th>
+          <th class="text-end text-success">Marjă adj. %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in analiza %}
+        <tr>
+          <td class="fw-semibold">{{ r.client or r.cod_client }}</td>
+          <td>{{ r.furnizor }}</td>
+          <td class="text-end">{{ r.val_neta | int | string }} RON</td>
+          <td class="text-end">{{ r.marja_bruta | int | string }} RON</td>
+          <td class="text-end {% if r.cost_conditii > 0 %}text-danger fw-semibold{% else %}text-muted{% endif %}">
+            {% if r.cost_conditii > 0 %}−{{ r.cost_conditii | int }} RON{% else %}—{% endif %}
+          </td>
+          <td class="text-end fw-semibold {% if r.marja_ajustata < 0 %}text-danger{% else %}text-success{% endif %}">
+            {{ r.marja_ajustata | int }} RON
+          </td>
+          <td class="text-end {% if r.marja_ajustata_pct < 10 %}text-danger{% elif r.marja_ajustata_pct < 20 %}text-warning{% else %}text-success{% endif %}">
+            {{ r.marja_ajustata_pct }}%
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">
+          Nicio dată. {% if not cond_rows %}Adaugă mai întâi condiții în tab-ul "Condiții Comerciale".{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+      {% if analiza %}
+      <tfoot class="table-light fw-bold">
+        <tr>
+          <td colspan="2">TOTAL</td>
+          <td class="text-end">{{ analiza | sum(attribute='val_neta') | int }} RON</td>
+          <td class="text-end">{{ analiza | sum(attribute='marja_bruta') | int }} RON</td>
+          <td class="text-end text-danger">−{{ analiza | sum(attribute='cost_conditii') | int }} RON</td>
+          <td class="text-end text-success">{{ analiza | sum(attribute='marja_ajustata') | int }} RON</td>
+          <td></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+// ── Condiții: tip label ──
+document.getElementById('cc-tip')?.addEventListener('change', function() {
+  document.getElementById('cc-val-label').textContent = this.value === 'pct' ? 'Valoare (%)' : 'Valoare (RON)';
+});
+
+// ── Condiții: save ──
+document.getElementById('btn-save-conditie')?.addEventListener('click', async function() {
+  const id  = document.getElementById('cc-id').value;
+  const err = document.getElementById('cc-error');
+  err.classList.add('d-none');
+
+  const valoare = document.getElementById('cc-valoare').value;
+  if (!valoare) { err.textContent = 'Valoarea este obligatorie.'; err.classList.remove('d-none'); return; }
+
+  // Collect selected brands (empty selection = toate brandurile = [null])
+  const sel = document.getElementById('cc-furnizor');
+  const selectedBrands = Array.from(sel.selectedOptions).map(o => o.value || null);
+  const brands = selectedBrands.length > 0 ? selectedBrands : [null];
+
+  const base = {
+    an:            document.getElementById('cc-an').value,
+    cod_client:    document.getElementById('cc-cod-client').value || null,
+    tip_valoare:   document.getElementById('cc-tip').value,
+    periodicitate: document.getElementById('cc-periodicitate').value,
+    valoare,
+    descriere:     document.getElementById('cc-descriere').value || null,
+  };
+
+  try {
+    if (id) {
+      // Edit: update single row (brand already fixed)
+      const body = { ...base, furnizor: brands[0] };
+      const resp = await fetch(`/api/conditii/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const data = await resp.json();
+      if (!data.ok) { err.textContent = data.error; err.classList.remove('d-none'); return; }
+    } else {
+      // Create: one row per selected brand
+      for (const furnizor of brands) {
+        const body = { ...base, furnizor };
+        const resp = await fetch('/api/conditii', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const data = await resp.json();
+        if (!data.ok) { err.textContent = data.error; err.classList.remove('d-none'); return; }
+      }
+    }
+    location.reload();
+  } catch(e) { err.textContent = 'Eroare rețea.'; err.classList.remove('d-none'); }
+});
+
+// ── Condiții: edit ──
+document.querySelectorAll('.btn-edit-conditie').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.getElementById('cc-id').value          = this.dataset.id;
+    document.getElementById('cc-an').value          = this.dataset.an;
+    document.getElementById('cc-cod-client').value  = this.dataset.codClient || '';
+    document.getElementById('cc-furnizor').value    = this.dataset.furnizor  || '';
+    document.getElementById('cc-tip').value         = this.dataset.tip;
+    document.getElementById('cc-periodicitate').value = this.dataset.periodicitate;
+    document.getElementById('cc-valoare').value     = this.dataset.valoare;
+    document.getElementById('cc-descriere').value   = this.dataset.descriere || '';
+    document.getElementById('cc-val-label').textContent = this.dataset.tip === 'pct' ? 'Valoare (%)' : 'Valoare (RON)';
+    document.getElementById('modalConditieTitle').textContent = 'Editează condiție';
+    new bootstrap.Modal(document.getElementById('modalConditie')).show();
+  });
+});
+
+// ── Condiții: delete ──
+document.querySelectorAll('.btn-del-conditie').forEach(btn => {
+  btn.addEventListener('click', async function() {
+    if (!confirm('Ștergi condiția?')) return;
+    await fetch(`/api/conditii/${this.dataset.id}`, { method: 'DELETE' });
+    location.reload();
+  });
+});
+
+// ── Termene: save ──
+document.getElementById('btn-save-termen')?.addEventListener('click', async function() {
+  const body = {
+    an:          document.getElementById('tp-an').value,
+    cod_client:  document.getElementById('tp-cod-client').value,
+    zile_termen: document.getElementById('tp-zile').value,
+    observatii:  document.getElementById('tp-observatii').value || null,
+  };
+  const err = document.getElementById('tp-error');
+  if (!body.cod_client) { err.textContent = 'Selectează un client.'; err.classList.remove('d-none'); return; }
+  const resp = await fetch('/api/termene', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const data = await resp.json();
+  if (data.ok) location.reload();
+  else { err.textContent = data.error; err.classList.remove('d-none'); }
+});
+
+// ── Termene: delete ──
+document.querySelectorAll('.btn-del-termen').forEach(btn => {
+  btn.addEventListener('click', async function() {
+    if (!confirm('Stergi termenul?')) return;
+    await fetch(`/api/termene/${this.dataset.id}`, { method: 'DELETE' });
+    location.reload();
+  });
+});
+</script>
+{% endblock %}

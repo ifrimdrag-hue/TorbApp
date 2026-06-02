@@ -1,0 +1,49 @@
+{% extends 'auth/base_auth.html' %}
+{% block title %}Resetare parolă — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-sm-10 col-md-6 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-dark text-white py-3">
+        <i class="bi bi-envelope-fill text-info me-2"></i>
+        <span class="fw-bold">Resetare parolă</span>
+      </div>
+      <div class="card-body p-4">
+        {% if sent %}
+        <div class="alert alert-success py-2">
+          <i class="bi bi-check-circle me-1"></i>
+          Dacă adresa de email este înregistrată, veți primi un link de resetare în câteva minute.
+        </div>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-outline-secondary w-100 mt-2">
+          Înapoi la autentificare
+        </a>
+        {% else %}
+        {% if not smtp_ok %}
+        <div class="alert alert-warning py-2 small">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          Resetarea prin email nu este configurată. Contactați administratorul.
+        </div>
+        {% endif %}
+        <p class="text-muted small mb-3">
+          Introduceți adresa de email asociată contului. Veți primi un link valabil 1 oră.
+        </p>
+        <form method="POST" novalidate>
+          {{ form.hidden_tag() }}
+          <div class="mb-3">
+            {{ form.email.label(class="form-label small fw-semibold") }}
+            {{ form.email(class="form-control", placeholder="email@firma.ro") }}
+          </div>
+          <button type="submit" class="btn btn-success w-100">
+            <i class="bi bi-send me-1"></i> Trimite link
+          </button>
+        </form>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-link w-100 mt-1 text-muted small">
+          Înapoi la autentificare
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

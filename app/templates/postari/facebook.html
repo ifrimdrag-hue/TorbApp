@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Postări Facebook{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <h4 class="mb-1"><i class="bi bi-facebook text-primary me-2"></i>Postări Facebook</h4>
+    <p class="text-secondary small mb-0">Generează caption narativ + hashtag-uri pentru Facebook din poză.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent border-0 pt-3 pb-0">
+        <h6 class="fw-bold mb-0"><i class="bi bi-upload me-2 text-primary"></i>Configurare</h6>
+      </div>
+      <div class="card-body">
+        <form id="postForm" enctype="multipart/form-data">
+          <input type="hidden" name="platform" value="facebook">
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Poză *</label>
+            <input type="file" class="form-control form-control-sm" name="photo" id="photoInput"
+                   accept=".jpg,.jpeg,.png,.webp,.gif" required>
+            <div id="photoPreview" class="mt-2 d-none">
+              <img id="previewImg" src="" class="img-fluid rounded" style="max-height:200px;">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Brand (opțional)</label>
+            <select class="form-select form-select-sm" name="brand">
+              <option value="">Auto-detect din poză</option>
+              <option>Basilur</option><option>KingsLeaf</option><option>Tipson</option>
+              <option>Celmar</option><option>Torras</option><option>Delaviuda</option>
+              <option>El Almendro</option><option>Leonex</option><option>Miss Magic Creative</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Ton</label>
+            <select class="form-select form-select-sm" name="tone">
+              <option value="">Auto</option>
+              <option value="casual">Casual / prietenesc</option>
+              <option value="promo">Promotional</option>
+              <option value="lifestyle">Lifestyle / aspirational</option>
+              <option value="educational">Educational</option>
+              <option value="storytelling">Storytelling</option>
+            </select>
+          </div>
+
+          {% if campaigns %}
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Leagă de campanie (opțional)</label>
+            <select class="form-select form-select-sm" name="linked_campaign_id">
+              <option value="">— fără campanie —</option>
+              {% for c in campaigns %}
+              <option value="{{ c.id }}">{{ c.name }} ({{ c.status }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Indicații suplimentare</label>
+            <textarea class="form-control form-control-sm" name="notes" rows="2"
+                      placeholder="ex: ton comunitar, invită la comentarii…"></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100" id="btnGenerate">
+            <i class="bi bi-stars me-1"></i>Generează cu AI
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div id="resultArea" class="d-none">
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-transparent border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+          <h6 class="fw-bold mb-0"><i class="bi bi-facebook text-primary me-2"></i>Caption generat</h6>
+          <button class="btn btn-sm btn-outline-secondary" id="btnCopyCaption">
+            <i class="bi bi-clipboard me-1"></i>Copiază
+          </button>
+        </div>
+        <div class="card-body">
+          <div id="imageAnalysis" class="alert alert-secondary small mb-3 d-none"></div>
+          <pre id="captionText" class="p-3 rounded bg-dark-subtle small"
+               style="white-space:pre-wrap;font-family:inherit;"></pre>
+          <div id="hashtagsBlock" class="mt-2">
+            <p class="text-muted small mb-1">Hashtag-uri:</p>
+            <div id="hashtagsList" class="d-flex flex-wrap gap-1"></div>
+          </div>
+          <div id="tipsBlock" class="mt-3 d-none">
+            <p class="text-muted small mb-1">Sfaturi de postare:</p>
+            <ul id="tipsList" class="small mb-0"></ul>
+          </div>
+          <div id="warningsBlock" class="mt-3 d-none">
+            <div class="alert alert-warning small mb-0" id="warningsList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="loadingArea" class="d-none text-center py-5">
+      <div class="spinner-border text-primary mb-3" role="status"></div>
+      <p class="text-muted">AI analizează poza și generează caption-ul…</p>
+    </div>
+
+    <div id="emptyArea" class="text-center py-5 text-muted">
+      <i class="bi bi-image fs-1 d-block mb-2 opacity-25"></i>
+      Încarcă o poză și apasă „Generează cu AI"
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const form    = document.getElementById('postForm');
+  const loading = document.getElementById('loadingArea');
+  const result  = document.getElementById('resultArea');
+  const empty   = document.getElementById('emptyArea');
+  const btnGen  = document.getElementById('btnGenerate');
+
+  document.getElementById('photoInput').addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+    document.getElementById('previewImg').src = URL.createObjectURL(file);
+    document.getElementById('photoPreview').classList.remove('d-none');
+  });
+
+  document.getElementById('btnCopyCaption').addEventListener('click', function () {
+    const caption  = document.getElementById('captionText').textContent;
+    const hashtags = [...document.querySelectorAll('#hashtagsList .badge')].map(b => b.textContent).join(' ');
+    navigator.clipboard.writeText(caption + '\n\n' + hashtags);
+    this.innerHTML = '<i class="bi bi-check me-1"></i>Copiat!';
+    setTimeout(() => { this.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copiază'; }, 2000);
+  });
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    empty.classList.add('d-none');
+    result.classList.add('d-none');
+    loading.classList.remove('d-none');
+    btnGen.disabled = true;
+
+    const fd = new FormData(form);
+    try {
+      const r = await fetch('/api/postari/ai-generate', { method: 'POST', body: fd });
+      const d = await r.json();
+      loading.classList.add('d-none');
+      if (!d.ok) {
+        empty.classList.remove('d-none');
+        empty.innerHTML = '<i class="bi bi-exclamation-triangle text-danger fs-3 d-block mb-2"></i>' +
+          '<span class="text-danger">' + d.error + '</span>';
+        return;
+      }
+      const data = d.data;
+      const analysis = document.getElementById('imageAnalysis');
+      if (data.image_analysis) {
+        analysis.textContent = '🔍 ' + data.image_analysis;
+        analysis.classList.remove('d-none');
+      }
+      document.getElementById('captionText').textContent = data.caption || '';
+      const htList = document.getElementById('hashtagsList');
+      htList.innerHTML = (data.hashtags || []).map(h =>
+        `<span class="badge bg-secondary">${h}</span>`).join('');
+      const tipsBlock = document.getElementById('tipsBlock');
+      const tipsList  = document.getElementById('tipsList');
+      if (data.posting_tips && data.posting_tips.length) {
+        tipsList.innerHTML = data.posting_tips.map(t => `<li>${t}</li>`).join('');
+        tipsBlock.classList.remove('d-none');
+      }
+      const wb = document.getElementById('warningsBlock');
+      if (data.warnings && data.warnings.length) {
+        document.getElementById('warningsList').innerHTML =
+          '<strong>Atenție:</strong> ' + data.warnings.join(' • ');
+        wb.classList.remove('d-none');
+      } else {
+        wb.classList.add('d-none');
+      }
+      result.classList.remove('d-none');
+    } catch (err) {
+      loading.classList.add('d-none');
+      empty.classList.remove('d-none');
+      empty.innerHTML = '<span class="text-danger">Eroare de rețea: ' + err + '</span>';
+    } finally {
+      btnGen.disabled = false;
+    }
+  });
+}());
+</script>
+{% endblock %}

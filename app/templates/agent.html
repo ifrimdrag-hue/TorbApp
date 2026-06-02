@@ -1,0 +1,504 @@
+{% extends 'base.html' %}
+{% block title %}{{ agent }} — Torb Logistic{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('analytics.team') }}">Echipă</a></li>
+    <li class="breadcrumb-item active">{{ agent }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h4 class="mb-0 fw-bold">
+    <i class="bi bi-person-circle text-primary me-1"></i>{{ agent }}
+  </h4>
+  <div class="d-flex gap-2 align-items-center">
+    <a href="{{ url_for('reports.export_excel', report='agent', name=agent, an=an) }}"
+       class="btn btn-sm btn-outline-success" title="Export Excel">
+      <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+    <a href="{{ url_for('reports.export_ppt_agent', name=agent, an=an) }}"
+       class="btn btn-sm btn-outline-danger" title="Export PPT">
+      <i class="bi bi-file-earmark-slides"></i> PPT
+    </a>
+  </div>
+</div>
+{% include '_period_selector.html' %}
+
+<!-- KPI cards -->
+{% if kpi %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-currency-euro text-primary fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Val Factură Netă{% if kpi.max_luna and kpi.max_luna < 12 %} YTD{% endif %}</p>
+      <p class="fw-bold mb-1">{{ kpi.val_neta | ron }}</p>
+      {% if kpi.delta_vn is not none %}
+      <small class="{{ kpi.delta_vn | delta_class }}">
+        {% if kpi.delta_vn >= 0 %}▲{% else %}▼{% endif %}{{ kpi.delta_vn | abs | round(1) }}% vs {{ period_py }}
+      </small>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-graph-up text-success fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Marjă Brută</p>
+      <p class="fw-bold mb-1">{{ kpi.marja_bruta | ron }}</p>
+      <small class="text-success fw-semibold">{{ kpi.marja_pct | pct }}</small>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-graph-down-arrow text-warning fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Marjă Netă</p>
+      <p class="fw-bold mb-1">{{ kpi.marja_neta | ron }}</p>
+      <small class="{% if (kpi.marja_neta_pct or 0) >= 5 %}text-success{% else %}text-danger{% endif %} fw-semibold">
+        {{ kpi.marja_neta_pct | pct }}
+      </small>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-people text-secondary fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Clienți Activi</p>
+      <p class="fw-bold mb-1">{{ kpi.clienti_activi }}</p>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-file-earmark-text text-dark fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Nr Facturi</p>
+      <p class="fw-bold mb-1">{{ kpi.nr_facturi }}</p>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-calendar-check text-info fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Ultima Livrare</p>
+      <p class="fw-bold mb-1 small">{{ kpi.ultima_livrare or '—' }}</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Charts row -->
+<div class="row g-3 mb-4">
+  <!-- Trend chart -->
+  <div class="col-xl-7">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-bar-chart-line text-primary me-1"></i> Trend Lunar</span>
+        <div class="btn-group btn-group-sm" role="group">
+          <button class="btn btn-outline-primary active" onclick="showMetric('vn',this)">Val Netă</button>
+          <button class="btn btn-outline-success" onclick="showMetric('mb',this)">Marjă Brută</button>
+          <button class="btn btn-outline-warning" onclick="showMetric('mn',this)">Marjă Netă</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <canvas id="trendChart" height="130"></canvas>
+      </div>
+    </div>
+  </div>
+  <!-- Brand mix -->
+  <div class="col-xl-5">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-pie-chart text-info me-1"></i> Brand Mix {{ an }}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Brand</th>
+              <th class="text-end">Val Netă</th>
+              <th class="text-end">MB%</th>
+              <th class="text-end">MN%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in brands %}
+            <tr>
+              <td class="small fw-semibold">{{ b.furnizor }}</td>
+              <td class="text-end small">{{ b.val_neta | ron }}</td>
+              <td class="text-end small text-success">{{ b.marja_bruta_pct | pct }}</td>
+              <td class="text-end small {% if (b.marja_neta_pct or 0) >= 5 %}text-success{% else %}text-danger{% endif %}">
+                {{ b.marja_neta_pct | pct }}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-muted text-center py-2">—</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Clients + SKUs + Lunar tabs -->
+<ul class="nav nav-tabs mb-3" id="agentTabs">
+  <li class="nav-item">
+    <a class="nav-link active" data-bs-toggle="tab" href="#tabClienti">
+      <i class="bi bi-building me-1"></i> Clienți <span class="badge bg-secondary">{{ clients | length }}</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tabSkus">
+      <i class="bi bi-box-seam me-1"></i> Produse <span class="badge bg-secondary">{{ skus | length }}</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tabLunar">
+      <i class="bi bi-calendar3 me-1"></i> Analiză Lunară
+      <span class="badge bg-secondary">{{ monthly_pivot | length }} branduri</span>
+    </a>
+  </li>
+</ul>
+
+<div class="tab-content">
+  <!-- Clienți tab -->
+  <div class="tab-pane fade show active" id="tabClienti">
+    <div class="card shadow-sm border-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Client</th>
+              <th class="text-end">Val Netă</th>
+              <th class="text-end">vs {{ period_py }}</th>
+              <th class="text-end">MB (RON)</th>
+              <th class="text-end">MB%</th>
+              <th class="text-end">MN (RON)</th>
+              <th class="text-end">MN%</th>
+              <th>Churn</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in clients %}
+            <tr>
+              <td>
+                <a href="{{ url_for('analytics.client_detail', cod_client=c.cod_client, an=an, luna=luna) if luna else url_for('analytics.client_detail', cod_client=c.cod_client, an=an) }}"
+                   class="text-decoration-none">{{ c.client | truncate(35, True, '…') }}</a>
+              </td>
+              <td class="text-end fw-semibold small">{{ c.val_neta | ron }}</td>
+              <td class="text-end small">
+                {% if c.val_neta_py %}
+                {% set d = ((c.val_neta|float(0)) / (c.val_neta_py|float(0)) - 1.0) * 100.0 %}
+                <span class="{{ d | delta_class }}">{{ d | round(1) }}%</span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-end small">{{ c.marja_bruta | ron }}</td>
+              <td class="text-end small text-success">{{ c.marja_bruta_pct | pct }}</td>
+              <td class="text-end small fw-semibold {% if (c.marja_neta or 0) < 0 %}text-danger{% endif %}">
+                {{ c.marja_neta | ron }}
+              </td>
+              <td class="text-end small {% if (c.marja_neta_pct or 0) >= 5 %}text-success{% elif (c.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+                {{ c.marja_neta_pct | pct }}
+              </td>
+              <td>{{ c.zile_inactiv | churn_badge | safe }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="text-center text-muted py-3">Nicio dată</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Produse tab -->
+  <div class="tab-pane fade" id="tabSkus">
+    <div class="card shadow-sm border-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Produs</th>
+              <th>Brand</th>
+              <th class="text-end">Cant.</th>
+              <th class="text-end">Δ Cant %</th>
+              <th class="text-end">Val Netă</th>
+              <th class="text-end">Δ VN %</th>
+              <th class="text-end">MB (RON)</th>
+              <th class="text-end">MB%</th>
+              <th class="text-end">MN (RON)</th>
+              <th class="text-end">MN%</th>
+              <th class="text-end">Clienți</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in skus %}
+            <tr>
+              <td class="small" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ s.sku }}">
+                <a href="{{ url_for('reports.produs_detail', sku=s.sku, an=an, luna=luna) if luna else url_for('reports.produs_detail', sku=s.sku, an=an) }}" class="text-decoration-none">
+                  {{ s.sku | truncate(35, True, '…') }}
+                </a>
+              </td>
+              <td class="small"><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ s.furnizor }}</span></td>
+              <td class="text-end small">{{ s.cantitate }}</td>
+              <td class="text-end small">
+                {% if s.delta_cant_pct is not none %}
+                  <span class="{{ s.delta_cant_pct | delta_class }} fw-semibold">{{ '%+.1f' % s.delta_cant_pct }}%</span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-end small fw-semibold">{{ s.val_neta | ron }}</td>
+              <td class="text-end small">
+                {% if s.delta_vn_pct is not none %}
+                  <span class="{{ s.delta_vn_pct | delta_class }} fw-semibold">{{ '%+.1f' % s.delta_vn_pct }}%</span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-end small">{{ s.marja_bruta | ron }}</td>
+              <td class="text-end small text-success">{{ s.marja_bruta_pct | pct }}</td>
+              <td class="text-end small {% if (s.marja_neta or 0) < 0 %}text-danger fw-semibold{% endif %}">
+                {{ s.marja_neta | ron }}
+              </td>
+              <td class="text-end small {% if (s.marja_neta_pct or 0) >= 5 %}text-success{% elif (s.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+                {{ s.marja_neta_pct | pct }}
+              </td>
+              <td class="text-end small">{{ s.nr_clienti }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="11" class="text-center text-muted py-3">Nicio dată</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# ─── Tab Analiză Lunară (Brand → SKU pivot, CY vs PY) ──────────── #}
+  <div class="tab-pane fade" id="tabLunar">
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-white d-flex flex-wrap gap-3 align-items-center">
+        <span class="fw-semibold">
+          <i class="bi bi-grid-3x3 me-1 text-info"></i>
+          Pivot lunar: Brand → SKU · {{ an }} vs {{ an - 1 }}
+        </span>
+        <div class="btn-group btn-group-sm ms-auto" role="group">
+          <button class="btn btn-outline-primary active" id="lunarMetricVN"
+                  onclick="setLunarMetric('vn',this)">Val Netă</button>
+          <button class="btn btn-outline-secondary" id="lunarMetricQty"
+                  onclick="setLunarMetric('qty',this)">Cantitate</button>
+        </div>
+        <div class="btn-group btn-group-sm" role="group">
+          <button class="btn btn-outline-success active" id="lunarYearCY"
+                  onclick="setLunarYear('cy',this)">{{ an }}</button>
+          <button class="btn btn-outline-secondary" id="lunarYearPY"
+                  onclick="setLunarYear('py',this)">{{ an - 1 }}</button>
+          <button class="btn btn-outline-warning" id="lunarYearDelta"
+                  onclick="setLunarYear('delta',this)">Δ% vs {{ an - 1 }}</button>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllSkus()" id="btnExpandAll">
+          <i class="bi bi-arrows-expand me-1"></i>Expandează toate
+        </button>
+      </div>
+      <div class="table-responsive" style="max-height:70vh">
+        <table class="table table-sm table-hover align-middle mb-0" id="lunarTable" style="font-size:.78rem">
+          <thead class="table-dark sticky-top">
+            <tr>
+              <th style="min-width:240px">Brand / SKU</th>
+              {% set MO = ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','Nov','Dec'] %}
+              {% for m in MO %}<th class="text-end">{{ m }}</th>{% endfor %}
+              <th class="text-end fw-bold">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for brand, bd in monthly_pivot.items() %}
+            {% set brand_id = brand | replace(' ', '_') | replace('.', '_') %}
+            <tr class="table-secondary brand-row" data-brand="{{ brand_id }}"
+                style="cursor:pointer" onclick="toggleBrand('{{ brand_id }}', this)">
+              <td class="fw-bold">
+                <i class="bi bi-caret-right-fill brand-arrow me-1" id="arrow-{{ brand_id }}"></i>
+                {{ brand }}
+                <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">{{ bd.skus | length }} SKU</span>
+              </td>
+              {% for m in range(12) %}
+              <td class="text-end month-cell"
+                  data-cy-vn="{{ bd.cy_vn[m] }}"  data-py-vn="{{ bd.py_vn[m] }}"
+                  data-cy-qty="{{ bd.cy_qty[m] }}" data-py-qty="{{ bd.py_qty[m] }}">—</td>
+              {% endfor %}
+              <td class="text-end fw-bold total-cell"
+                  data-cy-vn="{{ bd.cy_vn|sum }}"  data-py-vn="{{ bd.py_vn|sum }}"
+                  data-cy-qty="{{ bd.cy_qty|sum }}" data-py-qty="{{ bd.py_qty|sum }}">—</td>
+            </tr>
+            {% for sku, sd in bd.skus.items() %}
+            <tr class="sku-row sku-of-{{ brand_id }}" style="display:none">
+              <td class="ps-4 small text-truncate" style="max-width:240px" title="{{ sku }}">
+                <i class="bi bi-dot text-muted"></i>{{ sku | truncate(40, True, '…') }}
+              </td>
+              {% for m in range(12) %}
+              <td class="text-end small month-cell"
+                  data-cy-vn="{{ sd.cy_vn[m] }}"  data-py-vn="{{ sd.py_vn[m] }}"
+                  data-cy-qty="{{ sd.cy_qty[m] }}" data-py-qty="{{ sd.py_qty[m] }}">—</td>
+              {% endfor %}
+              <td class="text-end small fw-semibold total-cell"
+                  data-cy-vn="{{ sd.cy_vn|sum }}"  data-py-vn="{{ sd.py_vn|sum }}"
+                  data-cy-qty="{{ sd.cy_qty|sum }}" data-py-qty="{{ sd.py_qty|sum }}">—</td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr><td colspan="14" class="text-center text-muted py-4">Nicio dată lunară.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MONTHS  = {{ months_json | safe }};
+const TREND_VN = {{ trend_vn_json | safe }};
+const TREND_MB = {{ trend_mb_json | safe }};
+const TREND_MN = {{ trend_mn_json | safe }};
+
+const PALETTE = {
+  2024: {vn:'rgba(173,181,189,0.7)', mb:'rgba(173,181,189,0.55)', mn:'rgba(173,181,189,0.4)'},
+  2025: {vn:'rgba(13,110,253,0.65)', mb:'rgba(13,202,240,0.65)',  mn:'rgba(13,110,253,0.4)'},
+  2026: {vn:'rgba(25,135,84,0.85)',  mb:'rgba(25,135,84,0.6)',    mn:'rgba(255,193,7,0.85)'},
+};
+
+let currentMetric = 'vn';
+let chart;
+
+function buildDatasets(metric) {
+  const src = metric === 'vn' ? TREND_VN : metric === 'mb' ? TREND_MB : TREND_MN;
+  return Object.entries(src).sort(([a],[b])=>a-b).map(([yr, data]) => ({
+    label: yr,
+    data,
+    backgroundColor: (PALETTE[yr] || {})[metric] || '#adb5bd',
+    borderRadius: 3,
+  }));
+}
+
+function showMetric(metric, btn) {
+  currentMetric = metric;
+  document.querySelectorAll('#agentTrend .btn').forEach(b => {
+    b.classList.remove('active','btn-primary','btn-success','btn-warning');
+    b.classList.add('btn-outline-primary','btn-outline-success','btn-outline-warning');
+  });
+  if (btn) {
+    const map = {vn:'primary',mb:'success',mn:'warning'};
+    btn.classList.remove(`btn-outline-${map[metric]}`);
+    btn.classList.add(`btn-${map[metric]}`, 'active');
+  }
+  chart.data.datasets = buildDatasets(metric);
+  chart.update();
+}
+
+(function () {
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {labels: MONTHS, datasets: buildDatasets('vn')},
+    options: {
+      responsive: true,
+      plugins: {legend: {position: 'top'}},
+      scales: {
+        y: {beginAtZero: true, ticks: {callback: v => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v}},
+      },
+    },
+  });
+  // Attach the btn-group in the card header via id
+  document.querySelector('.card-header .btn-group') && (() => {
+    document.querySelector('.card-header .btn-group').id = 'agentTrend';
+  })();
+})();
+
+// ── Lunar pivot: metric (vn/qty) × year (cy/py/delta) ────────────────────────
+let lunarMetric = 'vn';
+let lunarYear   = 'cy';
+
+function fmtVN(v)  {
+  if (!v || Math.abs(v) < 0.5) return '—';
+  if (Math.abs(v) >= 1e6) return (v/1e6).toFixed(2) + 'M';
+  if (Math.abs(v) >= 1e3) return (v/1e3).toFixed(1) + 'K';
+  return Math.round(v).toLocaleString('ro-RO');
+}
+function fmtQty(v) {
+  if (!v || Math.abs(v) < 0.5) return '—';
+  return Math.round(v).toLocaleString('ro-RO');
+}
+function fmtDelta(cy, py) {
+  if (!py) return cy ? '<span class="text-success small">nou</span>' : '—';
+  const pct = (cy - py) / py * 100;
+  if (Math.abs(pct) < 0.5) return '<span class="text-muted small">±0%</span>';
+  const cls = pct > 0 ? 'text-success' : 'text-danger';
+  const sign = pct > 0 ? '+' : '';
+  return `<span class="${cls} small">${sign}${pct.toFixed(0)}%</span>`;
+}
+
+function renderLunarCell(cell) {
+  const cyV = parseFloat(cell.dataset[lunarMetric === 'vn' ? 'cyVn' : 'cyQty']) || 0;
+  const pyV = parseFloat(cell.dataset[lunarMetric === 'vn' ? 'pyVn' : 'pyQty']) || 0;
+  const fmt = lunarMetric === 'vn' ? fmtVN : fmtQty;
+  if (lunarYear === 'cy')      cell.innerHTML = fmt(cyV);
+  else if (lunarYear === 'py') cell.innerHTML = fmt(pyV);
+  else                          cell.innerHTML = fmtDelta(cyV, pyV);
+}
+
+function refreshLunar() {
+  document.querySelectorAll('#lunarTable .month-cell, #lunarTable .total-cell')
+          .forEach(renderLunarCell);
+}
+
+function setLunarMetric(m, btn) {
+  lunarMetric = m;
+  document.querySelectorAll('#lunarMetricVN,#lunarMetricQty').forEach(b => b.classList.remove('active','btn-primary','btn-secondary'));
+  document.querySelectorAll('#lunarMetricVN,#lunarMetricQty').forEach(b => b.classList.add('btn-outline-' + (b.id === 'lunarMetricVN' ? 'primary' : 'secondary')));
+  btn.classList.remove('btn-outline-primary','btn-outline-secondary');
+  btn.classList.add('active', m === 'vn' ? 'btn-primary' : 'btn-secondary');
+  refreshLunar();
+}
+
+function setLunarYear(y, btn) {
+  lunarYear = y;
+  ['lunarYearCY','lunarYearPY','lunarYearDelta'].forEach(id => {
+    const b = document.getElementById(id);
+    b.classList.remove('active','btn-success','btn-secondary','btn-warning');
+    b.classList.add('btn-outline-' + (id === 'lunarYearCY' ? 'success' : id === 'lunarYearPY' ? 'secondary' : 'warning'));
+  });
+  btn.classList.remove('btn-outline-success','btn-outline-secondary','btn-outline-warning');
+  btn.classList.add('active', y === 'cy' ? 'btn-success' : y === 'py' ? 'btn-secondary' : 'btn-warning');
+  refreshLunar();
+}
+
+function toggleBrand(brandId, row) {
+  const arrow = document.getElementById('arrow-' + brandId);
+  const skuRows = document.querySelectorAll('.sku-of-' + brandId);
+  const expanded = arrow.classList.contains('bi-caret-down-fill');
+  arrow.classList.toggle('bi-caret-right-fill', expanded);
+  arrow.classList.toggle('bi-caret-down-fill', !expanded);
+  skuRows.forEach(r => r.style.display = expanded ? 'none' : '');
+}
+
+function toggleAllSkus() {
+  const btn = document.getElementById('btnExpandAll');
+  const anyCollapsed = !!document.querySelector('.brand-arrow.bi-caret-right-fill');
+  document.querySelectorAll('.brand-row').forEach(row => {
+    const id = row.dataset.brand;
+    const arrow = document.getElementById('arrow-' + id);
+    const skuRows = document.querySelectorAll('.sku-of-' + id);
+    if (anyCollapsed) {
+      arrow.classList.remove('bi-caret-right-fill');
+      arrow.classList.add('bi-caret-down-fill');
+      skuRows.forEach(r => r.style.display = '');
+    } else {
+      arrow.classList.remove('bi-caret-down-fill');
+      arrow.classList.add('bi-caret-right-fill');
+      skuRows.forEach(r => r.style.display = 'none');
+    }
+  });
+  btn.innerHTML = anyCollapsed
+    ? '<i class="bi bi-arrows-collapse me-1"></i>Restrânge toate'
+    : '<i class="bi bi-arrows-expand me-1"></i>Expandează toate';
+}
+
+// Render initial
+refreshLunar();
+</script>
+{% endblock %}

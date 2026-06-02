@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block title %}Actualizare Date — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-3">
+  <h4 class="mb-0 me-3"><i class="bi bi-cloud-upload-fill text-success me-2"></i>Actualizare Date</h4>
+  <span class="text-muted small">Trage fișierele ERP în zonele de mai jos — importul pornește automat.</span>
+</div>
+
+<!-- Zone drag-and-drop -->
+<div class="row g-3 mb-2">
+
+  <!-- Vânzări ERP -->
+  <div class="col-md-4">
+    <div class="drop-zone card h-100 text-center p-4"
+         id="zone-vanzari" data-tip="vanzari"
+         ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+      <div class="zone-icon fs-1 mb-2">📊</div>
+      <div class="zone-title fw-semibold mb-1">Vânzări ERP</div>
+      <div class="zone-hint text-muted small mb-3">Vanzari*.xlsx / .xls</div>
+      <div class="zone-status small"></div>
+      <input type="file" class="d-none file-input" accept=".xlsx,.xls">
+    </div>
+  </div>
+
+  <!-- Stoc ERP -->
+  <div class="col-md-4">
+    <div class="drop-zone card h-100 text-center p-4"
+         id="zone-stoc" data-tip="stoc"
+         ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+      <div class="zone-icon fs-1 mb-2">📦</div>
+      <div class="zone-title fw-semibold mb-1">Stoc ERP</div>
+      <div class="zone-hint text-muted small mb-3">stoc*.xls / .xlsx</div>
+      <div class="zone-status small"></div>
+      <input type="file" class="d-none file-input" accept=".xls,.xlsx">
+    </div>
+  </div>
+
+  <!-- Vânzări Auchan -->
+  <div class="col-md-4">
+    <div class="drop-zone card h-100 text-center p-4"
+         id="zone-auchan" data-tip="auchan"
+         ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+      <div class="zone-icon fs-1 mb-2">🛒</div>
+      <div class="zone-title fw-semibold mb-1">Vânzări Auchan</div>
+      <div class="zone-hint text-muted small mb-3">vz auchan*.xls</div>
+      <div class="zone-status small"></div>
+      <input type="file" class="d-none file-input" accept=".xls,.xlsx">
+    </div>
+  </div>
+
+</div>
+
+<!-- Zone comenzi furnizori -->
+<div class="d-flex align-items-center mb-2 mt-1">
+  <span class="text-muted small fw-semibold text-uppercase" style="letter-spacing:.04em">Comenzi furnizori</span>
+  <hr class="flex-grow-1 ms-2 my-0">
+</div>
+<div class="row g-3 mb-4">
+
+  <!-- Comenzi Celmar -->
+  <div class="col-md-4">
+    <div class="drop-zone card h-100 text-center p-4"
+         id="zone-comenzi-celmar" data-tip="comenzi_celmar"
+         ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+      <div class="zone-icon fs-1 mb-2">🌿</div>
+      <div class="zone-title fw-semibold mb-1">Comenzi Celmar</div>
+      <div class="zone-hint text-muted small mb-3">Romania_New_Order*.xls</div>
+      <div class="zone-status small"></div>
+      <input type="file" class="d-none file-input" accept=".xls,.xlsx">
+    </div>
+  </div>
+
+  <!-- Comenzi Basilur -->
+  <div class="col-md-4">
+    <div class="drop-zone card h-100 text-center p-4"
+         id="zone-comenzi-basilur" data-tip="comenzi_basilur"
+         ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+      <div class="zone-icon fs-1 mb-2">📋</div>
+      <div class="zone-title fw-semibold mb-1">Comenzi Basilur</div>
+      <div class="zone-hint text-muted small mb-3">PFI*.xls / RO1-*.xls (Order Form)</div>
+      <div class="zone-status small"></div>
+      <input type="file" class="d-none file-input" accept=".xls,.xlsx">
+    </div>
+  </div>
+
+  <!-- Comenzi Toras -->
+  <div class="col-md-4">
+    <div class="drop-zone card h-100 text-center p-4"
+         id="zone-comenzi-toras" data-tip="comenzi_toras"
+         ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+      <div class="zone-icon fs-1 mb-2">🍫</div>
+      <div class="zone-title fw-semibold mb-1">Comenzi Toras</div>
+      <div class="zone-hint text-muted small mb-3">ORDER Toras*.xls</div>
+      <div class="zone-status small"></div>
+      <input type="file" class="d-none file-input" accept=".xls,.xlsx">
+    </div>
+  </div>
+
+</div>
+
+<!-- Tabel istoric -->
+<div class="card">
+  <div class="card-header d-flex align-items-center gap-2">
+    <i class="bi bi-clock-history"></i>
+    <strong>Istoric importuri recente</strong>
+    <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="loadLog()">
+      <i class="bi bi-arrow-clockwise"></i> Reîmprospătează
+    </button>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm table-hover mb-0" id="log-table">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Dată / Oră</th>
+          <th>Tip</th>
+          <th>Fișier</th>
+          <th class="text-end">Rânduri</th>
+          <th class="text-end">Durată</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="log-body">
+        <tr><td colspan="6" class="text-center text-muted py-3">Se încarcă...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.drop-zone {
+  border: 2px dashed #dee2e6;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  min-height: 180px;
+}
+.drop-zone:hover,
+.drop-zone.dragover {
+  border-color: #0d6efd;
+  background: #f0f5ff;
+}
+.drop-zone.uploading {
+  border-color: #0d6efd;
+  border-style: solid;
+  background: #e8f0fe;
+}
+.drop-zone.success {
+  border-color: #198754;
+  border-style: solid;
+  background: #d1f0dc;
+}
+.drop-zone.error {
+  border-color: #dc3545;
+  border-style: solid;
+  background: #fde8ea;
+}
+</style>
+
+<script>
+// ── Drag-and-drop handlers ──────────────────────────────────────────────────
+
+function onDragOver(e, zone) {
+  e.preventDefault();
+  zone.classList.add('dragover');
+}
+
+function onDragLeave(zone) {
+  zone.classList.remove('dragover');
+}
+
+function onDrop(e, zone) {
+  e.preventDefault();
+  zone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) startUpload(zone, file);
+}
+
+// Click pe zonă → deschide file picker
+document.querySelectorAll('.drop-zone').forEach(function(zone) {
+  zone.addEventListener('click', function() {
+    zone.querySelector('.file-input').click();
+  });
+  zone.querySelector('.file-input').addEventListener('change', function(e) {
+    if (e.target.files[0]) startUpload(zone, e.target.files[0]);
+    e.target.value = '';
+  });
+});
+
+// ── Upload + polling ────────────────────────────────────────────────────────
+
+function setZoneState(zone, state, text) {
+  zone.classList.remove('uploading', 'success', 'error', 'dragover');
+  if (state) zone.classList.add(state);
+  zone.querySelector('.zone-status').innerHTML = text || '';
+  if (state === 'error') {
+    clearTimeout(zone._resetTimer);
+    zone._resetTimer = setTimeout(function() { setZoneState(zone, '', ''); }, 8000);
+  }
+}
+
+function startUpload(zone, file) {
+  if (zone.classList.contains('uploading')) return;
+  const tip = zone.dataset.tip;
+  setZoneState(zone, 'uploading',
+    '<span class="spinner-border spinner-border-sm me-1"></span> ' +
+    'Se încarcă <em>' + escHtml(file.name) + '</em>...');
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  fetch('/api/upload/' + tip, { method: 'POST', body: fd })
+    .then(function(r) {
+      if (!r.ok) {
+        return r.text().then(function(t) {
+          var msg = r.status === 413
+            ? 'Fișier prea mare (limită server). Contactați administratorul.'
+            : 'HTTP ' + r.status + ' – ' + t.replace(/<[^>]*>/g, '').trim().substring(0, 120);
+          throw new Error(msg);
+        });
+      }
+      return r.json();
+    })
+    .then(function(d) {
+      if (!d.ok) {
+        setZoneState(zone, 'error', '<i class="bi bi-x-circle me-1"></i>' + escHtml(d.error || 'Eroare upload'));
+        return;
+      }
+      pollStatus(zone, d.job_id, file.name);
+    })
+    .catch(function(err) {
+      setZoneState(zone, 'error', '<i class="bi bi-x-circle me-1"></i>' + escHtml(String(err)));
+    });
+}
+
+function pollStatus(zone, jobId, fileName) {
+  setZoneState(zone, 'uploading',
+    '<span class="spinner-border spinner-border-sm me-1"></span> ' +
+    'Se importă <em>' + escHtml(fileName) + '</em>...');
+
+  const timer = setInterval(function() {
+    fetch('/api/upload/status/' + jobId)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.status === 'running') return;
+        clearInterval(timer);
+        if (d.status === 'done') {
+          const rows = d.randuri != null ? ' · ' + Number(d.randuri).toLocaleString('ro') + ' rând.' : '';
+          setZoneState(zone, 'success',
+            '<i class="bi bi-check-circle-fill me-1"></i>' + escHtml(fileName) + rows);
+        } else {
+          setZoneState(zone, 'error',
+            '<i class="bi bi-x-circle me-1"></i>' + escHtml(d.mesaj || 'Eroare import'));
+        }
+        loadLog();
+      })
+      .catch(function() { /* continuă polling */ });
+  }, 1000);
+}
+
+// ── Tabel istoric ───────────────────────────────────────────────────────────
+
+const TIP_ICON = { vanzari: '📊', stoc: '📦', auchan: '🛒', comenzi_basilur: '📋', comenzi_toras: '🍫', comenzi_celmar: '🌿' };
+const TIP_LABEL = { vanzari: 'Vânzări ERP', stoc: 'Stoc ERP', auchan: 'Auchan', comenzi_basilur: 'Comenzi Basilur', comenzi_toras: 'Comenzi Toras', comenzi_celmar: 'Comenzi Celmar' };
+
+function loadLog() {
+  fetch('/api/import-log')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      const tbody = document.getElementById('log-body');
+      if (!d.ok || !d.items.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Niciun import înregistrat</td></tr>';
+        return;
+      }
+      tbody.innerHTML = d.items.map(function(row) {
+        const icon = TIP_ICON[row.tip] || '📄';
+        const label = TIP_LABEL[row.tip] || row.tip;
+        const randuri = row.randuri != null ? Number(row.randuri).toLocaleString('ro') : '—';
+        const durata = row.durata_s != null ? fmtDurata(row.durata_s) : '—';
+        const badge = row.status === 'ok'
+          ? '<span class="badge bg-success">✓ OK</span>'
+          : '<span class="badge bg-danger" title="' + escHtml(row.mesaj || '') + '">✗ Eroare</span>';
+        return '<tr>' +
+          '<td class="ps-3 text-nowrap">' + escHtml(fmtData(row.creat_la)) + '</td>' +
+          '<td>' + icon + ' ' + label + '</td>' +
+          '<td class="text-muted small">' + escHtml(row.fisier || '—') + '</td>' +
+          '<td class="text-end">' + randuri + '</td>' +
+          '<td class="text-end">' + durata + '</td>' +
+          '<td>' + badge + '</td>' +
+          '</tr>';
+      }).join('');
+    });
+}
+
+function fmtData(iso) {
+  if (!iso) return '—';
+  var m = iso.match(/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/);
+  if (!m) return iso;
+  return m[3] + '.' + m[2] + '.' + m[1] + ' ' + m[4] + ':' + m[5];
+}
+
+function fmtDurata(s) {
+  if (s < 60) return Math.round(s) + 's';
+  var m = Math.floor(s / 60), sec = Math.round(s % 60);
+  return m + 'm ' + sec + 's';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Încarcă tabelul la page load
+loadLog();
+</script>
+{% endblock %}

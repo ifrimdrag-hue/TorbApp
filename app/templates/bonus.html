@@ -1,0 +1,383 @@
+{% extends 'base.html' %}
+{% block title %}Tracker Bonus Echipă — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-trophy-fill text-warning me-2"></i>Tracker Bonus Echipă</h4>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('bonus.bonus_export') }}" class="btn btn-sm btn-success">
+      <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
+    </a>
+    <a href="{{ url_for('bonus.bonus_simulator') }}" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-calculator-fill me-1"></i> Simulator Bonus
+    </a>
+  </div>
+</div>
+
+{% include '_period_selector.html' %}
+
+{# ── TOP: Agent summary cards (click → activates tab below) ─────────── #}
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-5 g-3 mb-4">
+  {% for a in agents %}
+  {% set r = a.result %}
+  {% set disp_pct = a.period_sales_att %}
+  {% set active_months = a.period_active %}
+  <div class="col">
+    <div class="card border-0 shadow-sm h-100 agent-card"
+         id="card-{{ loop.index0 }}"
+         style="cursor:pointer;transition:border .15s"
+         onclick="activateAgent({{ loop.index0 }})">
+      <div class="card-body pb-2">
+
+        {# Header: name + badge realizare vânzări #}
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="fw-bold">{{ a.name }}</div>
+            <div class="text-muted" style="font-size:.75rem">{{ a.db_agent }}</div>
+          </div>
+          <div class="text-end">
+            <span class="badge fs-6
+              {% if disp_pct >= 100 %}bg-success
+              {% elif disp_pct >= 80 %}bg-warning text-dark
+              {% elif disp_pct > 0 %}bg-danger
+              {% else %}bg-secondary{% endif %}">
+              {{ disp_pct | round(1) }}%
+            </span>
+            <div class="text-muted" style="font-size:.65rem">Vânzări</div>
+          </div>
+        </div>
+
+        {# Bonus amounts #}
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Realizat {{ 'Luna' if luna else 'YTD' }}</span>
+          <span class="fw-semibold {{ 'text-success' if a.period_bonus > 0 else 'text-muted' }}">
+            {{ a.period_bonus | int }} RON
+          </span>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Target perioadă</span>
+          <span class="text-muted">{{ a.period_target | int }} RON</span>
+        </div>
+        <div class="d-flex justify-content-between small mb-2">
+          <span class="text-muted">Luni cu bonus</span>
+          <span class="text-muted">{{ active_months }} / {{ '1' if luna else '12' }}</span>
+        </div>
+
+        {# Overall progress bar — bazat pe realizare vânzări #}
+        <div class="progress mb-3" style="height:6px">
+          {% set prog = [disp_pct, 150] | min %}
+          <div class="progress-bar
+            {% if disp_pct >= 100 %}bg-success{% elif disp_pct >= 80 %}bg-warning{% else %}bg-danger{% endif %}"
+               style="width:{{ (prog / 150 * 100) | round(0) }}%"></div>
+        </div>
+
+        {# Strategic brand progress bars #}
+        <div class="border-top pt-2">
+          <div class="text-muted mb-1 fw-semibold" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">KPI Strategice</div>
+          {% for b in a.strategic_period %}
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="text-muted text-truncate" style="width:62px;font-size:.72rem">{{ b.brand }}</span>
+            <div class="progress flex-grow-1" style="height:5px">
+              {% set bar = [b.att, 150] | min %}
+              <div class="progress-bar
+                {% if b.att >= 100 %}bg-success{% elif b.att >= 85 %}bg-warning{% else %}bg-danger{% endif %}"
+                   style="width:{{ (bar / 150 * 100) | round(0) }}%"></div>
+            </div>
+            <span class="fw-semibold
+              {% if b.att >= 100 %}text-success{% elif b.att >= 85 %}text-warning{% else %}text-danger{% endif %}"
+                  style="width:36px;font-size:.72rem;text-align:right">{{ b.att }}%</span>
+          </div>
+          {% endfor %}
+        </div>
+
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── BOTTOM: Detailed tabs per agent ─────────────────────────────────── #}
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white p-0 border-bottom">
+    <ul class="nav nav-tabs border-0 px-3 pt-2" id="bonusTabs">
+      {% for a in agents %}
+      <li class="nav-item">
+        <button class="nav-link {% if loop.first %}active{% endif %} px-4 py-2"
+                id="tab-btn-{{ loop.index0 }}"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-pane-{{ loop.index0 }}">
+          {{ a.name }}
+          {% set pct = a.period_sales_att %}
+          <span class="badge ms-1
+            {% if pct >= 100 %}bg-success{% elif pct >= 80 %}bg-warning text-dark{% elif pct > 0 %}bg-danger{% else %}bg-secondary{% endif %}">
+            {{ pct | round(0) | int }}%
+          </span>
+        </button>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="tab-content">
+    {% for a in agents %}
+    {% set r = a.result %}
+    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="tab-pane-{{ loop.index0 }}">
+      <div class="row g-0">
+
+        {# LEFT col: Strategic KPIs + bonus summary #}
+        <div class="col-lg-4 border-end" style="min-width:300px">
+          <div class="p-3">
+
+            {# YTD KPI summary row #}
+            <div class="text-muted mb-2 fw-semibold" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Realizare {{ 'Luna' if luna else 'YTD' }}</div>
+            <div class="row g-2 text-center mb-3">
+              {% set sa = a.period_sales_att %}
+              {% set ma = a.period_margin_att %}
+              {% set st = a.period_strategic %}
+              <div class="col-4">
+                <div class="card border-0 bg-light p-2">
+                  <div style="font-size:.7rem" class="text-muted">Vânzări</div>
+                  <div class="fw-bold
+                    {% if sa >= 100 %}text-success{% elif sa >= 85 %}text-warning{% else %}text-danger{% endif %}">
+                    {{ sa }}%
+                  </div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="card border-0 bg-light p-2">
+                  <div style="font-size:.7rem" class="text-muted">Marjă</div>
+                  <div class="fw-bold
+                    {% if ma >= 100 %}text-success{% elif ma >= 85 %}text-warning{% else %}text-danger{% endif %}">
+                    {{ ma }}%
+                  </div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="card border-0 bg-light p-2">
+                  <div style="font-size:.7rem" class="text-muted">Strategic</div>
+                  <div class="fw-bold
+                    {% if st >= 100 %}text-success{% elif st >= 85 %}text-warning{% else %}text-danger{% endif %}">
+                    {{ st }}%
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {# Per-brand strategic table #}
+            <div class="text-muted mb-1 fw-semibold" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Categorii Strategice</div>
+            <table class="table table-sm mb-3" style="font-size:.8rem">
+              <thead class="table-light">
+                <tr>
+                  <th>Brand</th>
+                  <th class="text-end text-muted">Pond.</th>
+                  <th class="text-end">Target</th>
+                  <th class="text-end">Actual</th>
+                  <th class="text-center">Realiz.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for b in a.strategic_period %}
+                {% set cls = 'text-success' if b.att >= 100 else 'text-warning' if b.att >= 85 else 'text-danger' %}
+                <tr>
+                  <td class="fw-semibold">{{ b.brand }}</td>
+                  <td class="text-end text-muted">{{ b.weight }}%</td>
+                  <td class="text-end">{{ b.target | int | string | replace(',', '.') }}</td>
+                  <td class="text-end">{{ b.actual | int | string | replace(',', '.') }}</td>
+                  <td class="text-center">
+                    <div class="progress mb-1" style="height:3px">
+                      {% set bar = [b.att, 150] | min %}
+                      <div class="progress-bar
+                        {% if b.att >= 100 %}bg-success{% elif b.att >= 85 %}bg-warning{% else %}bg-danger{% endif %}"
+                           style="width:{{ (bar / 150 * 100) | round(0) }}%"></div>
+                    </div>
+                    <span class="fw-semibold {{ cls }}">{{ b.att }}%</span>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot class="table-light">
+                <tr>
+                  <td colspan="4" class="text-end fw-semibold text-muted">Score ponderat</td>
+                  <td class="text-center fw-bold
+                    {% if a.period_strategic >= 100 %}text-success{% elif a.period_strategic >= 85 %}text-warning{% else %}text-danger{% endif %}">
+                    {{ a.period_strategic }}%
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+
+            {# Bonus summary #}
+            <div class="text-muted mb-2 fw-semibold" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Bonus</div>
+            <div class="d-flex justify-content-between small mb-1">
+              <span class="text-muted">Bonus lunar target</span>
+              <span>{{ a.preset.monthly_bonus | int }} RON</span>
+            </div>
+            <div class="d-flex justify-content-between small mb-1">
+              <span class="text-muted">Target perioadă</span>
+              <span>{{ a.period_target | int }} RON</span>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+              <span class="text-muted small">Realizat {{ 'luna' if luna else 'YTD' }}</span>
+              <span class="fw-bold {{ 'text-success' if a.period_bonus > 0 else 'text-muted' }}">
+                {{ a.period_bonus | int }} RON
+              </span>
+            </div>
+            <div class="progress mb-1" style="height:8px">
+              {% set prog = [a.period_pct, 150] | min %}
+              <div class="progress-bar
+                {% if a.period_pct >= 100 %}bg-success{% elif a.period_pct >= 85 %}bg-warning{% else %}bg-danger{% endif %}"
+                   style="width:{{ (prog / 150 * 100) | round(0) }}%"></div>
+            </div>
+            <div class="text-center small fw-semibold
+              {% if a.period_pct >= 100 %}text-success{% elif a.period_pct >= 85 %}text-warning{% else %}text-danger{% endif %}">
+              {{ a.period_pct | round(1) }}% din target perioadă
+            </div>
+
+          </div>
+        </div>
+
+        {# RIGHT col: Monthly breakdown table #}
+        <div class="col-lg-8">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" style="font-size:.8rem">
+              <thead class="table-dark">
+                <tr>
+                  <th>Lună</th>
+                  <th class="text-end">Bază Vânz.</th>
+                  <th class="text-end">Target Vânz.</th>
+                  <th class="text-end">Actual Vânz.</th>
+                  <th class="text-center">Realiz. Vânz.</th>
+                  <th class="text-center">Realiz. Marjă</th>
+                  <th class="text-center">Strategic</th>
+                  <th class="text-end">Bonus Vânz.</th>
+                  <th class="text-end">Bonus Marjă</th>
+                  <th class="text-end">Bonus Strat.</th>
+                  <th class="text-end fw-semibold">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for m in a.months %}
+                {% set has = m.target_sales > 0 or m.target_margin > 0 %}
+                {% set is_selected = luna and m.month == luna %}
+                <tr class="{{ 'table-primary fw-semibold' if is_selected else ('text-muted' if not has) }}">
+                  <td class="fw-semibold">{{ months_ro[m.month - 1] }}</td>
+                  <td class="text-end">
+                    {% if m.target_sales > 0 %}
+                      {{ (m.target_sales / (1 + a.preset.growth_pct)) | int | string | replace(',', '.') }}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td class="text-end">
+                    {% if m.target_sales > 0 %}{{ m.target_sales | int | string | replace(',', '.') }}{% else %}—{% endif %}
+                  </td>
+                  <td class="text-end">
+                    {% if has %}{{ (m.sales_att * m.target_sales) | int | string | replace(',', '.') }}{% else %}—{% endif %}
+                  </td>
+                  <td class="text-center">
+                    {% if m.target_sales > 0 %}
+                      {% set sp = m.sales_att * 100 %}
+                      <span class="fw-semibold
+                        {% if sp >= 100 %}text-success{% elif sp >= 85 %}text-warning{% else %}text-danger{% endif %}">
+                        {{ sp | round(1) }}%
+                      </span>
+                    {% else %}—{% endif %}
+                  </td>
+                  <td class="text-center">
+                    {% if m.target_margin > 0 %}
+                      {% set mp = m.margin_att * 100 %}
+                      <span class="fw-semibold
+                        {% if mp >= 100 %}text-success{% elif mp >= 85 %}text-warning{% else %}text-danger{% endif %}">
+                        {{ mp | round(1) }}%
+                      </span>
+                    {% else %}—{% endif %}
+                  </td>
+                  <td class="text-center">
+                    {% if has %}
+                      {% set stp = m.strategic_att * 100 %}
+                      {% if not m.gate_strategic_ok %}
+                        <span class="text-danger" title="Prag neîndeplinit — bonus strategic blocat">
+                          {{ stp | round(1) }}% <i class="bi bi-lock-fill"></i>
+                        </span>
+                      {% else %}
+                        <span class="fw-semibold
+                          {% if stp >= 100 %}text-success{% elif stp >= 85 %}text-warning{% else %}text-danger{% endif %}">
+                          {{ stp | round(1) }}%
+                        </span>
+                      {% endif %}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td class="text-end">{{ m.sales_bonus | int if m.sales_bonus > 0 else '—' }}</td>
+                  <td class="text-end">{{ m.margin_bonus | int if m.margin_bonus > 0 else '—' }}</td>
+                  <td class="text-end">{{ m.strategic_bonus | int if m.strategic_bonus > 0 else '—' }}</td>
+                  <td class="text-end fw-semibold {{ 'text-success' if m.total_bonus > 0 else 'text-muted' }}">
+                    {{ m.total_bonus | int if m.total_bonus > 0 else '—' }}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot class="table-light fw-semibold">
+                <tr>
+                  <td colspan="7" class="text-end">Total {{ 'lună' if luna else 'YTD' }}</td>
+                  <td class="text-end">
+                    {{ a.months | selectattr('month', 'equalto', luna) | sum(attribute='sales_bonus') | int if luna
+                       else a.months | sum(attribute='sales_bonus') | int }}
+                  </td>
+                  <td class="text-end">
+                    {{ a.months | selectattr('month', 'equalto', luna) | sum(attribute='margin_bonus') | int if luna
+                       else a.months | sum(attribute='margin_bonus') | int }}
+                  </td>
+                  <td class="text-end">
+                    {{ a.months | selectattr('month', 'equalto', luna) | sum(attribute='strategic_bonus') | int if luna
+                       else a.months | sum(attribute='strategic_bonus') | int }}
+                  </td>
+                  <td class="text-end text-success">{{ a.period_bonus | int }} RON</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# Legend #}
+<div class="d-flex flex-wrap gap-3 text-muted small mt-3">
+  <span><i class="bi bi-lock-fill text-danger me-1"></i>Bonus strategic blocat — prag vânzări sau marjă neîndeplinit</span>
+  <span>
+    <span class="badge bg-success me-1">≥100%</span>
+    <span class="badge bg-warning text-dark me-1">85–99%</span>
+    <span class="badge bg-danger me-1">&lt;85%</span>
+    Realizare
+  </span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function activateAgent(idx) {
+  const btn = document.getElementById('tab-btn-' + idx);
+  if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+  document.getElementById('bonusTabs').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+function syncCardHighlight(idx) {
+  document.querySelectorAll('.agent-card').forEach((c, i) => {
+    if (i === idx) {
+      c.classList.add('border', 'border-primary', 'border-2');
+    } else {
+      c.classList.remove('border', 'border-primary', 'border-2');
+    }
+  });
+}
+
+// Sync highlight when tabs change
+document.querySelectorAll('[data-bs-toggle="tab"]').forEach((btn, idx) => {
+  btn.addEventListener('shown.bs.tab', () => syncCardHighlight(idx));
+});
+
+// Highlight first card on load
+syncCardHighlight(0);
+</script>
+{% endblock %}

@@ -1,0 +1,1809 @@
+{% extends "base.html" %}
+{% block title %}Stoc & Aprovizionare — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="bi bi-boxes text-primary me-2"></i>Stoc & Aprovizionare</h4>
+  <div class="d-flex align-items-center gap-2">
+    <span class="text-muted small">
+      Snapshot: <strong>{{ stoc_snapshot or '—' }}</strong>
+    </span>
+    <span class="text-muted small">{{ today }}</span>
+  </div>
+</div>
+
+{% if is_xmas_window %}
+<div class="alert alert-warning alert-dismissible py-2 mb-3" role="alert">
+  <i class="bi bi-tree-fill text-success me-1"></i>
+  <strong>Fereastră Crăciun deschisă!</strong>
+  Basilur, Kings Leaf și Tipson au termen de livrare 4 luni.
+  Comandă acum pentru stoc disponibil în octombrie–noiembrie.
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+{# ── Tabs ── #}
+<ul class="nav nav-tabs mb-3" id="forecastTabs">
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'stoc' %}active{% endif %}"
+       href="{{ url_for('forecast.forecast', tab='stoc') }}">
+      <i class="bi bi-clipboard-data me-1"></i>Stoc & Urgente
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'suggest' %}active{% endif %}"
+       href="{{ url_for('forecast.forecast', tab='suggest') }}">
+      <i class="bi bi-cart-plus me-1"></i>Sugestie Comandă
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'comenzi' %}active{% endif %}"
+       href="{{ url_for('forecast.forecast', tab='comenzi') }}">
+      <i class="bi bi-truck me-1"></i>Comenzi Furnizori
+      {% if comenzi|length > 0 %}
+        <span class="badge bg-secondary ms-1">{{ comenzi|length }}</span>
+      {% endif %}
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'setari' %}active{% endif %}"
+       href="{{ url_for('forecast.forecast', tab='setari') }}">
+      <i class="bi bi-gear me-1"></i>Termene
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'export' %}active{% endif %}"
+       href="{{ url_for('forecast.forecast', tab='export') }}">
+      <i class="bi bi-globe me-1"></i>Clienți Export
+    </a>
+  </li>
+</ul>
+
+
+{# ════════════════════════════════════════════════════════════════════
+   TAB 1 — STOC & URGENTE
+   ════════════════════════════════════════════════════════════════════ #}
+<div id="tab-stoc" {% if tab != 'stoc' %}style="display:none"{% endif %}>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="fs-2 fw-bold text-primary">{{ summary.nr_sku or 0 }}</div>
+          <div class="text-muted small">SKU-uri în stoc</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="fs-2 fw-bold text-dark">{{ summary.valoare_totala | ron }}</div>
+          <div class="text-muted small">Valoare stoc</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="card border-0 shadow-sm h-100 border-start border-danger border-3">
+        <div class="card-body text-center">
+          <div class="fs-2 fw-bold text-danger">{{ summary.critic or 0 }}</div>
+          <div class="text-muted small">Critic <span class="badge bg-danger">&lt;30z</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="card border-0 shadow-sm h-100 border-start border-warning border-3">
+        <div class="card-body text-center">
+          <div class="fs-2 fw-bold text-warning">{{ summary.atentie or 0 }}</div>
+          <div class="text-muted small">Atenție <span class="badge bg-warning text-dark">30-60z</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="card border-0 shadow-sm h-100 border-start border-success border-3">
+        <div class="card-body text-center">
+          <div class="fs-2 fw-bold text-success">{{ summary.ok or 0 }}</div>
+          <div class="text-muted small">OK <span class="badge bg-success">&gt;60z</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form method="get" class="row g-2 mb-3 align-items-end">
+    <input type="hidden" name="tab" value="stoc">
+    <div class="col-auto" style="min-width:220px">
+      <label class="form-label small text-muted mb-1">Caută cod / SKU</label>
+      <div class="input-group input-group-sm">
+        <input type="text" name="q" value="{{ sel_search or '' }}"
+               placeholder="ex: 70197 sau MISS MAGIC"
+               class="form-control form-control-sm">
+        <button type="submit" class="btn btn-outline-primary btn-sm" title="Caută">
+          <i class="bi bi-search"></i>
+        </button>
+      </div>
+    </div>
+    <div class="col-auto">
+      <label class="form-label small text-muted mb-1">Brand</label>
+      <select name="brand" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">Toate brandurile</option>
+        {% for b in brand_opts %}
+          <option value="{{ b.furnizor }}" {% if b.furnizor == sel_brand %}selected{% endif %}>{{ b.furnizor }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <label class="form-label small text-muted mb-1">Gamă</label>
+      <select name="gama" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">Toate gamele</option>
+        {% for g in gama_opts %}
+          <option value="{{ g.gama }}" {% if g.gama == sel_gama %}selected{% endif %}>{{ g.gama }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <label class="form-label small text-muted mb-1">Urgență</label>
+      <select name="urgenta" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">Toate</option>
+        <option value="critic"  {% if sel_urgenta == 'critic'  %}selected{% endif %}>Critic (&lt;30z)</option>
+        <option value="atentie" {% if sel_urgenta == 'atentie' %}selected{% endif %}>Atenție (30-60z)</option>
+        <option value="ok"      {% if sel_urgenta == 'ok'      %}selected{% endif %}>OK (&gt;60z)</option>
+      </select>
+    </div>
+    {% if sel_brand or sel_gama or sel_urgenta or sel_search %}
+    <div class="col-auto">
+      <a href="{{ url_for('forecast.forecast', tab='stoc') }}" class="btn btn-sm btn-outline-secondary">✕ Reset</a>
+    </div>
+    {% endif %}
+    <div class="col-auto ms-auto">
+      <a href="{{ url_for('reports.export_excel', report='forecast', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search) }}"
+         class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel-fill"></i> Export</a>
+    </div>
+    <div class="col-auto align-self-end text-muted small">{{ rows|length }} SKU-uri</div>
+  </form>
+
+  <div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0" style="font-size:.82rem">
+        <thead class="table-dark sticky-top">
+          <tr>
+            <th>Cod furnizor</th><th>SKU</th><th>Brand</th>
+            <th class="text-end">Stoc (buc)</th>
+            <th class="text-end">Val. stoc</th>
+            <th>În tranzit (per comandă)</th>
+            <th class="text-end">Stoc + tranzit</th>
+            <th class="text-end">Vânz./lună</th>
+            <th class="text-center">Zile stoc</th>
+            <th class="text-center">Zile cu tranzit</th>
+            <th class="text-center">Urgență</th>
+            <th>Cel mai vechi lot</th>
+            <th class="text-center" title="Istoric vânzări pe clienți">Clienți</th>
+            <th class="text-end" style="background:rgba(13,110,253,.25);min-width:90px"
+                title="Sugestie cantitate de comandat piața RO (editabil)">Sug. RO</th>
+            <th class="text-end" style="background:rgba(255,193,7,.25);min-width:90px"
+                title="Sugestie cantitate de comandat Export HU (editabil)">Sug. HU 🇭🇺</th>
+            <th class="text-center" style="min-width:80px">+ Comandă</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          {% set zile = r.zile_stoc %}
+          {% if zile is not none and zile < 30 %}
+            {% set rc = 'table-danger' %} {% set badge = '<span class="badge bg-danger">Critic</span>' %}
+          {% elif zile is not none and zile < 60 %}
+            {% set rc = 'table-warning' %} {% set badge = '<span class="badge bg-warning text-dark">Atenție</span>' %}
+          {% else %}
+            {% set rc = '' %} {% set badge = '<span class="badge bg-success">OK</span>' %}
+          {% endif %}
+          {% set tranz = r.in_tranzit_qty or 0 %}
+          {% set total_disp = (r.stoc_total or 0) + tranz %}
+          {% set zile_total = ((total_disp / (r.vanzari_luna_avg / 30.0)) | round | int) if r.vanzari_luna_avg and r.vanzari_luna_avg > 0 else None %}
+          <tr class="{{ rc }}">
+            <td class="text-muted small">{{ (sku_cod_mare.get(r.sku) or r.cod_produs) or '—' }}</td>
+            <td style="max-width:260px" class="text-truncate" title="{{ r.sku }}">
+              <a href="{{ url_for('reports.produs_detail', sku=r.sku) }}" class="text-decoration-none">{{ r.sku }}</a>
+            </td>
+            <td><span class="badge bg-secondary">{{ r.gama or r.furnizor }}</span></td>
+            <td class="text-end fw-semibold">{{ "{:,.0f}".format(r.stoc_total or 0).replace(",",".") }}</td>
+            <td class="text-end">{{ r.valoare_stoc | ron }}</td>
+            <td>
+              {% if r.in_tranzit %}
+                <div class="d-flex flex-wrap gap-1">
+                {% for o in r.in_tranzit %}
+                  {# Color the chip based on ETA proximity vs days_of_stock:
+                     - green: ETA before stock-out (will arrive in time)
+                     - yellow: ETA close to stock-out
+                     - red: ETA after stock-out (gap risk)
+                     - secondary: no ETA known #}
+                  {% set days_to_eta = (o.eta | days_until) if o.eta else None %}
+                  {% if days_to_eta is none %}
+                    {% set chip_cls = 'bg-secondary' %}
+                  {% elif zile is not none and days_to_eta <= zile %}
+                    {% set chip_cls = 'bg-success' %}
+                  {% elif zile is not none and days_to_eta <= zile + 30 %}
+                    {% set chip_cls = 'bg-warning text-dark' %}
+                  {% elif zile is not none %}
+                    {% set chip_cls = 'bg-danger' %}
+                  {% else %}
+                    {% set chip_cls = 'bg-info text-dark' %}
+                  {% endif %}
+                  <span class="badge {{ chip_cls }}"
+                        title="Comanda {{ o.nr_comanda }} · {{ o.qty | int }} buc · ETA {{ o.eta or 'necunoscut' }}">
+                    {{ o.nr_comanda }} +{{ "{:,.0f}".format(o.qty).replace(",",".") }}
+                    {% if o.eta %}<span class="ms-1 opacity-75">→ {{ o.eta }}</span>{% endif %}
+                  </span>
+                {% endfor %}
+                </div>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end fw-bold">
+              {% if tranz > 0 %}{{ "{:,.0f}".format(total_disp).replace(",",".") }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end text-muted">{% if r.vanzari_luna_avg > 0 %}{{ r.vanzari_luna_avg }}{% else %}—{% endif %}</td>
+            <td class="text-center fw-bold">{% if zile is not none %}{{ zile }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td class="text-center text-info">
+              {% if tranz > 0 and zile_total is not none %}{{ zile_total }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-center">{{ badge | safe }}</td>
+            <td class="text-muted small">{{ r.cel_mai_vechi_lot or '—' }}</td>
+            {# Col 13: Clienți — deschide modal cu istoric lunar #}
+            <td class="text-center">
+              <button class="btn btn-link btn-sm p-0 text-primary"
+                      data-sku-click="{{ r.sku | e }}"
+                      onclick="openSKUClients(this.dataset.skuClick)"
+                      title="Istoric vânzări pe clienți">
+                <i class="bi bi-people-fill"></i>
+              </button>
+            </td>
+            {# Col 14: Sugestie RO (editabil) #}
+            <td class="text-end" style="background:rgba(13,110,253,.06)">
+              <input type="number" min="0"
+                     value="{{ r.suggested_ro or 0 }}"
+                     id="stoc-ro-{{ loop.index }}"
+                     class="form-control form-control-sm text-end p-1"
+                     style="width:78px"
+                     title="Avg RO {{ r.avg_monthly_ro }}/lună · termen {{ r.lead_time_days }}z">
+            </td>
+            {# Col 15: Sugestie HU (editabil) #}
+            <td class="text-end" style="background:rgba(255,193,7,.06)">
+              <input type="number" min="0"
+                     value="{{ r.suggested_hu or 0 }}"
+                     id="stoc-hu-{{ loop.index }}"
+                     class="form-control form-control-sm text-end p-1"
+                     style="width:78px"
+                     title="Avg HU {{ r.avg_monthly_hu }}/lună · termen {{ r.lead_time_days }}z">
+            </td>
+            {# Col 16: Buton adaugă la comandă draft #}
+            <td class="text-center">
+              <button class="btn btn-sm btn-outline-primary py-0 px-1"
+                      data-sku="{{ r.sku | e }}"
+                      data-furnizor="{{ r.furnizor | e }}"
+                      data-cod="{{ r.cod_produs | e }}"
+                      data-idx="{{ loop.index }}"
+                      data-pret="{{ r.pret_valuta or '' }}"
+                      data-moneda="{{ r.moneda_valuta or '' }}"
+                      onclick="openAddToOrder(this)"
+                      title="Adaugă la comandă draft">
+                <i class="bi bi-cart-plus"></i>
+              </button>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="16" class="text-center text-muted py-4">Nu există date de stoc.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>{# /tab-stoc #}
+
+
+{# ════════════════════════════════════════════════════════════════════
+   TAB 2 — SUGESTIE COMANDĂ
+   ════════════════════════════════════════════════════════════════════ #}
+<div id="tab-suggest" {% if tab != 'suggest' %}style="display:none"{% endif %}>
+
+  <div class="row g-3 mb-3 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label fw-semibold mb-1">Brand / Furnizor (Ctrl+click pentru selecție multiplă)</label>
+      <select id="suggestBrand" class="form-select form-select-sm" multiple size="6"
+              style="min-height:140px">
+        {% for b in brand_opts %}
+        <option value="{{ b.furnizor }}"
+          data-zile="{{ lt_map[b.furnizor].zile_livrare if b.furnizor in lt_map else 30 }}"
+          data-sezon="{{ lt_map[b.furnizor].sezon_craciun if b.furnizor in lt_map else 0 }}">
+          {{ b.furnizor }}
+          {% if b.furnizor in lt_map %}
+            ({{ lt_map[b.furnizor].zile_livrare }}z)
+          {% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <label class="form-label small text-muted mb-1">Min. vânz./lună</label>
+      <input type="number" id="minVelocity" class="form-control form-control-sm"
+             value="1" min="0" step="0.5" style="width:90px"
+             title="Ignoră SKU-uri cu vânzare medie sub acest prag">
+    </div>
+    <div class="col-auto">
+      <div class="form-check form-switch mt-3">
+        <input class="form-check-input" type="checkbox" id="onlyNeeded" checked>
+        <label class="form-check-label small" for="onlyNeeded">Doar SKU-uri cu necesar &gt; 0</label>
+      </div>
+    </div>
+    <div class="col-auto">
+      <button id="btnSuggest" class="btn btn-primary btn-sm" disabled>
+        <i class="bi bi-calculator me-1"></i>Calculează sugestie
+      </button>
+    </div>
+    <div id="suggestInfo" class="col-auto text-muted small" style="display:none">
+      <i class="bi bi-info-circle me-1"></i>
+      Termen: <strong id="suggestZile">—</strong> zile &nbsp;|&nbsp;
+      Livrare estimată: <strong id="suggestDelivery">—</strong>
+    </div>
+  </div>
+
+  {# Filtru căutare după cod sau denumire — vizibil doar după calculare #}
+  <div id="suggestFilterBar" class="row g-2 mb-2 align-items-end" style="display:none">
+    <div class="col-auto" style="min-width:280px">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" id="suggestSearch" class="form-control form-control-sm"
+               placeholder="Caută după cod sau denumire SKU..."
+               oninput="filterSuggestRows()">
+        <button class="btn btn-outline-secondary" type="button"
+                onclick="document.getElementById('suggestSearch').value='';filterSuggestRows()"
+                title="Resetare">✕</button>
+      </div>
+    </div>
+    <div class="col-auto">
+      <div class="form-check form-switch mt-1">
+        <input class="form-check-input" type="checkbox" id="onlyExport"
+               onchange="filterSuggestRows()">
+        <label class="form-check-label small" for="onlyExport">
+          🇭🇺 Doar SKU cu Export &gt; 0
+        </label>
+      </div>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-sm btn-outline-primary" onclick="applySuggestedSplit()"
+              title="Resetează cantitățile la valorile sugerate de algoritm">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Aplică split sugerat
+      </button>
+    </div>
+    <div class="col-auto text-muted small">
+      <span id="suggestVisibleCount">—</span> SKU vizibile
+    </div>
+  </div>
+
+  <div id="suggestLoading" style="display:none" class="text-center py-5">
+    <div class="spinner-border text-primary"></div>
+    <div class="mt-2 text-muted">Se calculează sugestia...</div>
+  </div>
+
+  <div id="suggestEmpty" class="text-center py-5 text-muted">
+    <i class="bi bi-cart3" style="font-size:3rem"></i>
+    <p class="mt-2">Selectează un brand pentru a vedea sugestia de aprovizionare.</p>
+  </div>
+
+  <div id="suggestResults" style="display:none">
+    <div id="xmasAlert" class="alert alert-success py-2 mb-2" style="display:none">
+      <i class="bi bi-tree-fill me-1"></i>
+      <strong>Produse sezoniere Crăciun detectate!</strong>
+      Articolele marcate cu <span class="badge bg-success">Crăciun</span> au vârf de vânzări în oct-nov.
+      Comandă acum pentru livrare înainte de sezon.
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0" id="suggestTable" style="font-size:.8rem">
+          <thead class="table-dark sticky-top">
+            <tr>
+              <th rowspan="2" class="align-middle">Brand</th>
+              <th rowspan="2" class="align-middle" style="width:80px">Cod</th>
+              <th rowspan="2" class="align-middle">SKU / Descriere</th>
+              <th rowspan="2" class="align-middle text-end">Stoc</th>
+              <th rowspan="2" class="align-middle text-end">Tranzit</th>
+              <th colspan="2" class="text-center" style="background:rgba(13,110,253,.25)">Piața RO</th>
+              <th colspan="2" class="text-center" style="background:rgba(255,193,7,.25)">Export HU 🇭🇺</th>
+              <th rowspan="2" class="align-middle text-center">Zile stoc</th>
+              <th rowspan="2" class="align-middle text-center" title="Sezonalitate lunile acoperite">Sezon</th>
+              <th rowspan="2" class="align-middle text-end">Sug. Total</th>
+              <th rowspan="2" class="align-middle text-end" style="width:90px"
+                  title="Cantitatea finală RO comandată (editabilă)">Cmd. RO</th>
+              <th rowspan="2" class="align-middle text-end" style="width:90px"
+                  title="Cantitatea finală Export comandată (editabilă)">Cmd. Exp</th>
+              <th rowspan="2" class="align-middle text-end" style="width:80px"
+                  title="Total comandat = RO + Export">Total</th>
+              <th rowspan="2" class="align-middle"></th>
+            </tr>
+            <tr>
+              <th class="text-end small" style="background:rgba(13,110,253,.15)" title="Vânzări lunare medii pe piața RO">Avg/lun RO</th>
+              <th class="text-end small" style="background:rgba(13,110,253,.15)">Sug. RO</th>
+              <th class="text-end small" style="background:rgba(255,193,7,.15)" title="Vânzări lunare medii Brandmix + Hun-Trade">Avg/lun Exp</th>
+              <th class="text-end small" style="background:rgba(255,193,7,.15)">Sug. Exp</th>
+            </tr>
+          </thead>
+          <tbody id="suggestTbody"></tbody>
+          <tfoot>
+            <tr class="table-secondary fw-bold">
+              <td colspan="12" class="text-end">TOTAL unități comandate:</td>
+              <td class="text-end" id="suggestTotalRo" style="background:rgba(13,110,253,.15)">0</td>
+              <td class="text-end" id="suggestTotalExp" style="background:rgba(255,193,7,.15)">0</td>
+              <td class="text-end" id="suggestTotal">0</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 mb-3">
+      <input type="text" id="suggestNrComanda" class="form-control form-control-sm"
+             placeholder="Nr. comandă (opțional)" style="max-width:200px">
+      <textarea id="suggestObs" class="form-control form-control-sm" rows="1"
+                placeholder="Observații..." style="max-width:320px"></textarea>
+      <button id="btnSaveDraft" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-floppy me-1"></i>Salvează Draft
+      </button>
+      <button id="btnConfirmOrder" class="btn btn-success btn-sm">
+        <i class="bi bi-send-check me-1"></i>Confirmă Comanda
+      </button>
+    </div>
+  </div>
+</div>{# /tab-suggest #}
+
+
+{# ════════════════════════════════════════════════════════════════════
+   TAB 3 — COMENZI FURNIZORI
+   ════════════════════════════════════════════════════════════════════ #}
+<div id="tab-comenzi" {% if tab != 'comenzi' %}style="display:none"{% endif %}>
+
+  <form method="get" class="row g-2 mb-3 align-items-end">
+    <input type="hidden" name="tab" value="comenzi">
+    <div class="col-auto">
+      <label class="form-label small text-muted mb-1">Brand</label>
+      <select name="brand" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">Toate</option>
+        {% for b in brand_opts %}
+          <option value="{{ b.furnizor }}" {% if b.furnizor == sel_brand %}selected{% endif %}>{{ b.furnizor }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <label class="form-label small text-muted mb-1">Status</label>
+      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">Toate</option>
+        <option value="draft"       {% if sel_status == 'draft' %}selected{% endif %}>Draft</option>
+        <option value="confirmata"  {% if sel_status == 'confirmata' %}selected{% endif %}>Confirmată</option>
+        <option value="in_tranzit"  {% if sel_status == 'in_tranzit' %}selected{% endif %}>În Tranzit</option>
+        <option value="livrata"     {% if sel_status == 'livrata' %}selected{% endif %}>Livrată</option>
+        <option value="anulata"     {% if sel_status == 'anulata' %}selected{% endif %}>Anulată</option>
+      </select>
+    </div>
+    {% if sel_brand or sel_status %}
+    <div class="col-auto">
+      <a href="{{ url_for('forecast.forecast', tab='comenzi') }}" class="btn btn-sm btn-outline-secondary">✕ Reset</a>
+    </div>
+    {% endif %}
+  </form>
+
+  {% if comenzi %}
+  <div class="accordion" id="comenziAccordion">
+    {% for c in comenzi %}
+    {% set status_class = {
+      'draft': 'secondary', 'confirmata': 'primary',
+      'in_tranzit': 'warning', 'livrata': 'success', 'anulata': 'danger'
+    }.get(c.status, 'secondary') %}
+    <div class="accordion-item border-0 shadow-sm mb-2" id="order-row-{{ c.id }}">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed py-2" type="button"
+                data-bs-toggle="collapse" data-bs-target="#order-{{ c.id }}">
+          <span class="badge bg-{{ status_class }} me-2" style="min-width:80px">{{ c.status | upper }}</span>
+          <strong class="me-2">{{ c.furnizor }}</strong>
+          <span class="text-muted small me-3">{{ c.data_comanda }}</span>
+          {% if c.nr_comanda %}<span class="text-muted small me-3">#{{ c.nr_comanda }}</span>{% endif %}
+          <span class="badge bg-secondary-subtle text-secondary-emphasis border me-2">{{ c.nr_linii or 0 }} SKU</span>
+          {% if c.total_qty %}<span class="text-muted small me-3">{{ c.total_qty | int }} buc</span>{% endif %}
+          {% if c.total_ro and c.total_ro > 0 %}
+            <span class="badge me-1" style="background:rgba(13,110,253,.85)" title="Cantitate piața RO">
+              RO {{ c.total_ro | int }}
+            </span>
+          {% endif %}
+          {% if c.total_export and c.total_export > 0 %}
+            <span class="badge text-dark me-2" style="background:rgba(255,193,7,.85)" title="Cantitate Export HU">
+              🇭🇺 Exp {{ c.total_export | int }}
+            </span>
+          {% endif %}
+          {% if c.data_estimata_livrare %}
+            <span class="text-muted small"><i class="bi bi-truck me-1"></i>{{ c.data_estimata_livrare }}</span>
+          {% endif %}
+        </button>
+      </h2>
+      <div id="order-{{ c.id }}" class="accordion-collapse collapse">
+        <div class="accordion-body p-2">
+          <div id="order-lines-{{ c.id }}" class="mb-2">
+            <div class="text-muted small text-center py-2">
+              <button class="btn btn-link btn-sm p-0" onclick="loadOrderLines({{ c.id }})">
+                Încarcă linii...
+              </button>
+            </div>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-sm btn-outline-primary" onclick="openStatusModal({{ c.id }}, '{{ c.status }}', '{{ c.data_estimata_livrare or '' }}', '{{ c.data_confirmare_furnizor or '' }}', `{{ c.observatii or '' }}`)">
+              <i class="bi bi-pencil-square me-1"></i>Actualizare Status
+            </button>
+            <a href="{{ url_for('forecast.export_comanda', cid=c.id) }}" class="btn btn-sm btn-outline-success">
+              <i class="bi bi-file-earmark-excel me-1"></i>Export
+            </a>
+            <label class="btn btn-sm btn-outline-info mb-0" style="cursor:pointer">
+              <i class="bi bi-upload me-1"></i>Import
+              <input type="file" accept=".xlsx" style="display:none"
+                     onchange="importLines({{ c.id }}, this)">
+            </label>
+            {% if c.status == 'draft' %}
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteOrder({{ c.id }})">
+              <i class="bi bi-trash me-1"></i>Șterge
+            </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-inbox" style="font-size:3rem"></i>
+    <p class="mt-2">Nu există comenzi{% if sel_brand %} pentru {{ sel_brand }}{% endif %}.</p>
+    <a href="{{ url_for('forecast.forecast', tab='suggest') }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-cart-plus me-1"></i>Creează sugestie de comandă
+    </a>
+  </div>
+  {% endif %}
+</div>{# /tab-comenzi #}
+
+
+{# ════════════════════════════════════════════════════════════════════
+   TAB 4 — SETĂRI TERMENE
+   ════════════════════════════════════════════════════════════════════ #}
+<div id="tab-setari" {% if tab != 'setari' %}style="display:none"{% endif %}>
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white fw-semibold py-2">
+      Termene de aprovizionare pe brand
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Brand / Furnizor</th>
+            <th class="text-center" style="width:130px">Zile livrare</th>
+            <th class="text-center" style="width:120px">Sezon Crăciun</th>
+            <th>Observații</th>
+            <th style="width:80px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in lead_times %}
+          <tr id="termen-row-{{ loop.index }}">
+            <td class="fw-semibold">{{ t.furnizor }}</td>
+            <td class="text-center">
+              <input type="number" min="1" max="365" value="{{ t.zile_livrare }}"
+                     class="form-control form-control-sm text-center"
+                     id="zile-{{ t.furnizor | replace(' ','_') }}">
+            </td>
+            <td class="text-center">
+              <div class="form-check form-switch d-flex justify-content-center">
+                <input class="form-check-input" type="checkbox"
+                       id="sezon-{{ t.furnizor | replace(' ','_') }}"
+                       {% if t.sezon_craciun %}checked{% endif %}>
+              </div>
+            </td>
+            <td>
+              <input type="text" value="{{ t.observatii or '' }}" class="form-control form-control-sm"
+                     id="obs-{{ t.furnizor | replace(' ','_') }}">
+            </td>
+            <td>
+              <button class="btn btn-sm btn-primary" onclick="saveTermen('{{ t.furnizor }}')">
+                <i class="bi bi-check-lg"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white">
+      <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse"
+              data-bs-target="#addTermenForm">
+        <i class="bi bi-plus-circle me-1"></i>Adaugă brand nou
+      </button>
+      <div class="collapse mt-2" id="addTermenForm">
+        <div class="row g-2">
+          <div class="col-auto">
+            <input type="text" id="newTermenFurnizor" class="form-control form-control-sm" placeholder="Furnizor">
+          </div>
+          <div class="col-auto">
+            <input type="number" id="newTermenZile" class="form-control form-control-sm" placeholder="Zile" min="1" max="365" value="30">
+          </div>
+          <div class="col-auto d-flex align-items-center gap-2">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="newTermenSezon">
+              <label class="form-check-label small" for="newTermenSezon">Crăciun</label>
+            </div>
+          </div>
+          <div class="col-auto">
+            <input type="text" id="newTermenObs" class="form-control form-control-sm" placeholder="Observații">
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-sm btn-success" onclick="addTermen()">Adaugă</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>{# /tab-setari #}
+
+
+{# ════════════════════════════════════════════════════════════════════
+   TAB 5 — CLIENȚI EXPORT (configurare)
+   ════════════════════════════════════════════════════════════════════ #}
+<div id="tab-export" {% if tab != 'export' %}style="display:none"{% endif %}>
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+      <span class="fw-semibold">
+        <i class="bi bi-globe me-1"></i>Clienți Export
+        <small class="text-muted ms-2">vânzările lor apar separat în sugestia de comandă</small>
+      </span>
+      <button class="btn btn-sm btn-success" data-bs-toggle="collapse" data-bs-target="#addExportClient">
+        <i class="bi bi-plus-circle me-1"></i>Adaugă client
+      </button>
+    </div>
+    <div class="collapse" id="addExportClient">
+      <div class="card-body bg-light border-bottom">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-5">
+            <label class="form-label small text-muted mb-1">Caută client (cod sau denumire)</label>
+            <div class="position-relative">
+              <input type="text" id="exportClientSearch" class="form-control form-control-sm"
+                     placeholder="ex: 1429 sau BRANDMIX" autocomplete="off">
+              <div id="exportClientSuggest" class="list-group position-absolute w-100 shadow-sm"
+                   style="z-index:1000;display:none;max-height:240px;overflow-y:auto"></div>
+            </div>
+          </div>
+          <div class="col-auto">
+            <label class="form-label small text-muted mb-1">Țară</label>
+            <input type="text" id="exportClientTara" class="form-control form-control-sm"
+                   value="HU" maxlength="3" style="width:70px">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">Observații</label>
+            <input type="text" id="exportClientObs" class="form-control form-control-sm"
+                   placeholder="Distribuitor / detalii">
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-sm btn-primary" onclick="addExportClient()">
+              <i class="bi bi-check-lg me-1"></i>Salvează
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse"
+                    data-bs-target="#addExportClient">Anulează</button>
+          </div>
+        </div>
+        <input type="hidden" id="exportClientCod">
+        <input type="hidden" id="exportClientNume">
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:90px">Cod</th>
+            <th>Client</th>
+            <th class="text-center" style="width:80px">Țară</th>
+            <th class="text-center" style="width:90px">Activ</th>
+            <th>Observații</th>
+            <th style="width:60px"></th>
+          </tr>
+        </thead>
+        <tbody id="exportClientsBody">
+          <tr><td colspan="6" class="text-muted text-center py-4">Încărcare...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white text-muted small py-2">
+      <i class="bi bi-info-circle me-1"></i>
+      Vânzările către clienții activi sunt agregate în coloana <strong>Export</strong> din sugestia de comandă.
+      Comanda către furnizor pentru export este calculată separat: <code>cerere_export − surplus_stoc</code>.
+    </div>
+  </div>
+</div>{# /tab-export #}
+
+
+{# ════════════════════════════════════════════════════════════════════
+   MODAL: SKU Clienți
+   ════════════════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="modalSKUClients" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-people me-2"></i><span id="skuModalTitle">—</span></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-2" id="skuClientsBody">
+        <div class="text-center py-4"><div class="spinner-border"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{# ════════════════════════════════════════════════════════════════════
+   MODAL: Adaugă la Comandă (din modulul Stoc & Urgențe)
+   ════════════════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="modalAddToOrder" tabindex="-1">
+  <div class="modal-dialog modal-md">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title">
+          <i class="bi bi-cart-plus me-2 text-primary"></i>
+          Adaugă la Comandă —
+          <span id="addOrderSkuTitle" class="text-muted small fw-normal"></span>
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="addOrderSkuVal">
+        <input type="hidden" id="addOrderFurnizorVal">
+        <input type="hidden" id="addOrderCodVal">
+        <input type="hidden" id="addOrderIdxVal">
+        <input type="hidden" id="addOrderPretVal">
+        <input type="hidden" id="addOrderMonedaVal">
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">
+            <i class="bi bi-truck me-1"></i>Adaugă în comanda draft
+          </label>
+          <select id="addOrderDraftSelect" class="form-select form-select-sm">
+            <option value="">— Creează comandă nouă —</option>
+          </select>
+          <div id="addOrderDraftLoading" class="text-muted small mt-1" style="display:none">
+            <span class="spinner-border spinner-border-sm me-1"></span>Se încarcă comenzile draft...
+          </div>
+        </div>
+
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label small fw-semibold" style="color:rgba(13,110,253,.9)">
+              Cantitate RO
+            </label>
+            <input type="number" id="addOrderQtyRo" class="form-control form-control-sm text-end"
+                   min="0" value="0" style="border-color:rgba(13,110,253,.4)">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold" style="color:rgba(200,150,0,.9)">
+              Cantitate HU 🇭🇺
+            </label>
+            <input type="number" id="addOrderQtyHu" class="form-control form-control-sm text-end"
+                   min="0" value="0" style="border-color:rgba(255,193,7,.6)">
+          </div>
+        </div>
+
+        <div class="text-muted small" id="addOrderTotalLine">
+          Total: <strong id="addOrderTotalQty">0</strong> buc
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anulează</button>
+        <button class="btn btn-sm btn-primary" id="btnSaveToOrder" onclick="saveToOrder()">
+          <i class="bi bi-cart-plus me-1"></i>Adaugă în comandă
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{# ════════════════════════════════════════════════════════════════════
+   MODAL: Actualizare Status Comandă
+   ════════════════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="modalStatus" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Actualizare Comandă</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="statusCid">
+        <div class="row g-3 mb-3">
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Status</label>
+            <select id="statusValue" class="form-select form-select-sm">
+              <option value="draft">Draft</option>
+              <option value="confirmata">Confirmată</option>
+              <option value="in_tranzit">În Tranzit</option>
+              <option value="livrata">Livrată</option>
+              <option value="anulata">Anulată</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Confirmare furnizor</label>
+            <input type="date" id="statusConfirmare" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Livrare estimată</label>
+            <input type="date" id="statusLivrare" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Observații</label>
+            <input type="text" id="statusObs" class="form-control form-control-sm" placeholder="...">
+          </div>
+        </div>
+        <div id="statusLinesContainer">
+          <div class="text-muted small">Încarcă linii pentru confirmare cantități...</div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anulează</button>
+        <button class="btn btn-sm btn-primary" onclick="saveStatus()">
+          <i class="bi bi-check-lg me-1"></i>Salvează
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{# ════════════════════════════════════════════════════════════════════
+   AGENT CHAT — floating button + panel
+   ════════════════════════════════════════════════════════════════════ #}
+<button id="agentBtn" class="btn btn-dark rounded-circle shadow position-fixed"
+        style="bottom:24px;right:24px;width:52px;height:52px;z-index:1050"
+        onclick="toggleAgent()" title="Agent Aprovizionare">
+  <i class="bi bi-robot fs-5"></i>
+</button>
+
+<div id="agentPanel" class="position-fixed bg-white shadow rounded border"
+     style="bottom:88px;right:24px;width:380px;height:500px;
+            z-index:1049;display:none;flex-direction:column">
+  <div class="d-flex align-items-center justify-content-between px-3 py-2 bg-dark text-white rounded-top">
+    <span><i class="bi bi-robot me-2"></i>Agent Aprovizionare</span>
+    <button class="btn btn-sm btn-dark p-0" onclick="toggleAgent()">✕</button>
+  </div>
+  <div id="agentMessages" class="flex-grow-1 overflow-auto p-3" style="font-size:.85rem">
+    <div class="text-muted small text-center mt-3">
+      Bună ziua! Sunt agentul de aprovizionare al Torb Logistic.<br>
+      Întreabă-mă despre stocuri, termene de livrare, sezonalitate sau comenzi.
+    </div>
+  </div>
+  <div class="px-3 pb-3 pt-1 border-top">
+    <div class="input-group input-group-sm">
+      <input type="text" id="agentInput" class="form-control" placeholder="Scrie întrebarea..."
+             onkeydown="if(event.key==='Enter')sendAgentMsg()">
+      <button class="btn btn-primary" onclick="sendAgentMsg()">
+        <i class="bi bi-send"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+const MONTHS = {{ months_json | safe }};
+let suggestData = [];
+let currentBrand = '';
+
+// ── Tab switching ────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const tabs = document.querySelectorAll('#forecastTabs .nav-link');
+  tabs.forEach(t => t.addEventListener('click', e => {
+    const url = new URL(t.href);
+    const tabId = url.searchParams.get('tab');
+    // Use native navigation (href already set)
+  }));
+});
+
+// ── Brand selector (multi-select) ────────────────────────────────────────────
+function selectedBrands() {
+  return Array.from(document.getElementById('suggestBrand').selectedOptions);
+}
+
+document.getElementById('suggestBrand').addEventListener('change', function() {
+  const opts = selectedBrands();
+  document.getElementById('btnSuggest').disabled = opts.length === 0;
+  if (opts.length > 0) {
+    document.getElementById('suggestInfo').style.display = '';
+    // Foloseste lead-time-ul maxim dintre branduri (livrarea cea mai târzie)
+    const maxZile = Math.max(...opts.map(o => parseInt(o.dataset.zile) || 30));
+    const labels = opts.length === 1 ? opts[0].textContent.trim() : `${opts.length} branduri`;
+    document.getElementById('suggestZile').textContent = `${maxZile} zile (${labels})`;
+    const d = new Date(); d.setDate(d.getDate() + maxZile);
+    document.getElementById('suggestDelivery').textContent = d.toISOString().slice(0,10);
+  } else {
+    document.getElementById('suggestInfo').style.display = 'none';
+  }
+});
+
+document.getElementById('btnSuggest').addEventListener('click', loadSuggestion);
+
+async function loadSuggestion() {
+  const opts = selectedBrands();
+  if (opts.length === 0) return;
+
+  document.getElementById('suggestEmpty').style.display = 'none';
+  document.getElementById('suggestResults').style.display = 'none';
+  document.getElementById('suggestLoading').style.display = '';
+  const minVel = document.getElementById('minVelocity').value || 1;
+  const onlyNeeded = document.getElementById('onlyNeeded').checked ? 1 : 0;
+
+  try {
+    // Fetch in paralel pentru toate brandurile
+    const responses = await Promise.all(opts.map(async opt => {
+      const brand = opt.value;
+      const url = `/api/forecast/suggest/${encodeURIComponent(brand)}?min_velocity=${minVel}&only_needed=${onlyNeeded}`;
+      const r = await fetch(url);
+      const data = await r.json();
+      if (!data.ok) throw new Error(`${brand}: ${data.error}`);
+      // Tag fiecare item cu brandul lui pentru afișare
+      data.items.forEach(it => { it._brand = brand; });
+      return data;
+    }));
+
+    // Merge items + folosește livrarea cea mai târzie + ultima snapshot
+    const merged = {
+      items: responses.flatMap(d => d.items),
+      lead_time: responses[0].lead_time,  // afișaj orientativ
+      xmas_window: responses.some(d => d.xmas_window),
+      delivery_date: responses.map(d => d.delivery_date).sort().pop(),
+      snapshot_date: responses[0].snapshot_date,
+    };
+    // Re-sort merged: critic > atentie > ok, apoi descending suggested
+    const order = {critic: 0, atentie: 1, ok: 2};
+    merged.items.sort((a, b) => (order[a.urgenta] - order[b.urgenta]) || (b.suggested - a.suggested));
+
+    currentBrand = opts.length === 1 ? opts[0].value : opts.map(o => o.value).join(',');
+    suggestData = merged.items;
+    renderSuggestion(merged);
+  } catch(e) {
+    alert('Eroare: ' + e.message);
+  } finally {
+    document.getElementById('suggestLoading').style.display = 'none';
+  }
+}
+
+async function actualizareDate(event) {
+  if (!confirm('Se vor importa vânzări + stoc + gama din cel mai recent folder docs_input/. Continuăm?')) return;
+  const btn = event.currentTarget;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Se actualizează...';
+  try {
+    const r = await fetch('/api/actualizare-date', {method: 'POST'});
+    const d = await r.json();
+    if (d.ok) {
+      alert('Date actualizate cu succes!\n\n' + (d.output || '').split('\n').slice(-6).join('\n'));
+      window.location.reload();
+    } else {
+      alert('Eroare: ' + (d.error || 'necunoscută'));
+    }
+  } catch(e) {
+    alert('Eroare: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+async function refreshStoc() {
+  if (!confirm('Se va re-importa cel mai recent fișier stoc din docs_input/. Continuăm?')) return;
+  const btn = event.currentTarget;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Import...';
+  try {
+    const r = await fetch('/api/forecast/refresh-stoc', {method: 'POST'});
+    const d = await r.json();
+    if (d.ok) {
+      const snap = d.latest && d.latest.data_snapshot;
+      alert(`Stoc actualizat. Snapshot: ${snap || '—'} (${d.latest && d.latest.n || 0} poziții).`);
+      window.location.reload();
+    } else {
+      alert('Eroare: ' + (d.error || 'necunoscută'));
+    }
+  } catch(e) {
+    alert('Eroare: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+function renderSuggestion(data) {
+  const hasXmas = data.items.some(i => i.is_xmas);
+  document.getElementById('xmasAlert').style.display = hasXmas ? '' : 'none';
+
+  const tbody = document.getElementById('suggestTbody');
+  tbody.innerHTML = '';
+
+  data.items.forEach((item, idx) => {
+    const urgClass = item.urgenta === 'critic' ? 'table-danger'
+                   : item.urgenta === 'atentie' ? 'table-warning' : '';
+    const zile = item.zile_stoc !== null ? item.zile_stoc + 'z' : '—';
+    const urgBadge = item.urgenta === 'critic'
+      ? '<span class="badge bg-danger">Critic</span>'
+      : item.urgenta === 'atentie'
+        ? '<span class="badge bg-warning text-dark">Atenție</span>'
+        : '<span class="badge bg-success">OK</span>';
+    const xmasBadge = item.is_xmas
+      ? ' <span class="badge bg-success">🎄</span>' : '';
+    const listingBadge = (item.new_clients > 0 || item.lost_clients > 0)
+      ? `<span class="badge bg-info text-dark ms-1 small">+${item.new_clients}/-${item.lost_clients}</span>` : '';
+
+    // Seasonality mini bars for next 6 months
+    const sezonHtml = item.months.map(m => {
+      const pct = Math.min(100, Math.round(m.idx * 50));
+      const color = m.idx > 1.5 ? '#dc3545' : m.idx > 1.0 ? '#fd7e14' : '#198754';
+      return `<span title="${m.label}: avg ${m.avg} buc (idx ${m.idx})"
+        style="display:inline-block;width:14px;height:${8+pct/5}px;
+               background:${color};margin:0 1px;vertical-align:bottom;border-radius:2px"></span>`;
+    }).join('');
+
+    const brand = item._brand || '';
+    const brandBadge = brand ? `<span class="badge bg-secondary" style="font-size:.7rem">${brand}</span>` : '';
+    const cod = item.cod_produs || '—';
+    const avgRo = (item.avg_monthly_ro != null) ? item.avg_monthly_ro : item.avg_monthly;
+    const avgExp = item.avg_monthly_export || 0;
+    const sugRo = (item.suggested_ro != null) ? item.suggested_ro : item.suggested;
+    const sugExp = item.suggested_export || 0;
+    const expRowCls = avgExp > 0 ? '' : 'text-muted';
+
+    // Escape pentru atribute si content HTML — multe SKU-uri Basilur contin
+    // ghilimele duble (ex: B."BOUQUET ASSORTED" ...) care altfel sparg DOM-ul.
+    const escAttr = s => String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const skuAttr = escAttr(item.sku);
+    const skuHtml = escAttr(item.sku);
+    const descHtml = escAttr(item.descriere);
+    const codAttr = escAttr(cod);
+
+    const row = `<tr class="${urgClass}" data-idx="${idx}"
+                     data-cod="${codAttr}" data-sku="${escAttr((item.sku || '').toLowerCase())}"
+                     data-descriere="${escAttr((item.descriere || '').toLowerCase())}">
+      <td>${brandBadge}</td>
+      <td class="text-muted small fw-semibold">${codAttr}</td>
+      <td style="max-width:220px">
+        <div class="text-truncate fw-semibold" title="${skuAttr}">${skuHtml}</div>
+        ${descHtml ? `<div class="text-muted small text-truncate" style="font-size:.75rem">${descHtml}</div>` : ''}
+        ${xmasBadge}${listingBadge}
+      </td>
+      <td class="text-end">${item.stoc_qty}</td>
+      <td class="text-end text-info">${item.in_tranzit || '—'}</td>
+      <td class="text-end" style="background:rgba(13,110,253,.07)">${avgRo}</td>
+      <td class="text-end fw-semibold" style="background:rgba(13,110,253,.07)">${sugRo}</td>
+      <td class="text-end ${expRowCls}" style="background:rgba(255,193,7,.07)">${avgExp || '—'}</td>
+      <td class="text-end fw-semibold ${expRowCls}" style="background:rgba(255,193,7,.07)">${sugExp || '—'}</td>
+      <td class="text-center">${urgBadge} <span class="small text-muted">${zile}</span></td>
+      <td class="text-center">${sezonHtml}</td>
+      <td class="text-end text-muted">${item.suggested}</td>
+      <td class="text-end" style="background:rgba(13,110,253,.07)">
+        <input type="number" min="0" value="${sugRo}" class="form-control form-control-sm text-end p-1"
+               style="width:80px" oninput="updateTotal()" data-idx="${idx}" data-kind="ro">
+      </td>
+      <td class="text-end" style="background:rgba(255,193,7,.07)">
+        <input type="number" min="0" value="${sugExp}" class="form-control form-control-sm text-end p-1"
+               style="width:80px" oninput="updateTotal()" data-idx="${idx}" data-kind="exp">
+      </td>
+      <td class="text-end fw-semibold" data-idx="${idx}" data-role="rowtotal">${sugRo + sugExp}</td>
+      <td>
+        <button class="btn btn-link btn-sm p-0" data-sku-click="${skuAttr}"
+                onclick="openSKUClients(this.dataset.skuClick)" title="Clienți">
+          <i class="bi bi-people"></i>
+        </button>
+      </td>
+    </tr>`;
+    tbody.insertAdjacentHTML('beforeend', row);
+  });
+
+  updateTotal();
+  document.getElementById('suggestResults').style.display = '';
+  document.getElementById('suggestFilterBar').style.display = '';
+  filterSuggestRows();
+}
+
+function filterSuggestRows() {
+  const q = (document.getElementById('suggestSearch')?.value || '').trim().toLowerCase();
+  const onlyExp = document.getElementById('onlyExport')?.checked || false;
+  let visible = 0;
+  document.querySelectorAll('#suggestTbody tr').forEach(row => {
+    const idx = parseInt(row.dataset.idx);
+    const item = suggestData[idx] || {};
+    const expVal = item.avg_monthly_export || 0;
+
+    let match = true;
+    if (q) {
+      const cod = (row.dataset.cod || '').toLowerCase();
+      const sku = row.dataset.sku || '';
+      const desc = row.dataset.descriere || '';
+      match = cod.includes(q) || sku.includes(q) || desc.includes(q);
+    }
+    if (match && onlyExp && expVal <= 0) match = false;
+
+    row.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  const cnt = document.getElementById('suggestVisibleCount');
+  if (cnt) cnt.textContent = visible;
+  updateTotal();
+}
+
+// Resetează cantitățile RO/Export la valorile sugerate inițial de algoritm.
+// Util după ce utilizatorul a editat manual și vrea să revină.
+function applySuggestedSplit() {
+  let n = 0;
+  document.querySelectorAll('#suggestTbody tr').forEach(row => {
+    const idx = parseInt(row.dataset.idx);
+    const item = suggestData[idx];
+    if (!item) return;
+    const inpRo = row.querySelector('input[data-kind="ro"]');
+    const inpExp = row.querySelector('input[data-kind="exp"]');
+    if (inpRo) inpRo.value = item.suggested_ro || 0;
+    if (inpExp) inpExp.value = item.suggested_export || 0;
+    n++;
+  });
+  updateTotal();
+  showToast(`Split aplicat pe ${n} SKU-uri.`, 'success');
+}
+
+function updateTotal() {
+  let totalRo = 0, totalExp = 0;
+  // Recalculez subtotalul fiecarui rand vizibil + totalurile globale
+  document.querySelectorAll('#suggestTbody tr').forEach(row => {
+    if (row.style.display === 'none') return;
+    const inpRo = row.querySelector('input[data-kind="ro"]');
+    const inpExp = row.querySelector('input[data-kind="exp"]');
+    const ro = parseInt(inpRo?.value) || 0;
+    const exp = parseInt(inpExp?.value) || 0;
+    const cellTotal = row.querySelector('td[data-role="rowtotal"]');
+    if (cellTotal) cellTotal.textContent = ro + exp;
+    totalRo += ro;
+    totalExp += exp;
+  });
+  document.getElementById('suggestTotalRo').textContent = totalRo;
+  document.getElementById('suggestTotalExp').textContent = totalExp;
+  document.getElementById('suggestTotal').textContent = totalRo + totalExp;
+}
+
+async function saveOrder(status) {
+  // Grupează liniile pe brand (pentru cazul multi-select)
+  const linesByBrand = {};
+  document.querySelectorAll('#suggestTbody tr').forEach(row => {
+    const idx = parseInt(row.dataset.idx);
+    const inpRo = row.querySelector('input[data-kind="ro"]');
+    const inpExp = row.querySelector('input[data-kind="exp"]');
+    if (!inpRo && !inpExp) return;
+    const qtyRo = parseInt(inpRo?.value) || 0;
+    const qtyExp = parseInt(inpExp?.value) || 0;
+    const qty = qtyRo + qtyExp;
+    if (qty <= 0) return;
+    const item = suggestData[idx];
+    const brand = item._brand || currentBrand;
+    if (!linesByBrand[brand]) linesByBrand[brand] = [];
+    linesByBrand[brand].push({
+      sku: item.sku,
+      cantitate_sugerat: item.suggested,
+      cantitate_comandata: qty,
+      cantitate_ro: qtyRo,
+      cantitate_export: qtyExp,
+      pret_valuta: item.pret_valuta || null,
+      moneda: item.moneda || 'EUR',
+    });
+  });
+  const brands = Object.keys(linesByBrand);
+  if (brands.length === 0) { alert('Nu există cantități de comandat.'); return; }
+
+  const nrBase = document.getElementById('suggestNrComanda').value.trim() || null;
+  const obs    = document.getElementById('suggestObs').value.trim() || null;
+
+  try {
+    const ids = [];
+    for (const brand of brands) {
+      const payload = {
+        furnizor: brand,
+        nr_comanda: brands.length > 1 && nrBase ? `${nrBase}-${brand}` : nrBase,
+        observatii: obs,
+        status: status,
+        lines: linesByBrand[brand],
+      };
+      const r = await fetch('/api/comenzi', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(`${brand}: ${d.error}`);
+      ids.push(`${brand} #${d.id}`);
+    }
+    const verb = status === 'draft' ? 'salvate ca draft' : 'confirmate';
+    alert(`${ids.length} comand${ids.length === 1 ? 'ă' : 'e'} ${verb}: ${ids.join(', ')}`);
+    window.location.href = '/forecast?tab=comenzi';
+  } catch(e) { alert('Eroare: ' + e.message); }
+}
+
+document.getElementById('btnSaveDraft').addEventListener('click', () => saveOrder('draft'));
+document.getElementById('btnConfirmOrder').addEventListener('click', () => saveOrder('confirmata'));
+
+
+// ── SKU Clients Modal ─────────────────────────────────────────────────────────
+async function openSKUClients(sku) {
+  document.getElementById('skuModalTitle').textContent = sku;
+  document.getElementById('skuClientsBody').innerHTML =
+    '<div class="text-center py-4"><div class="spinner-border"></div></div>';
+  new bootstrap.Modal(document.getElementById('modalSKUClients')).show();
+
+  const r = await fetch('/api/forecast/sku-clients/' + encodeURIComponent(sku));
+  const data = await r.json();
+  if (!data.ok || !data.clients.length) {
+    document.getElementById('skuClientsBody').innerHTML =
+      '<p class="text-muted text-center py-3">Nu există date.</p>';
+    return;
+  }
+
+  const years = [...new Set(data.clients.flatMap(c => Object.keys(c.years)))].sort().reverse();
+  let html = `<p class="text-muted small mb-2">${data.clients.length} clienți activi</p>`;
+
+  years.forEach(yr => {
+    html += `<div class="fw-semibold mb-1 small">${yr}</div>
+    <div class="table-responsive mb-3">
+    <table class="table table-sm table-bordered" style="font-size:.75rem">
+    <thead class="table-light"><tr><th>Client</th>`;
+    MONTHS.forEach(m => html += `<th class="text-center">${m}</th>`);
+    html += '<th class="text-center">Total</th></tr></thead><tbody>';
+
+    const clients_with_yr = data.clients.filter(c => c.years[yr]);
+    clients_with_yr.forEach(c => {
+      const vals = c.years[yr] || Array(12).fill(0);
+      const total = vals.reduce((a,b) => a+b, 0);
+      const maxV = Math.max(...vals, 1);
+      html += `<tr><td style="max-width:160px" class="text-truncate" title="${c.client}">
+        <a href="/client/${encodeURIComponent(c.cod_client)}" class="text-decoration-none">${c.client}</a>
+      </td>`;
+      vals.forEach(v => {
+        const bg = v > 0 ? `background:rgba(25,135,84,${0.15 + (v/maxV)*0.7})` : '';
+        html += `<td class="text-center" style="${bg}">${v > 0 ? v : '—'}</td>`;
+      });
+      html += `<td class="text-center fw-bold">${total}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+  });
+
+  document.getElementById('skuClientsBody').innerHTML = html;
+}
+
+
+// ── Order lines loader ────────────────────────────────────────────────────────
+async function loadOrderLines(cid) {
+  const container = document.getElementById('order-lines-' + cid);
+  container.innerHTML = '<div class="text-center py-2"><div class="spinner-border spinner-border-sm"></div></div>';
+  const r = await fetch('/api/comenzi/' + cid);
+  const data = await r.json();
+  if (!data.ok) { container.innerHTML = '<p class="text-danger small">Eroare.</p>'; return; }
+
+  const lines = data.lines;
+  if (!lines.length) { container.innerHTML = '<p class="text-muted small ps-2">Fără linii.</p>'; return; }
+
+  let totRo = 0, totExp = 0, totCmd = 0;
+  let html = `<table class="table table-sm table-bordered mb-0" style="font-size:.78rem">
+    <thead class="table-light"><tr>
+      <th style="width:80px">Cod furnizor</th><th>SKU</th><th>Descriere</th>
+      <th class="text-center">Sugerat</th>
+      <th class="text-center" style="background:rgba(13,110,253,.1)">Cmd. RO</th>
+      <th class="text-center" style="background:rgba(255,193,7,.1)">Cmd. HU</th>
+      <th class="text-center">Comandat</th>
+      <th class="text-center">Confirmat</th><th>Preț</th><th></th>
+    </tr></thead><tbody>`;
+  lines.forEach(l => {
+    const ro = l.cantitate_ro || 0;
+    const exp = l.cantitate_export || 0;
+    totRo += ro; totExp += exp; totCmd += l.cantitate_comandata || 0;
+    const codAfis = l.cod_furnizor || l.cod_produs || '—';
+    html += `<tr>
+      <td class="text-muted small fw-semibold" title="Cod furnizor: ${l.cod_furnizor || '—'} / Cod intern: ${l.cod_produs || '—'}">${codAfis}</td>
+      <td><a href="/produs/${encodeURIComponent(l.sku)}" class="text-decoration-none small">${l.sku}</a></td>
+      <td class="text-muted small">${l.descriere || ''}</td>
+      <td class="text-center">${l.cantitate_sugerat || '—'}</td>
+      <td class="text-center" style="background:rgba(13,110,253,.07)">${ro || '—'}</td>
+      <td class="text-center" style="background:rgba(255,193,7,.07)">${exp || '—'}</td>
+      <td class="text-center fw-semibold">${l.cantitate_comandata}</td>
+      <td class="text-center ${l.cantitate_confirmata ? 'text-success' : 'text-muted'}">${l.cantitate_confirmata || '—'}</td>
+      <td class="small text-muted">${l.pret_valuta ? l.pret_valuta + ' ' + l.moneda : '—'}</td>
+      <td>
+        <button class="btn btn-link btn-sm p-0 text-danger" onclick="deleteLine(${cid}, ${l.id})" title="Șterge">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </td>
+    </tr>`;
+  });
+  html += `<tr class="table-secondary fw-bold">
+    <td colspan="4" class="text-end">TOTAL:</td>
+    <td class="text-center" style="background:rgba(13,110,253,.15)">${totRo || '—'}</td>
+    <td class="text-center" style="background:rgba(255,193,7,.15)">${totExp || '—'}</td>
+    <td class="text-center">${totCmd}</td>
+    <td colspan="3"></td>
+  </tr>`;
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+async function deleteLine(cid, lid) {
+  if (!confirm('Ștergi această linie?')) return;
+  const r = await fetch(`/api/comenzi/${cid}/lines/${lid}`, {method: 'DELETE'});
+  const d = await r.json();
+  if (d.ok) loadOrderLines(cid);
+  else alert(d.error);
+}
+
+async function deleteOrder(cid) {
+  if (!confirm('Ștergi această comandă?')) return;
+  const r = await fetch('/api/comenzi/' + cid, {method: 'DELETE'});
+  const d = await r.json();
+  if (d.ok) {
+    document.getElementById('order-row-' + cid).remove();
+  } else alert(d.error);
+}
+
+async function importLines(cid, inp) {
+  if (!inp.files.length) return;
+  const fd = new FormData();
+  fd.append('file', inp.files[0]);
+  inp.value = '';
+  const r = await fetch('/import/forecast/comanda/' + cid, {method: 'POST', body: fd});
+  const d = await r.json();
+  if (d.ok) {
+    alert(`Import reușit: ${d.imported} linii adăugate.`);
+    loadOrderLines(cid);
+  } else alert('Eroare import: ' + d.error);
+}
+
+
+// ── Status Modal ──────────────────────────────────────────────────────────────
+let statusLines = [];
+
+async function openStatusModal(cid, status, livrare, confirmare, obs) {
+  document.getElementById('statusCid').value = cid;
+  document.getElementById('statusValue').value = status;
+  document.getElementById('statusLivrare').value = livrare;
+  document.getElementById('statusConfirmare').value = confirmare;
+  document.getElementById('statusObs').value = obs;
+
+  const r = await fetch('/api/comenzi/' + cid);
+  const data = await r.json();
+  statusLines = data.lines || [];
+
+  let html = '';
+  if (statusLines.length) {
+    html = `
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="fw-semibold small">Confirmare cantități per SKU:</span>
+      <div class="input-group input-group-sm" style="max-width:300px">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" id="statusSearch" class="form-control form-control-sm"
+               placeholder="Caută cod furnizor sau SKU..."
+               oninput="filterStatusLines()">
+        <button class="btn btn-outline-secondary" type="button"
+                onclick="document.getElementById('statusSearch').value='';filterStatusLines()"
+                title="Resetare">✕</button>
+      </div>
+    </div>
+    <div class="table-responsive" style="max-height:50vh;overflow-y:auto">
+    <table class="table table-sm table-bordered mb-0" style="font-size:.8rem" id="statusLinesTable">
+      <thead class="table-light sticky-top">
+        <tr>
+          <th style="width:90px">Cod furnizor</th>
+          <th>SKU</th>
+          <th class="text-center" style="width:90px">Comandat</th>
+          <th class="text-center" style="width:140px">Confirmat furnizor</th>
+        </tr>
+      </thead>
+      <tbody>`;
+    const escAttr = s => String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    statusLines.forEach(l => {
+      const cod = l.cod_furnizor || l.cod_produs || '';
+      const skuEsc = escAttr(l.sku);
+      const codEsc = escAttr(cod);
+      html += `<tr data-cod="${codEsc.toLowerCase()}" data-sku="${skuEsc.toLowerCase()}">
+        <td class="small fw-semibold text-muted">${codEsc || '—'}</td>
+        <td class="small">${skuEsc}</td>
+        <td class="text-center">${l.cantitate_comandata}</td>
+        <td><input type="number" min="0" value="${l.cantitate_confirmata || l.cantitate_comandata}"
+             class="form-control form-control-sm text-center" data-lid="${l.id}"></td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+    html += '<div class="text-muted small mt-1" id="statusVisibleCount">' + statusLines.length + ' linii afișate</div>';
+  }
+  document.getElementById('statusLinesContainer').innerHTML = html || '<p class="text-muted small">Fără linii.</p>';
+  new bootstrap.Modal(document.getElementById('modalStatus')).show();
+}
+
+function filterStatusLines() {
+  const q = (document.getElementById('statusSearch')?.value || '').trim().toLowerCase();
+  let visible = 0;
+  document.querySelectorAll('#statusLinesTable tbody tr').forEach(row => {
+    const cod = row.dataset.cod || '';
+    const sku = row.dataset.sku || '';
+    const match = !q || cod.includes(q) || sku.includes(q);
+    row.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  const cnt = document.getElementById('statusVisibleCount');
+  if (cnt) cnt.textContent = `${visible} linii afișate`;
+}
+
+async function saveStatus() {
+  const cid = document.getElementById('statusCid').value;
+  const line_updates = [];
+  document.querySelectorAll('#statusLinesContainer input[data-lid]').forEach(inp => {
+    line_updates.push({
+      id: parseInt(inp.dataset.lid),
+      cantitate_confirmata: parseInt(inp.value) || 0,
+    });
+  });
+  const payload = {
+    status: document.getElementById('statusValue').value,
+    data_estimata_livrare: document.getElementById('statusLivrare').value || null,
+    data_confirmare_furnizor: document.getElementById('statusConfirmare').value || null,
+    observatii: document.getElementById('statusObs').value || null,
+    line_updates: line_updates,
+  };
+  const r = await fetch(`/api/comenzi/${cid}/status`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const d = await r.json();
+  if (d.ok) {
+    bootstrap.Modal.getInstance(document.getElementById('modalStatus')).hide();
+    window.location.reload();
+  } else alert('Eroare: ' + d.error);
+}
+
+
+// ── Termene ───────────────────────────────────────────────────────────────────
+async function saveTermen(furnizor) {
+  const key = furnizor.replace(/ /g, '_');
+  const zile = parseInt(document.getElementById('zile-' + key).value);
+  const sezon = document.getElementById('sezon-' + key).checked ? 1 : 0;
+  const obs = document.getElementById('obs-' + key).value.trim() || null;
+  const r = await fetch('/api/termene-aprovizionare', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({furnizor, zile_livrare: zile, sezon_craciun: sezon, observatii: obs}),
+  });
+  const d = await r.json();
+  if (d.ok) showToast('Salvat!', 'success');
+  else alert(d.error);
+}
+
+async function addTermen() {
+  const furnizor = document.getElementById('newTermenFurnizor').value.trim();
+  const zile = parseInt(document.getElementById('newTermenZile').value);
+  const sezon = document.getElementById('newTermenSezon').checked ? 1 : 0;
+  const obs = document.getElementById('newTermenObs').value.trim() || null;
+  if (!furnizor || !zile) { alert('Completează furnizor și zile.'); return; }
+  const r = await fetch('/api/termene-aprovizionare', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({furnizor, zile_livrare: zile, sezon_craciun: sezon, observatii: obs}),
+  });
+  const d = await r.json();
+  if (d.ok) window.location.reload();
+  else alert(d.error);
+}
+
+
+// ── Agent Chat ────────────────────────────────────────────────────────────────
+function toggleAgent() {
+  const panel = document.getElementById('agentPanel');
+  panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+  if (panel.style.display === 'flex') {
+    document.getElementById('agentInput').focus();
+  }
+}
+
+async function sendAgentMsg() {
+  const inp = document.getElementById('agentInput');
+  const q = inp.value.trim();
+  if (!q) return;
+  inp.value = '';
+
+  const msgs = document.getElementById('agentMessages');
+  msgs.insertAdjacentHTML('beforeend',
+    `<div class="d-flex justify-content-end mb-2">
+       <div class="bg-primary text-white rounded px-2 py-1" style="max-width:80%">${q}</div>
+     </div>`);
+  msgs.insertAdjacentHTML('beforeend',
+    '<div id="agentThinking" class="text-muted small mb-2"><i class="bi bi-three-dots"></i> Se procesează...</div>');
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const r = await fetch('/api/forecast/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question: q, furnizor: currentBrand || null}),
+    });
+    const d = await r.json();
+    document.getElementById('agentThinking')?.remove();
+    const answer = d.answer || d.error || 'Eroare necunoscută.';
+    msgs.insertAdjacentHTML('beforeend',
+      `<div class="d-flex justify-content-start mb-2">
+         <div class="bg-light border rounded px-2 py-1" style="max-width:90%;white-space:pre-wrap">${answer}</div>
+       </div>`);
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch(e) {
+    document.getElementById('agentThinking')?.remove();
+    msgs.insertAdjacentHTML('beforeend', `<div class="text-danger small mb-2">Eroare: ${e.message}</div>`);
+  }
+}
+
+
+// ── Clienți Export ────────────────────────────────────────────────────────────
+async function loadExportClients() {
+  const tbody = document.getElementById('exportClientsBody');
+  if (!tbody) return;
+  try {
+    const r = await fetch('/api/clienti-export');
+    const d = await r.json();
+    if (!d.ok || !d.items.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-muted text-center py-3">Niciun client export configurat.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.items.map(c => `
+      <tr class="${c.activ ? '' : 'text-muted'}">
+        <td class="fw-semibold">${c.cod_client}</td>
+        <td>${c.client}</td>
+        <td class="text-center"><span class="badge bg-secondary">${c.tara || '—'}</span></td>
+        <td class="text-center">
+          <div class="form-check form-switch d-flex justify-content-center">
+            <input class="form-check-input" type="checkbox" ${c.activ ? 'checked' : ''}
+                   onchange="toggleExportClient(${c.cod_client}, '${(c.client || '').replace(/'/g,"\\'")}', this.checked, '${c.tara || 'HU'}', '${(c.observatii || '').replace(/'/g,"\\'")}')">
+          </div>
+        </td>
+        <td class="text-muted small">${c.observatii || '—'}</td>
+        <td>
+          <button class="btn btn-sm btn-link text-danger p-0" onclick="deleteExportClient(${c.cod_client})" title="Șterge">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-danger text-center py-3">Eroare: ${e.message}</td></tr>`;
+  }
+}
+
+async function addExportClient() {
+  const cod = parseInt(document.getElementById('exportClientCod').value);
+  if (!cod) { alert('Selectează un client din lista de sugestii.'); return; }
+  const client = document.getElementById('exportClientNume').value;
+  const tara = document.getElementById('exportClientTara').value.trim() || 'HU';
+  const obs = document.getElementById('exportClientObs').value.trim() || null;
+  const r = await fetch('/api/clienti-export', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cod_client: cod, client: client, tara: tara, activ: true, observatii: obs}),
+  });
+  const d = await r.json();
+  if (d.ok) {
+    document.getElementById('exportClientSearch').value = '';
+    document.getElementById('exportClientCod').value = '';
+    document.getElementById('exportClientNume').value = '';
+    document.getElementById('exportClientObs').value = '';
+    bootstrap.Collapse.getOrCreateInstance(document.getElementById('addExportClient')).hide();
+    loadExportClients();
+    showToast('Client export adăugat. Reîncarcă sugestia de comandă pentru a aplica modificările.');
+  } else alert('Eroare: ' + d.error);
+}
+
+async function deleteExportClient(cod) {
+  if (!confirm(`Ștergi clientul ${cod} din lista de export?`)) return;
+  const r = await fetch('/api/clienti-export/' + cod, {method: 'DELETE'});
+  const d = await r.json();
+  if (d.ok) loadExportClients();
+  else alert('Eroare: ' + d.error);
+}
+
+async function toggleExportClient(cod, client, activ, tara, obs) {
+  const r = await fetch('/api/clienti-export', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cod_client: cod, client: client, tara: tara, activ: activ, observatii: obs || null}),
+  });
+  const d = await r.json();
+  if (!d.ok) { alert('Eroare: ' + d.error); loadExportClients(); }
+}
+
+// Autocomplete client
+let exportSearchTimer = null;
+document.getElementById('exportClientSearch')?.addEventListener('input', e => {
+  clearTimeout(exportSearchTimer);
+  const q = e.target.value.trim();
+  const box = document.getElementById('exportClientSuggest');
+  if (!q || q.length < 2) { box.style.display = 'none'; return; }
+  exportSearchTimer = setTimeout(async () => {
+    const r = await fetch('/api/clienti/search?q=' + encodeURIComponent(q));
+    const d = await r.json();
+    if (!d.ok || !d.items.length) {
+      box.innerHTML = '<div class="list-group-item small text-muted">Nicio potrivire</div>';
+      box.style.display = '';
+      return;
+    }
+    box.innerHTML = d.items.map(c =>
+      `<a href="#" class="list-group-item list-group-item-action small py-1"
+          onclick="event.preventDefault();selectExportClient(${c.cod_client}, '${(c.client || '').replace(/'/g, "\\'")}')">
+        <strong>${c.cod_client}</strong> · ${c.client}
+      </a>`
+    ).join('');
+    box.style.display = '';
+  }, 250);
+});
+
+function selectExportClient(cod, client) {
+  document.getElementById('exportClientCod').value = cod;
+  document.getElementById('exportClientNume').value = client;
+  document.getElementById('exportClientSearch').value = `${cod} · ${client}`;
+  document.getElementById('exportClientSuggest').style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+  const box = document.getElementById('exportClientSuggest');
+  if (box && !box.contains(e.target) && e.target.id !== 'exportClientSearch') {
+    box.style.display = 'none';
+  }
+});
+
+// Auto-load când tab-ul Export este activ
+if (document.querySelector('#tab-export') && document.querySelector('#tab-export').style.display !== 'none') {
+  loadExportClients();
+}
+
+
+// ── Adaugă la Comandă (din modulul Stoc & Urgențe) ───────────────────────────
+
+async function openAddToOrder(btn) {
+  const sku      = btn.dataset.sku;
+  const furnizor = btn.dataset.furnizor;
+  const cod      = btn.dataset.cod;
+  const idx      = btn.dataset.idx;
+  const pret     = btn.dataset.pret   || '';
+  const moneda   = btn.dataset.moneda || '';
+
+  document.getElementById('addOrderSkuTitle').textContent  = sku;
+  document.getElementById('addOrderSkuVal').value          = sku;
+  document.getElementById('addOrderFurnizorVal').value     = furnizor;
+  document.getElementById('addOrderCodVal').value          = cod;
+  document.getElementById('addOrderIdxVal').value          = idx;
+  document.getElementById('addOrderPretVal').value         = pret;
+  document.getElementById('addOrderMonedaVal').value       = moneda;
+
+  // Pre-populează cantitățile din inputurile editate din tabel
+  const roVal = parseInt(document.getElementById('stoc-ro-' + idx)?.value) || 0;
+  const huVal = parseInt(document.getElementById('stoc-hu-' + idx)?.value) || 0;
+  document.getElementById('addOrderQtyRo').value = roVal;
+  document.getElementById('addOrderQtyHu').value = huVal;
+  updateAddOrderTotal();
+
+  // Încarcă comenzile draft pentru brandul respectiv
+  await loadDraftOrders(furnizor);
+
+  new bootstrap.Modal(document.getElementById('modalAddToOrder')).show();
+}
+
+function updateAddOrderTotal() {
+  const ro  = parseInt(document.getElementById('addOrderQtyRo').value) || 0;
+  const hu  = parseInt(document.getElementById('addOrderQtyHu').value) || 0;
+  document.getElementById('addOrderTotalQty').textContent = ro + hu;
+}
+
+document.getElementById('addOrderQtyRo')?.addEventListener('input', updateAddOrderTotal);
+document.getElementById('addOrderQtyHu')?.addEventListener('input', updateAddOrderTotal);
+
+async function loadDraftOrders(furnizor) {
+  const select  = document.getElementById('addOrderDraftSelect');
+  const loading = document.getElementById('addOrderDraftLoading');
+  select.innerHTML = '<option value="">— Creează comandă nouă —</option>';
+  loading.style.display = '';
+  try {
+    const r = await fetch('/api/comenzi/drafts?furnizor=' + encodeURIComponent(furnizor));
+    const d = await r.json();
+    if (d.ok && d.items.length) {
+      d.items.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        const nr    = c.nr_comanda ? ` · ${c.nr_comanda}` : '';
+        const nrSku = c.nr_linii  ? ` (${c.nr_linii} SKU)` : '';
+        opt.textContent = `Draft #${c.id} · ${c.data_comanda}${nr}${nrSku}`;
+        select.appendChild(opt);
+      });
+      // Auto-selectează primul draft existent
+      if (d.items.length === 1) select.value = d.items[0].id;
+    }
+  } catch(e) {
+    console.error('loadDraftOrders:', e);
+  } finally {
+    loading.style.display = 'none';
+  }
+}
+
+async function saveToOrder() {
+  const sku      = document.getElementById('addOrderSkuVal').value;
+  const furnizor = document.getElementById('addOrderFurnizorVal').value;
+  const cod      = document.getElementById('addOrderCodVal').value;
+  const pretRaw  = document.getElementById('addOrderPretVal').value;
+  const moneda   = document.getElementById('addOrderMonedaVal').value || 'EUR';
+  const qtyRo    = parseInt(document.getElementById('addOrderQtyRo').value) || 0;
+  const qtyHu    = parseInt(document.getElementById('addOrderQtyHu').value) || 0;
+  const qty      = qtyRo + qtyHu;
+
+  if (qty <= 0) { alert('Introdu o cantitate mai mare de 0.'); return; }
+
+  const cid = document.getElementById('addOrderDraftSelect').value;
+  const line = {
+    sku,
+    cantitate_comandata: qty,
+    cantitate_ro:        qtyRo,
+    cantitate_export:    qtyHu,
+    cantitate_sugerat:   qty,
+    cod_furnizor:        cod || null,
+    pret_valuta:         pretRaw ? parseFloat(pretRaw) : null,
+    moneda:              moneda,
+  };
+
+  const btn = document.getElementById('btnSaveToOrder');
+  btn.disabled = true;
+  try {
+    let orderId;
+    if (cid) {
+      // Adaugă / actualizează linie în comanda existentă
+      const r = await fetch(`/api/comenzi/${cid}/lines`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(line),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error);
+      orderId = cid;
+    } else {
+      // Creează comandă nouă draft
+      const r = await fetch('/api/comenzi', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({furnizor, status: 'draft', lines: [line]}),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error);
+      orderId = d.id;
+    }
+    bootstrap.Modal.getInstance(document.getElementById('modalAddToOrder')).hide();
+    showToast(`✓ Adăugat la comanda #${orderId} — vezi tab-ul Comenzi Furnizori`, 'success');
+  } catch(e) {
+    alert('Eroare: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+
+// ── Toast helper ──────────────────────────────────────────────────────────────
+function showToast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = `position-fixed bottom-0 start-50 translate-middle-x mb-3 alert alert-${type} py-1 px-3 shadow`;
+  t.style.zIndex = '9999';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+</script>
+{% endblock %}

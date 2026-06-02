@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}Utilizatori — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0"><i class="bi bi-people-fill me-2 text-primary"></i>Utilizatori</h5>
+  <a href="{{ url_for('admin.user_new') }}" class="btn btn-success btn-sm">
+    <i class="bi bi-person-plus me-1"></i> Utilizator nou
+  </a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert alert-{{ cat }} py-2">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>#</th>
+          <th>Username</th>
+          <th>Email</th>
+          <th>Rol</th>
+          <th>Status</th>
+          <th>Ultimul login</th>
+          <th>Creat</th>
+          <th class="text-end">Acțiuni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td class="text-muted small">{{ u.id }}</td>
+          <td class="fw-semibold">{{ u.username }}</td>
+          <td class="small text-muted">{{ u.email }}</td>
+          <td>
+            {% if u.role == 'admin' %}
+            <span class="badge bg-danger">Admin</span>
+            {% elif u.role == 'manager' %}
+            <span class="badge bg-primary">Manager</span>
+            {% else %}
+            <span class="badge bg-secondary">Viewer</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_active %}
+            <span class="badge bg-success">Activ</span>
+            {% else %}
+            <span class="badge bg-warning text-dark">Inactiv</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">{{ u.last_login_at or '—' }}</td>
+          <td class="small text-muted">{{ (u.created_at or '')[:10] }}</td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.user_edit', uid=u.id) }}"
+               class="btn btn-sm btn-outline-secondary me-1" title="Editare">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="POST" action="{{ url_for('admin.user_reset_password', uid=u.id) }}"
+                  class="d-inline"
+                  data-username="{{ u.username }}"
+                  onsubmit="return confirm('Resetați parola pentru ' + this.dataset.username + '?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-warning me-1" title="Resetare parolă">
+                <i class="bi bi-key"></i>
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('admin.user_toggle_active', uid=u.id) }}"
+                  class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm {% if u.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}"
+                      title="{% if u.is_active %}Dezactivare{% else %}Activare{% endif %}">
+                <i class="bi bi-{% if u.is_active %}person-x{% else %}person-check{% endif %}"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-3">Niciun utilizator.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

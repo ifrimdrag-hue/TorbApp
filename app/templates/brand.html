@@ -1,0 +1,284 @@
+{% extends 'base.html' %}
+{% block title %}{{ furnizor }} — Torb Logistic{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('analytics.products', an=an) }}">Produse</a></li>
+    <li class="breadcrumb-item active">{{ furnizor }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0 fw-bold">
+    <i class="bi bi-award-fill text-warning me-1"></i>{{ furnizor }}
+  </h4>
+</div>
+{% include '_period_selector.html' %}
+
+<!-- KPI cards -->
+{% if kpi %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-currency-exchange text-primary fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Val Netă</p>
+      <p class="fw-bold mb-1">{{ kpi.val_neta | ron }}</p>
+      {% if kpi.delta_vn is not none %}
+      <small class="{{ kpi.delta_vn | delta_class }}">
+        {% if kpi.delta_vn >= 0 %}▲{% else %}▼{% endif %}{{ kpi.delta_vn | abs | round(1) }}% vs {{ an-1 }}
+      </small>
+      {% else %}
+      <small class="text-muted">—</small>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-graph-up text-success fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Marjă Brută</p>
+      <p class="fw-bold mb-1">{{ kpi.marja_bruta | ron }}</p>
+      <small class="text-success fw-semibold">{{ kpi.marja_pct | pct }}</small>
+      {% if kpi.delta_mb is not none %}
+      <small class="{{ kpi.delta_mb | delta_class }} small">
+        {% if kpi.delta_mb >= 0 %}+{% endif %}{{ kpi.delta_mb }}pp
+      </small>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-graph-down-arrow text-warning fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Marjă Netă</p>
+      <p class="fw-bold mb-1">{{ kpi.marja_neta | ron }}</p>
+      <small class="{% if (kpi.marja_neta_pct or 0) >= 5 %}text-success{% elif (kpi.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %} fw-semibold">
+        {{ kpi.marja_neta_pct | pct }}
+      </small>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-people text-secondary fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Clienți</p>
+      <p class="fw-bold mb-1">{{ kpi.nr_clienti }}</p>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-box-seam text-dark fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">SKU-uri</p>
+      <p class="fw-bold mb-1">{{ kpi.nr_sku }}</p>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-receipt text-info fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Tranzacții</p>
+      <p class="fw-bold mb-1">{{ kpi.nr_tranzactii }}</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Trend chart -->
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-bar-chart-line text-primary me-1"></i> Evoluție Lunară (2024 / 2025 / 2026)</span>
+    <div class="btn-group btn-group-sm" role="group" id="brandTrend">
+      <button class="btn btn-outline-primary active" onclick="showMetric('vn',this)">Val Netă</button>
+      <button class="btn btn-outline-success" onclick="showMetric('mb',this)">Marjă Brută</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <canvas id="trendChart" height="80"></canvas>
+  </div>
+</div>
+
+<!-- Clients table -->
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-people-fill me-1 text-info"></i>
+    Clienți {{ furnizor }} — pondere &amp; comparativ {{ period_py }}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-dark">
+        <tr>
+          <th>#</th>
+          <th>Client</th>
+          <th>Agent</th>
+          <th class="text-end">Val Netă {{ period_cy }}</th>
+          <th class="text-end">Pondere</th>
+          <th class="text-end">vs {{ period_py }}</th>
+          <th class="text-end">MB (RON)</th>
+          <th class="text-end">MB%</th>
+          <th class="text-end">SKU-uri</th>
+          <th>Ultima Livrare</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clients %}
+        <tr>
+          <td class="text-muted small">{{ loop.index }}</td>
+          <td>
+            <a href="{{ url_for('analytics.client_detail', cod_client=c.cod_client, an=an, luna=luna) if luna else url_for('analytics.client_detail', cod_client=c.cod_client, an=an) }}"
+               class="text-decoration-none fw-semibold">{{ c.client }}</a>
+          </td>
+          <td class="small text-muted">{{ c.agent or '—' }}</td>
+          <td class="text-end fw-semibold">{{ c.val_neta | ron }}</td>
+          <td class="text-end">
+            <div class="d-flex align-items-center justify-content-end gap-2">
+              <div class="progress" style="height:6px;width:60px">
+                <div class="progress-bar bg-info" style="width:{{ c.pondere if c.pondere < 100 else 100 }}%"></div>
+              </div>
+              <span class="small fw-semibold" style="min-width:50px">{{ c.pondere }}%</span>
+            </div>
+          </td>
+          <td class="text-end small">
+            {% if c.delta_pct is not none %}
+            <span class="{{ c.delta_pct | delta_class }}">
+              {% if c.delta_pct >= 0 %}+{% endif %}{{ c.delta_pct }}%
+            </span>
+            <div class="text-muted" style="font-size:0.7rem">{{ c.val_neta_py | ron }}</div>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-end small">{{ c.marja_bruta | ron }}</td>
+          <td class="text-end small
+            {% if (c.marja_pct or 0) > 45 %}text-success fw-semibold
+            {% elif (c.marja_pct or 0) > 30 %}text-warning
+            {% else %}text-danger{% endif %}">
+            {{ c.marja_pct | pct }}
+          </td>
+          <td class="text-end text-muted small">{{ c.nr_sku }}</td>
+          <td class="text-muted small">{{ c.ultima_livrare or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="text-center text-muted py-4">Niciun client.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Top SKUs for this brand -->
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>
+      <i class="bi bi-list-stars me-1 text-secondary"></i> Top SKU-uri {{ furnizor }} {{ period_cy }}
+      {% if sel_search %}<span class="badge bg-info text-dark ms-2">caut: {{ sel_search }}</span>{% endif %}
+    </span>
+    <form method="get" class="d-flex gap-2">
+      <input type="hidden" name="an" value="{{ an }}">
+      {% if luna %}<input type="hidden" name="luna" value="{{ luna }}">{% endif %}
+      <div class="input-group input-group-sm" style="width:260px">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" value="{{ sel_search or '' }}"
+               placeholder="cod sau denumire SKU"
+               class="form-control form-control-sm">
+        <button type="submit" class="btn btn-outline-primary btn-sm">Caută</button>
+        {% if sel_search %}
+        <a href="{{ url_for('analytics.brand_detail', furnizor=furnizor, an=an) }}"
+           class="btn btn-outline-secondary btn-sm">✕</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th style="width:80px">Cod</th>
+          <th>SKU</th>
+          <th class="text-end">Val Netă</th>
+          <th class="text-end">Cant.</th>
+          <th class="text-end">MB (RON)</th>
+          <th class="text-end">MB%</th>
+          <th class="text-end">MN%</th>
+          <th class="text-end">Clienți</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in skus %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td class="text-muted small fw-semibold">{{ (sku_cod_mare.get(s.sku) or s.cod_produs) or '—' }}</td>
+          <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ s.sku }}">
+            <a href="{{ url_for('reports.produs_detail', sku=s.sku, an=an, luna=luna) if luna else url_for('reports.produs_detail', sku=s.sku, an=an) }}" class="text-decoration-none">
+              {{ s.sku | truncate(48, True, '…') }}
+            </a>
+          </td>
+          <td class="text-end fw-semibold small">{{ s.val_neta | ron }}</td>
+          <td class="text-end text-muted small">{{ s.cantitate | int }}</td>
+          <td class="text-end small">{{ s.marja_bruta | ron }}</td>
+          <td class="text-end small {% if (s.marja_bruta_pct or 0) > 45 %}text-success{% elif (s.marja_bruta_pct or 0) > 30 %}text-warning{% else %}text-danger{% endif %}">
+            {{ s.marja_bruta_pct | pct }}
+          </td>
+          <td class="text-end small {% if (s.marja_neta_pct or 0) >= 5 %}text-success{% elif (s.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+            {{ s.marja_neta_pct | pct }}
+          </td>
+          <td class="text-end text-muted small">{{ s.nr_clienti }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-4">Niciun SKU.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MONTHS   = {{ months_json | safe }};
+const TREND_VN = {{ trend_vn_json | safe }};
+const TREND_MB = {{ trend_mb_json | safe }};
+
+const PALETTE = {
+  2024: {vn:'rgba(173,181,189,0.7)', mb:'rgba(173,181,189,0.55)'},
+  2025: {vn:'rgba(13,110,253,0.65)', mb:'rgba(13,202,240,0.65)'},
+  2026: {vn:'rgba(25,135,84,0.85)',  mb:'rgba(25,135,84,0.6)'},
+};
+
+let chart;
+
+function buildDatasets(metric) {
+  const src = metric === 'vn' ? TREND_VN : TREND_MB;
+  return Object.entries(src).sort(([a],[b])=>a-b).map(([yr, data]) => ({
+    label: yr,
+    data,
+    backgroundColor: (PALETTE[yr] || {})[metric] || '#adb5bd',
+    borderRadius: 3,
+  }));
+}
+
+function showMetric(metric, btn) {
+  document.querySelectorAll('#brandTrend .btn').forEach(b => {
+    b.classList.remove('active','btn-primary','btn-success');
+    b.classList.add('btn-outline-primary','btn-outline-success');
+  });
+  if (btn) {
+    const map = {vn:'primary',mb:'success'};
+    btn.classList.remove(`btn-outline-${map[metric]}`);
+    btn.classList.add(`btn-${map[metric]}`, 'active');
+  }
+  chart.data.datasets = buildDatasets(metric);
+  chart.update();
+}
+
+(function () {
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {labels: MONTHS, datasets: buildDatasets('vn')},
+    options: {
+      responsive: true,
+      plugins: {legend: {position: 'top'}},
+      scales: {
+        y: {beginAtZero: true, ticks: {callback: v => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v}},
+      },
+    },
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,151 @@
+name: CI/CD Pipeline - Test, Scan, and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # 1. Code Quality and Syntax Check
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run Ruff Linter
+        run: ruff check .
+
+  # 2. Automated Testing
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+  # 3. Dependency Security Scan
+  security:
+    needs: lint
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+  # 4. Deploy to VPS
+  deploy:
+    needs: [test, security]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 2112
+          envs: ANTHROPIC_API_KEY
+          script: |
+            git config --global --add safe.directory /var/www/html/torb-py
+            cd /var/www/html/torb-py
+
+            # Discard any accidental local changes on the server — source of truth is git
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Remove dev-only files — no runtime use on the production server
+            rm -rf tests/ context/ extra/
+            rm -f CLAUDE.md STATUS.md plan_strategic_5ani.md torb_background.md CHANGELOG.md
+
+            # Inject secrets into .env (create if missing, update if present)
+            touch .env
+            grep -v '^ANTHROPIC_API_KEY=' .env > .env.tmp && mv .env.tmp .env
+            echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> .env
+
+            # Update dependencies
+            source venv/bin/activate
+            pip install --quiet --upgrade pip
+            pip install --quiet -r requirements.txt
+
+            # Restart app (migrations run automatically on startup)
+            sudo systemctl restart torb-py
+
+  # 5. Post-deployment smoke tests
+  smoke-test-vps:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for service to come up
+        run: |
+          for i in $(seq 1 12); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://app.robrands.ro/healthz" || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "Service is up after ~$((i*5))s"
+              exit 0
+            fi
+            echo "Attempt $i: got $STATUS, retrying in 5s..."
+            sleep 5
+          done
+          echo "Service did not come up in time"
+          exit 1
+
+      - name: Smoke test main routes
+        run: |
+          BASE="https://app.robrands.ro"
+          FAILED=0
+          for path in / /forecast /bonus /actualizare /preturi /conditii /clients /team /products; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 --retry 3 --retry-delay 5 "$BASE$path")
+            echo "$STATUS  $path"
+            if [ "$STATUS" != "200" ] && [ "$STATUS" != "302" ]; then
+              echo "FAIL: $path returned $STATUS"
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" = "0" ] || exit 1
+
+      - name: Smoke test API endpoints
+        run: |
+          BASE="https://app.robrands.ro"
+          FAILED=0
+          for path in /api/actualizare-date/status /api/clienti-export /api/comenzi/drafts; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 --retry 3 --retry-delay 5 "$BASE$path")
+            echo "$STATUS  $path"
+            if [ "$STATUS" != "200" ] && [ "$STATUS" != "401" ]; then
+              echo "FAIL: $path returned $STATUS"
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" = "0" ] || exit 1

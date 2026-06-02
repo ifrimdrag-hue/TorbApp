@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+{% block title %}Produse — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-box-seam-fill text-primary"></i> Produse & Branduri</h4>
+</div>
+{% include '_period_selector.html' %}
+
+<!-- Brand performance table -->
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-award me-1 text-warning"></i> Performanță Branduri {{ period_cy }} vs {{ period_py }}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-dark">
+        <tr>
+          <th>Brand</th>
+          <th class="text-end">Val Netă {{ period_cy }}</th>
+          <th class="text-end">Val Netă {{ period_py }}</th>
+          <th class="text-end">Δ%</th>
+          <th class="text-end">MB (RON)</th>
+          <th class="text-end">MB%</th>
+          <th class="text-end">MB% vs AN-1</th>
+          <th class="text-end">MN (RON)</th>
+          <th class="text-end">MN%</th>
+          <th class="text-end">MN% vs AN-1</th>
+          <th class="text-end">Clienți</th>
+          <th class="text-end">SKU-uri</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in brand_rows %}
+        {% set delta_vn  = ((b.val_neta - b.val_neta_py) / b.val_neta_py * 100) | round(1) if b.val_neta_py else none %}
+        {% set delta_mb  = ((b.marja_pct or 0) - (b.marja_pct_py or 0)) | round(1) %}
+        {% set delta_mn  = ((b.marja_neta_pct or 0) - (b.marja_neta_pct_py or 0)) | round(1) %}
+        <tr>
+          <td class="fw-semibold">
+            <a href="{{ url_for('analytics.brand_detail', furnizor=b.furnizor, an=an) }}"
+               class="text-decoration-none">{{ b.furnizor }}</a>
+          </td>
+          <td class="text-end fw-semibold">{{ b.val_neta | ron }}</td>
+          <td class="text-end text-muted">{{ b.val_neta_py | ron }}</td>
+          <td class="text-end small
+            {% if delta_vn is not none %}{{ delta_vn | delta_class }}{% else %}text-muted{% endif %}">
+            {% if delta_vn is not none %}
+              {% if delta_vn >= 0 %}+{% endif %}{{ delta_vn }}%
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-end">{{ b.marja_bruta | ron }}</td>
+          <td class="text-end fw-semibold
+            {% if (b.marja_pct or 0) > 45 %}text-success{% elif (b.marja_pct or 0) > 35 %}text-warning{% else %}text-danger{% endif %}">
+            {{ b.marja_pct | pct }}
+          </td>
+          <td class="text-end small {{ delta_mb | delta_class }}">
+            {% if delta_mb >= 0 %}+{% endif %}{{ delta_mb }}pp
+          </td>
+          <td class="text-end fw-semibold {% if (b.marja_neta or 0) < 0 %}text-danger{% endif %}">
+            {{ b.marja_neta | ron }}
+          </td>
+          <td class="text-end fw-semibold
+            {% if (b.marja_neta_pct or 0) >= 5 %}text-success{% elif (b.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+            {{ b.marja_neta_pct | pct }}
+          </td>
+          <td class="text-end small {{ delta_mn | delta_class }}">
+            {% if delta_mn >= 0 %}+{% endif %}{{ delta_mn }}pp
+          </td>
+          <td class="text-end text-muted small">{{ b.nr_clienti }}</td>
+          <td class="text-end text-muted small">{{ b.nr_sku }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="12" class="text-center text-muted py-4">Nicio dată disponibilă</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- SKU filter + table -->
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span class="fw-semibold">
+      <i class="bi bi-list-stars me-1 text-secondary"></i> Top SKU-uri {{ period_cy }}
+      {% if sel_search %}<span class="badge bg-info text-dark ms-2">caut: {{ sel_search }}</span>{% endif %}
+    </span>
+    <form method="get" class="d-flex gap-2 flex-wrap">
+      <input type="hidden" name="an" value="{{ an }}">
+      {% if luna %}<input type="hidden" name="luna" value="{{ luna }}">{% endif %}
+      <div class="input-group input-group-sm" style="width:240px">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" value="{{ sel_search or '' }}"
+               placeholder="cod sau denumire SKU"
+               class="form-control form-control-sm">
+      </div>
+      <select name="brand" class="form-select form-select-sm" style="width:180px">
+        <option value="">Toate brandurile</option>
+        {% for b in brand_opts %}
+        <option value="{{ b.furnizor }}" {% if sel_brand == b.furnizor %}selected{% endif %}>{{ b.furnizor }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-sm btn-primary">Filtrează</button>
+      {% if sel_search or sel_brand %}
+      <a href="{{ url_for('analytics.products', an=an) }}" class="btn btn-sm btn-outline-secondary">✕</a>
+      {% endif %}
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th style="width:80px">Cod</th>
+          <th>SKU</th>
+          <th>Brand</th>
+          <th class="text-end">Val Netă</th>
+          <th class="text-end">Δ VN %</th>
+          <th class="text-end">Cant.</th>
+          <th class="text-end">Δ Cant %</th>
+          <th class="text-end">MB (RON)</th>
+          <th class="text-end">MB%</th>
+          <th class="text-end">MN (RON)</th>
+          <th class="text-end">MN%</th>
+          <th class="text-end">Clienți</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sku_rows %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td class="text-muted small fw-semibold">{{ (sku_cod_mare.get(s.sku) or s.cod_produs) or '—' }}</td>
+          <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ s.sku }}">
+            <a href="{{ url_for('reports.produs_detail', sku=s.sku, an=an) }}" class="text-decoration-none">
+              {{ s.sku | truncate(38, True, '…') }}
+            </a>
+          </td>
+          <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ s.furnizor }}</span></td>
+          <td class="text-end fw-semibold small">{{ s.val_neta | ron }}</td>
+          <td class="text-end small {% if s.delta_vn_pct is not none %}{% if s.delta_vn_pct > 0 %}text-success{% elif s.delta_vn_pct < 0 %}text-danger{% else %}text-muted{% endif %}{% else %}text-muted{% endif %}">
+            {% if s.delta_vn_pct is not none %}{{ '%+.1f' % s.delta_vn_pct }}%{% else %}—{% endif %}
+          </td>
+          <td class="text-end text-muted small">{{ s.cantitate | int }}</td>
+          <td class="text-end small {% if s.delta_cant_pct is not none %}{% if s.delta_cant_pct > 0 %}text-success{% elif s.delta_cant_pct < 0 %}text-danger{% else %}text-muted{% endif %}{% else %}text-muted{% endif %}">
+            {% if s.delta_cant_pct is not none %}{{ '%+.1f' % s.delta_cant_pct }}%{% else %}—{% endif %}
+          </td>
+          <td class="text-end small">{{ s.marja_bruta | ron }}</td>
+          <td class="text-end small {% if (s.marja_bruta_pct or 0) > 45 %}text-success{% elif (s.marja_bruta_pct or 0) > 30 %}text-warning{% else %}text-danger{% endif %}">
+            {{ s.marja_bruta_pct | pct }}
+          </td>
+          <td class="text-end small fw-semibold {% if (s.marja_neta or 0) < 0 %}text-danger{% endif %}">
+            {{ s.marja_neta | ron }}
+          </td>
+          <td class="text-end small {% if (s.marja_neta_pct or 0) >= 5 %}text-success{% elif (s.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+            {{ s.marja_neta_pct | pct }}
+          </td>
+          <td class="text-end text-muted small">{{ s.nr_clienti }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="13" class="text-center text-muted py-4">Niciun SKU găsit.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

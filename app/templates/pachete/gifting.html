@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+{% block title %}Pachete Gifting{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <h4 class="mb-1"><i class="bi bi-gift-fill text-warning me-2"></i>Pachete Gifting</h4>
+    <p class="text-secondary small mb-0">Creează pachete cadou tematice cu calcul automat de preț și marjă.</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <button class="btn btn-sm btn-outline-secondary" id="btnNewManual">
+      <i class="bi bi-plus me-1"></i>Manual
+    </button>
+    <button class="btn btn-sm" id="btnAiSuggest"
+            style="background:linear-gradient(135deg,#4f8cff,#7c5cff);color:white;border:none;">
+      <i class="bi bi-stars me-1"></i>Sugestii AI
+    </button>
+  </div>
+</div>
+
+<div id="alertArea" class="mb-3"></div>
+<div id="noProducts" class="alert alert-warning small d-none">
+  <i class="bi bi-exclamation-triangle me-1"></i>
+  Snapshot-ul de prețuri nu e încărcat. Mergi la <a href="/preturi" class="alert-link">Prețuri</a> și încarcă fișierul Excel.
+</div>
+
+<div id="bundleList" class="row g-3"></div>
+<div id="emptyState" class="text-center py-5 text-muted d-none">
+  <i class="bi bi-gift fs-1 d-block mb-2 opacity-25"></i>
+  Niciun pachet creat. Apasă „Sugestii AI" sau „Manual".
+</div>
+
+<!-- Manual / Edit modal -->
+<div class="modal fade" id="bundleModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitle">Pachet nou</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label small">Nume pachet *</label>
+            <input type="text" class="form-control form-control-sm" id="bName" placeholder="ex: Pachet Weekend Cozy">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small">Temă / ocazie</label>
+            <input type="text" class="form-control form-control-sm" id="bTheme" placeholder="ex: relaxare, cadou ea, sărbători">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Produse</label>
+          <div class="input-group input-group-sm mb-2">
+            <input type="text" class="form-control" id="productSearch" placeholder="Caută produs (cod, nume, brand)…">
+          </div>
+          <div id="searchResults" class="list-group mb-2" style="max-height:160px;overflow-y:auto;"></div>
+          <div id="selectedProducts" class="d-flex flex-column gap-2"></div>
+        </div>
+
+        <div id="pricePreview" class="d-none">
+          <hr>
+          <h6 class="small fw-semibold mb-2">Calcul preț</h6>
+          <div class="row g-2 mb-3" id="totalsRow"></div>
+          <div class="row g-2" id="variantsRow"></div>
+          <div class="mt-3">
+            <label class="form-label small">Preț final ales (RON)</label>
+            <input type="number" class="form-control form-control-sm" id="bFinalPrice" step="0.01" style="width:140px;">
+          </div>
+        </div>
+
+        <div class="mb-2 mt-3">
+          <label class="form-label small">Note</label>
+          <textarea class="form-control form-control-sm" id="bNotes" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <input type="hidden" id="bId">
+        <input type="hidden" id="bSource" value="manual">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anulează</button>
+        <button class="btn btn-primary btn-sm" id="btnPreview">
+          <i class="bi bi-calculator me-1"></i>Calculează prețuri
+        </button>
+        <button class="btn btn-success btn-sm" id="btnSaveBundle">
+          <i class="bi bi-floppy me-1"></i>Salvează
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const modal     = new bootstrap.Modal(document.getElementById('bundleModal'));
+  let   products  = [];
+  let   selected  = [];  // [{...prod, qty}]
+  let   searchTimer = null;
+
+  async function loadState() {
+    const r = await fetch('/api/pachete/state');
+    const d = await r.json();
+    if (!d.products_loaded) document.getElementById('noProducts').classList.remove('d-none');
+    renderBundles(d.gifting || []);
+  }
+
+  function renderBundles(bundles) {
+    const list   = document.getElementById('bundleList');
+    const empty  = document.getElementById('emptyState');
+    if (!bundles.length) { list.innerHTML = ''; empty.classList.remove('d-none'); return; }
+    empty.classList.add('d-none');
+    list.innerHTML = bundles.map(b => {
+      const totals = b.totals || {};
+      const badge  = b.status === 'approved'
+        ? '<span class="badge bg-success">Aprobat</span>'
+        : '<span class="badge bg-secondary">Draft</span>';
+      const src    = b.source === 'ai_random'
+        ? '<span class="badge bg-primary ms-1">AI</span>' : '';
+      const margin = b.margin_pct != null
+        ? `<span class="text-${b.margin_pct >= 20 ? 'success' : 'warning'}">${b.margin_pct.toFixed(1)}%</span>` : '—';
+      const products = (b.products || []).map(p =>
+        `<li class="small">${p.brand || ''} · ${p.name || p.cod_articol} ×${p.qty}</li>`).join('');
+      return `<div class="col-md-6 col-xl-4">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-transparent border-0 pt-2 pb-0 d-flex justify-content-between align-items-start">
+            <div>
+              <span class="fw-semibold">${esc(b.name)}</span>${src}
+              <div class="small text-muted">${esc(b.theme || '')}</div>
+            </div>
+            ${badge}
+          </div>
+          <div class="card-body py-2">
+            <ul class="ps-3 mb-2">${products}</ul>
+            <div class="d-flex justify-content-between small">
+              <span class="text-muted">Cost: <strong>${fmtRon(totals.cost)}</strong></span>
+              <span class="text-muted">Standard: <strong>${fmtRon(totals.standard)}</strong></span>
+            </div>
+            <div class="d-flex justify-content-between small mt-1">
+              <span class="text-muted">Preț final: <strong>${b.final_price ? fmtRon(b.final_price) : '—'}</strong></span>
+              <span class="text-muted">Marjă: <strong>${margin}</strong></span>
+            </div>
+          </div>
+          <div class="card-footer bg-transparent border-0 pb-2 d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary flex-fill"
+                    onclick="editBundle(${JSON.stringify(b).replace(/"/g,'&quot;')})">
+              <i class="bi bi-pencil"></i> Editează
+            </button>
+            <button class="btn btn-sm btn-outline-danger"
+                    onclick="deleteBundle('${b.id}')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  window.deleteBundle = async function (id) {
+    if (!confirm('Ștergi pachetul?')) return;
+    await fetch('/api/pachete/gifting/' + id, { method: 'DELETE' });
+    loadState();
+  };
+
+  window.editBundle = function (b) {
+    openModal(b);
+  };
+
+  function openModal(existing) {
+    selected = existing ? (existing.products || []).map(p => ({...p})) : [];
+    document.getElementById('bId').value     = existing?.id || '';
+    document.getElementById('bSource').value = existing?.source || 'manual';
+    document.getElementById('bName').value   = existing?.name || '';
+    document.getElementById('bTheme').value  = existing?.theme || '';
+    document.getElementById('bFinalPrice').value = existing?.final_price || '';
+    document.getElementById('bNotes').value  = existing?.notes || '';
+    document.getElementById('pricePreview').classList.add('d-none');
+    document.getElementById('searchResults').innerHTML = '';
+    document.getElementById('productSearch').value = '';
+    renderSelected();
+    modal.show();
+  }
+
+  document.getElementById('btnNewManual').addEventListener('click', () => openModal(null));
+
+  document.getElementById('productSearch').addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    const q = this.value.trim();
+    if (!q) { document.getElementById('searchResults').innerHTML = ''; return; }
+    searchTimer = setTimeout(async () => {
+      const r = await fetch('/api/pachete/products?q=' + encodeURIComponent(q) + '&limit=15');
+      const d = await r.json();
+      const el = document.getElementById('searchResults');
+      el.innerHTML = (d.products || []).map(p =>
+        `<button type="button" class="list-group-item list-group-item-action list-group-item-dark py-1 small"
+                 onclick="addProduct(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+          <strong>${esc(p.brand || '')}</strong> · ${esc(p.name || '')}
+          <span class="float-end text-muted">${fmtRon(p.price_v)}</span>
+        </button>`).join('');
+    }, 250);
+  });
+
+  window.addProduct = function (p) {
+    const existing = selected.find(s => s.cod_articol === p.cod_articol);
+    if (existing) { existing.qty = (existing.qty || 1) + 1; }
+    else { selected.push({...p, qty: 1}); }
+    document.getElementById('searchResults').innerHTML = '';
+    document.getElementById('productSearch').value = '';
+    document.getElementById('pricePreview').classList.add('d-none');
+    renderSelected();
+  };
+
+  function renderSelected() {
+    const el = document.getElementById('selectedProducts');
+    if (!selected.length) { el.innerHTML = '<p class="text-muted small">Niciun produs adăugat.</p>'; return; }
+    el.innerHTML = selected.map((p, i) => `
+      <div class="d-flex align-items-center gap-2 p-2 rounded bg-dark-subtle">
+        <span class="small flex-fill">${esc(p.brand || '')} · ${esc(p.name || p.cod_articol)}</span>
+        <span class="text-muted small">${fmtRon(p.price_v)}</span>
+        <input type="number" value="${p.qty}" min="1" max="10"
+               class="form-control form-control-sm text-center" style="width:65px;"
+               onchange="updateQty(${i}, this.value)">
+        <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeProduct(${i})">
+          <i class="bi bi-x"></i>
+        </button>
+      </div>`).join('');
+  }
+
+  window.updateQty      = (i, v) => { selected[i].qty = parseInt(v) || 1; };
+  window.removeProduct  = (i) => { selected.splice(i, 1); renderSelected(); document.getElementById('pricePreview').classList.add('d-none'); };
+
+  document.getElementById('btnPreview').addEventListener('click', async function () {
+    if (!selected.length) { showAlert('Adaugă cel puțin un produs.', 'warning'); return; }
+    const r = await fetch('/api/pachete/gifting/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: selected.map(p => ({ cod_articol: p.cod_articol, qty: p.qty })) }),
+    });
+    const d = await r.json();
+    if (!d.ok) { showAlert(d.error, 'danger'); return; }
+    const v   = d.variants;
+    const tot = v.totals;
+    document.getElementById('totalsRow').innerHTML = `
+      <div class="col-4"><div class="card border-0 bg-dark-subtle p-2 text-center">
+        <div class="small text-muted">Cost</div><div class="fw-bold">${fmtRon(tot.cost)}</div></div></div>
+      <div class="col-4"><div class="card border-0 bg-dark-subtle p-2 text-center">
+        <div class="small text-muted">Standard</div><div class="fw-bold">${fmtRon(tot.standard)}</div></div></div>
+      <div class="col-4"><div class="card border-0 bg-dark-subtle p-2 text-center">
+        <div class="small text-muted">Max</div><div class="fw-bold">${fmtRon(tot.max)}</div></div></div>`;
+    document.getElementById('variantsRow').innerHTML = [
+      { key: 'percent_off', label: v.percent_off.label, val: v.percent_off.value, m: v.percent_off.margin_pct },
+      { key: 'psychological', label: v.psychological.label, val: v.psychological.value, m: v.psychological.margin_pct },
+    ].map(x => `
+      <div class="col-6">
+        <div class="card border-0 bg-dark-subtle p-2 text-center" style="cursor:pointer;"
+             onclick="document.getElementById('bFinalPrice').value='${x.val}'">
+          <div class="small text-muted">${x.label}</div>
+          <div class="fw-bold">${fmtRon(x.val)}</div>
+          <div class="small text-success">${x.m.toFixed(1)}% marjă</div>
+        </div>
+      </div>`).join('');
+    document.getElementById('pricePreview').classList.remove('d-none');
+  });
+
+  document.getElementById('btnSaveBundle').addEventListener('click', async function () {
+    const name = document.getElementById('bName').value.trim();
+    if (!name) { showAlert('Numele e obligatoriu.', 'warning'); return; }
+    if (!selected.length) { showAlert('Adaugă cel puțin un produs.', 'warning'); return; }
+    const payload = {
+      id:          document.getElementById('bId').value || undefined,
+      source:      document.getElementById('bSource').value,
+      name,
+      theme:       document.getElementById('bTheme').value.trim(),
+      notes:       document.getElementById('bNotes').value.trim(),
+      final_price: parseFloat(document.getElementById('bFinalPrice').value) || null,
+      items:       selected.map(p => ({ cod_articol: p.cod_articol, qty: p.qty })),
+    };
+    const r = await fetch('/api/pachete/gifting/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (d.ok) { modal.hide(); loadState(); }
+    else showAlert(d.error, 'danger');
+  });
+
+  document.getElementById('btnAiSuggest').addEventListener('click', async function () {
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>AI generează…';
+    showAlert('AI generează pachete tematice… poate dura 15–30s.', 'info');
+    try {
+      const r = await fetch('/api/pachete/gifting/suggest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const d = await r.json();
+      if (d.ok) { showAlert(`${d.bundles.length} pachete generate de AI.`, 'success'); loadState(); }
+      else showAlert(d.error, 'danger');
+    } finally {
+      this.disabled = false;
+      this.innerHTML = '<i class="bi bi-stars me-1"></i>Sugestii AI';
+    }
+  });
+
+  function showAlert(msg, type) {
+    const el = document.getElementById('alertArea');
+    el.innerHTML = `<div class="alert alert-${type} alert-dismissible py-2 small">
+      ${msg}<button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button></div>`;
+  }
+
+  function fmtRon(v) {
+    if (v == null) return '—';
+    return parseFloat(v).toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' RON';
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  loadState();
+}());
+</script>
+{% endblock %}

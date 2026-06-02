@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Echipă — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-people-fill text-primary"></i> Performanță Echipă</h4>
+</div>
+{% include '_period_selector.html' %}
+
+<div class="card shadow-sm border-0">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>Agent / Canal</th>
+          <th class="text-end">Val Netă {{ period_cy }}</th>
+          <th class="text-end">vs {{ period_py }}</th>
+          <th class="text-end">MB (RON)</th>
+          <th class="text-end">MB%</th>
+          <th class="text-end">MN (RON)</th>
+          <th class="text-end">MN%</th>
+          <th class="text-end">Clienți Activi</th>
+          <th>Ultima Livrare</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in agents %}
+        {% set is_human = a.agent not in ('EMAG','SITE','TRENDYOL','ALTEX') %}
+        <tr class="{% if not is_human %}text-muted{% endif %}">
+          <td>
+            {% if is_human %}
+            <i class="bi bi-person-fill text-secondary me-1"></i>
+            {% else %}
+            <i class="bi bi-globe2 text-secondary me-1"></i>
+            {% endif %}
+            <strong>{{ a.agent }}</strong>
+            {% if not is_human %}<span class="badge bg-secondary-subtle text-secondary ms-1">canal digital</span>{% endif %}
+          </td>
+          <td class="text-end fw-semibold">{{ a.val_neta | ron }}</td>
+          <td class="text-end small">
+            {% if a.delta_vn is not none %}
+            <span class="{{ a.delta_vn | delta_class }}">
+              {% if a.delta_vn >= 0 %}+{% endif %}{{ a.delta_vn }}%
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-end">{{ a.marja_bruta | ron }}</td>
+          <td class="text-end
+            {% if (a.marja_pct or 0) > 45 %}text-success fw-semibold
+            {% elif (a.marja_pct or 0) > 35 %}text-warning
+            {% else %}text-danger{% endif %}">
+            {{ a.marja_pct | pct }}
+          </td>
+          <td class="text-end fw-semibold {% if (a.marja_neta or 0) > 0 %}text-success{% else %}text-muted{% endif %}">
+            {{ a.marja_neta | ron if a.marja_neta is not none else '—' }}
+          </td>
+          <td class="text-end small {% if (a.marja_neta_pct or 0) >= 5 %}text-success{% elif (a.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+            {{ a.marja_neta_pct | pct if a.marja_neta_pct is not none else '—' }}
+          </td>
+          <td class="text-end">{{ a.clienti_activi or '—' }}</td>
+          <td class="text-muted small">{{ a.ultima_livrare or '—' }}</td>
+          <td>
+            {% if is_human %}
+            <a href="{{ url_for('analytics.agent_detail', name=a.agent, an=an) }}"
+               class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-arrow-right"></i>
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-4">Nicio dată disponibilă</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

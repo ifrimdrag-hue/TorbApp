@@ -1,0 +1,37 @@
+docs_input/
+data/
+scripts/
+.venv/
+.torb.pid
+
+# Logs (runtime)
+logs/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.ruff_cache/
+
+# Claude Code / AI session artifacts
+.claude/
+docs/superpowers/
+extra/
+
+# Windows crash dumps
+*.stackdump
+
+# Secrets / local env (keep .env.example in repo if you add one)
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+
+# Windows system files
+desktop.ini
+Thumbs.db

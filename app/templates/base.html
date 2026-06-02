@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ro" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}Torb Logistic{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-icons.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- Mobile top bar -->
+<div id="topbar" class="d-lg-none">
+  <button id="sidebarToggle" aria-label="Meniu">
+    <i class="bi bi-list"></i>
+  </button>
+  <span class="topbar-brand">
+    <i class="bi bi-bar-chart-fill text-success me-1"></i>Torb Logistic
+  </span>
+  <div id="importChipMobile" class="ms-auto d-none">
+    <span id="importChipInnerMobile" class="badge rounded-pill px-2 py-1"></span>
+  </div>
+</div>
+
+<!-- Sidebar backdrop (mobile) -->
+<div id="sidebarOverlay"></div>
+
+<!-- Sidebar -->
+<nav id="sidebar">
+  <div class="sidebar-header">
+    <a href="{{ url_for('analytics.dashboard') }}" class="sidebar-brand">
+      <i class="bi bi-bar-chart-fill text-success"></i>
+      <span class="link-text">Torb Logistic</span>
+    </a>
+    <button id="collapseBtn" class="sidebar-collapse-btn" title="Restrânge meniu">
+      <i class="bi bi-chevron-left"></i>
+    </button>
+    <div id="importChip" class="d-none mt-2 mx-2 link-text">
+      <span id="importChipInner" class="badge rounded-pill px-2 py-1 w-100 text-center"></span>
+    </div>
+  </div>
+
+  <div class="sidebar-body">
+
+    <div class="sidebar-section"><span class="link-text">Analiză</span></div>
+    <a class="sidebar-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+       href="{{ url_for('analytics.dashboard') }}" data-label="Dashboard">
+      <i class="bi bi-speedometer2"></i><span class="link-text"> Dashboard</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint in ('team', 'agent_detail') %}active{% endif %}"
+       href="{{ url_for('analytics.team') }}" data-label="Echipă">
+      <i class="bi bi-people-fill"></i><span class="link-text"> Echipă</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint in ('clients', 'client_detail') %}active{% endif %}"
+       href="{{ url_for('analytics.clients') }}" data-label="Clienți">
+      <i class="bi bi-building"></i><span class="link-text"> Clienți</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint in ('products', 'produs_detail') %}active{% endif %}"
+       href="{{ url_for('analytics.products') }}" data-label="Produse">
+      <i class="bi bi-box-seam-fill"></i><span class="link-text"> Produse</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint == 'profitabilitate' %}active{% endif %}"
+       href="{{ url_for('reports.profitabilitate') }}" data-label="Profitabilitate">
+      <i class="bi bi-graph-up-arrow"></i><span class="link-text"> Profitabilitate</span>
+    </a>
+
+    <div class="sidebar-section sidebar-group-toggle" data-group="comercial">
+      <span class="link-text">Comercial</span>
+      <i class="bi bi-chevron-down sidebar-group-chevron link-text"></i>
+    </div>
+    <div class="sidebar-group-links" id="group-comercial">
+    <a class="sidebar-link {% if request.endpoint in ('preturi', 'preturi_sku') %}active{% endif %}"
+       href="{{ url_for('pricing.preturi') }}" data-label="Prețuri">
+      <i class="bi bi-tags-fill"></i><span class="link-text"> Prețuri</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint == 'conditii' %}active{% endif %}"
+       href="{{ url_for('pricing.conditii') }}" data-label="Condiții">
+      <i class="bi bi-file-earmark-text-fill"></i><span class="link-text"> Condiții</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint == 'bonus' %}active{% endif %}"
+       href="{{ url_for('bonus.bonus') }}" data-label="Bonus">
+      <i class="bi bi-trophy-fill"></i><span class="link-text"> Bonus</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint in ('raportare_basilur', 'raportare_basilur_excel', 'raportare_basilur_ppt') %}active{% endif %}"
+       href="{{ url_for('reports.raportare_basilur') }}" data-label="Basilur">
+      <i class="bi bi-file-earmark-bar-graph-fill"></i><span class="link-text"> Basilur</span>
+    </a>
+    </div>
+
+    <div class="sidebar-section sidebar-group-toggle" data-group="operational">
+      <span class="link-text">Operațional</span>
+      <i class="bi bi-chevron-down sidebar-group-chevron link-text"></i>
+    </div>
+    <div class="sidebar-group-links" id="group-operational">
+    <a class="sidebar-link {% if request.endpoint == 'forecast' %}active{% endif %}"
+       href="{{ url_for('forecast.forecast') }}" data-label="Stoc &amp; Comenzi">
+      <i class="bi bi-boxes"></i><span class="link-text"> Stoc &amp; Comenzi</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint == 'forecast_setari' %}active{% endif %}"
+       href="{{ url_for('forecast.forecast_setari') }}" data-label="Setări Forecast">
+      <i class="bi bi-gear-fill"></i><span class="link-text"> Setări Forecast</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint == 'actualizare' %}active{% endif %}"
+       href="{{ url_for('reports.actualizare') }}" data-label="Actualizare">
+      <i class="bi bi-cloud-upload-fill"></i><span class="link-text"> Actualizare</span>
+    </a>
+    </div>
+
+    <div class="sidebar-section sidebar-group-toggle" data-group="ecommerce">
+      <span class="link-text">eCommerce</span>
+      <i class="bi bi-chevron-down sidebar-group-chevron link-text"></i>
+    </div>
+    <div class="sidebar-group-links" id="group-ecommerce">
+    <a class="sidebar-link {% if request.endpoint == 'stocuri_emag.stocuri_emag_page' %}active{% endif %}"
+       href="{{ url_for('stocuri_emag.stocuri_emag_page') }}" data-label="Stoc eMAG">
+      <i class="bi bi-box-seam"></i><span class="link-text"> Stoc eMAG</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint == 'stocuri_shopify.stocuri_shopify_page' %}active{% endif %}"
+       href="{{ url_for('stocuri_shopify.stocuri_shopify_page') }}" data-label="Stoc Shopify">
+      <i class="bi bi-shop"></i><span class="link-text"> Stoc Shopify</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint == 'pachete.trendyol_page' %}active{% endif %}"
+       href="{{ url_for('pachete.trendyol_page') }}" data-label="Trendyol Pachete">
+      <i class="bi bi-bag-fill"></i><span class="link-text"> Trendyol Pachete</span>
+    </a>
+    </div>
+
+    <div class="sidebar-section sidebar-group-toggle" data-group="marketing">
+      <span class="link-text">Marketing</span>
+      <i class="bi bi-chevron-down sidebar-group-chevron link-text"></i>
+    </div>
+    <div class="sidebar-group-links" id="group-marketing">
+    <a class="sidebar-link {% if request.blueprint == 'campanii' %}active{% endif %}"
+       href="{{ url_for('campanii.campanii_page') }}" data-label="Campanii">
+      <i class="bi bi-megaphone-fill"></i><span class="link-text"> Campanii</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint == 'postari.instagram' %}active{% endif %}"
+       href="{{ url_for('postari.instagram') }}" data-label="Postări Instagram">
+      <i class="bi bi-instagram"></i><span class="link-text"> Postări Instagram</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint == 'postari.facebook' %}active{% endif %}"
+       href="{{ url_for('postari.facebook') }}" data-label="Postări Facebook">
+      <i class="bi bi-facebook"></i><span class="link-text"> Postări Facebook</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint == 'postari.auto_posts_page' %}active{% endif %}"
+       href="{{ url_for('postari.auto_posts_page') }}" data-label="Postări Auto">
+      <i class="bi bi-robot"></i><span class="link-text"> Postări Auto</span>
+    </a>
+    <a class="sidebar-link {% if request.endpoint == 'pachete.gifting_page' %}active{% endif %}"
+       href="{{ url_for('pachete.gifting_page') }}" data-label="Gifting Pachete">
+      <i class="bi bi-gift-fill"></i><span class="link-text"> Gifting Pachete</span>
+    </a>
+    </div>
+
+    <div class="sidebar-section"><span class="link-text">AI</span></div>
+    <a class="sidebar-link {% if request.endpoint == 'ask' %}active{% endif %}"
+       href="{{ url_for('analytics.ask') }}" data-label="Asistent AI">
+      <i class="bi bi-chat-dots-fill"></i><span class="link-text"> Asistent AI</span>
+    </a>
+
+  </div>
+
+  <div class="sidebar-footer">
+    {% if current_user.is_authenticated and current_user.role == 'admin' %}
+    <a class="sidebar-link {% if request.blueprint == 'admin' %}active{% endif %}"
+       href="{{ url_for('admin.users') }}" data-label="Admin">
+      <i class="bi bi-shield-lock-fill"></i><span class="link-text"> Admin</span>
+    </a>
+    {% endif %}
+    <div class="dropdown dropup">
+      <a class="sidebar-link dropdown-toggle" href="#" data-bs-toggle="dropdown"
+         data-label="{{ current_user.username }}">
+        <i class="bi bi-person-circle"></i><span class="link-text"> {{ current_user.username }}</span>
+      </a>
+      <ul class="dropdown-menu dropdown-menu-dark mb-1">
+        <li>
+          <span class="dropdown-item-text small text-muted">
+            {{ current_user.role | capitalize }}
+          </span>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <a class="dropdown-item" href="{{ url_for('auth.change_password') }}">
+            <i class="bi bi-key me-1"></i> Schimbă parola
+          </a>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">
+            <i class="bi bi-box-arrow-right me-1"></i> Deconectare
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Main content -->
+<main id="main-content">
+  <div class="container-fluid px-4 py-4">
+    {% block content %}{% endblock %}
+  </div>
+</main>
+
+<script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+{% block scripts %}{% endblock %}
+
+<script>
+(function () {
+  var sidebar    = document.getElementById('sidebar');
+  var main       = document.getElementById('main-content');
+  var overlay    = document.getElementById('sidebarOverlay');
+  var toggleBtn  = document.getElementById('sidebarToggle');
+  var collapseBtn = document.getElementById('collapseBtn');
+  var STORAGE_KEY = 'torb_sidebar_collapsed';
+
+  /* ── Desktop collapse ── */
+  function setCollapsed(collapsed, save) {
+    if (collapsed) {
+      sidebar.classList.add('collapsed');
+      main.classList.add('sidebar-collapsed');
+    } else {
+      sidebar.classList.remove('collapsed');
+      main.classList.remove('sidebar-collapsed');
+    }
+    if (save) localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0');
+  }
+
+  if (collapseBtn) {
+    collapseBtn.addEventListener('click', function () {
+      var isCollapsed = sidebar.classList.contains('collapsed');
+      setCollapsed(!isCollapsed, true);
+    });
+  }
+
+  /* Restore saved state on desktop only */
+  if (window.innerWidth >= 992 && localStorage.getItem(STORAGE_KEY) === '1') {
+    setCollapsed(true, false);
+  }
+
+  /* ── Mobile slide-in ── */
+  function openSidebar() {
+    sidebar.classList.add('open');
+    overlay.classList.add('show');
+    document.body.classList.add('sidebar-open');
+  }
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('show');
+    document.body.classList.remove('sidebar-open');
+  }
+
+  if (toggleBtn) toggleBtn.addEventListener('click', openSidebar);
+  overlay.addEventListener('click', closeSidebar);
+
+  sidebar.querySelectorAll('.sidebar-link:not(.dropdown-toggle)').forEach(function (el) {
+    el.addEventListener('click', function () {
+      if (window.innerWidth < 992) closeSidebar();
+    });
+  });
+
+  /* ── Collapsible nav groups ── */
+  document.querySelectorAll('.sidebar-group-toggle').forEach(function (toggle) {
+    var group = toggle.getAttribute('data-group');
+    var links = document.getElementById('group-' + group);
+    var KEY   = 'torb_group_' + group;
+
+    if (localStorage.getItem(KEY) === '1') {
+      toggle.classList.add('collapsed');
+      links.classList.add('collapsed');
+    }
+
+    toggle.addEventListener('click', function () {
+      var collapsed = links.classList.toggle('collapsed');
+      toggle.classList.toggle('collapsed', collapsed);
+      localStorage.setItem(KEY, collapsed ? '1' : '0');
+    });
+  });
+
+  /* ── Import status chip ── */
+  var chip         = document.getElementById('importChip');
+  var chipInner    = document.getElementById('importChipInner');
+  var chipMob      = document.getElementById('importChipMobile');
+  var chipInnerMob = document.getElementById('importChipInnerMobile');
+  var pollTimer    = null;
+  var hideTimer    = null;
+
+  function showChip(status, msg) {
+    var color = status === 'running' ? 'bg-warning text-dark'
+              : status === 'done'    ? 'bg-success text-white'
+              :                        'bg-danger text-white';
+    var html  = status === 'running'
+              ? '<span class="spinner-border spinner-border-sm me-1"></span>Se importă…'
+              : status === 'done'
+              ? '<i class="bi bi-check-circle me-1"></i>Date actualizate'
+              : '<i class="bi bi-x-circle me-1"></i>Eroare import';
+
+    [chip, chipMob].forEach(function (el) { if (el) el.classList.remove('d-none'); });
+    [chipInner, chipInnerMob].forEach(function (el) {
+      if (!el) return;
+      el.className = 'badge rounded-pill px-2 py-1 ' + color;
+      el.innerHTML = html;
+      if (msg && status === 'error') el.title = msg;
+    });
+
+    if (status === 'done') {
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(function () {
+        [chip, chipMob].forEach(function (el) { if (el) el.classList.add('d-none'); });
+        hideTimer = null;
+      }, 5000);
+    }
+  }
+
+  function stopPolling() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    var btn = document.getElementById('btnActualizeaza');
+    if (btn) btn.disabled = false;
+  }
+
+  function startPolling() {
+    stopPolling();
+    pollTimer = setInterval(function () {
+      fetch('/api/actualizare-date/status')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.status) {
+            showChip(d.status, d.message || '');
+            if (d.status !== 'running') stopPolling();
+          }
+        })
+        .catch(stopPolling);
+    }, 3000);
+  }
+
+  fetch('/api/actualizare-date/status')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.status === 'running') { showChip('running'); startPolling(); }
+    })
+    .catch(function () {});
+
+  window.triggerImport = function (btn) {
+    btn.disabled = true;
+    fetch('/api/actualizare-date', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) { showChip('running'); startPolling(); }
+        else { showChip('error', d.error); btn.disabled = false; }
+      })
+      .catch(function (e) { showChip('error', String(e)); btn.disabled = false; });
+  };
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% block title %}Întreabă AI — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-xl-9">
+    <div class="mb-4">
+      <h4 class="fw-bold mb-1"><i class="bi bi-chat-dots-fill text-primary"></i> Întreabă AI</h4>
+      <p class="text-muted mb-0">Adresează orice întrebare despre datele de vânzări în română sau engleză.
+        Claude generează SQL, execută interogarea și îți explică rezultatul.</p>
+    </div>
+
+    <!-- Input -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <textarea id="question" class="form-control mb-3" rows="3"
+                  placeholder="Ex: Care sunt vânzările Basilur în Kaufland în Q1 2026 față de Q1 2025?"></textarea>
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex gap-2 flex-wrap">
+            <span class="text-muted small me-1">Exemple:</span>
+            {% for ex in [
+              'Care sunt vânzările Basilur în Kaufland în Q1 2026 față de Q1 2025?',
+              'Ce clienți nu au comandat în ultimele 60 de zile?',
+              'Care agent are cea mai bună marjă în 2026?',
+              'Top 5 SKU-uri ca volum la Selgros în 2025?',
+              'Evoluție lunară vânzări Leonex 2025 vs 2024?',
+              'Care sunt top 10 clienți după valoare netă în 2025?',
+              'Ce procent din vânzări reprezintă Kaufland în 2025?',
+              'Care brand are cea mai mare marjă procentuală în 2026?',
+              'Câți clienți noi au apărut în 2025 față de 2024?',
+              'Care sunt vânzările pe județe în 2025?',
+              'Top 3 SKU-uri Basilur la Mega Image în 2025?',
+              'Care agent a avut cea mai mare creștere în 2025 față de 2024?',
+              'Care clienți au comandat Toras dar nu și Basilur în 2025?',
+              'Care este valoarea medie a unei comenzi pe agent în 2026?',
+              'Câte SKU-uri distincte s-au vândut în 2025?',
+              'Care sunt vânzările pe tip client (IKA, TT, Pharma) în 2025?',
+              'Care client a avut cea mai mare scădere în 2026 față de 2025?',
+              'Care sunt vânzările online (EMAG + SITE) în 2025 vs 2024?',
+              'Top 5 clienți Celmar după valoare în 2025?',
+              'Care lună a avut cele mai mari vânzări în 2025?',
+              'Care sunt clienții cu marjă sub 20% în 2026?',
+              'Câți clienți activi are fiecare agent în 2026?',
+              'Care brand a crescut cel mai mult în 2026 față de 2025?',
+              'Care este distribuția vânzărilor pe trimestre în 2025?',
+              'Top 10 SKU-uri după cantitate vândută în 2025?',
+            ] %}
+            <button type="button" class="btn btn-sm btn-outline-secondary example-btn"
+                    data-q="{{ ex }}">{{ ex | truncate(35, True, '…') }}</button>
+            {% endfor %}
+          </div>
+          <button id="submitBtn" type="button" class="btn btn-primary px-4 ms-3"
+                  onclick="submitQuestion()">
+            <i class="bi bi-send-fill me-1"></i> Trimite
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="result"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Pre-fill example questions
+document.querySelectorAll('.example-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('question').value = btn.dataset.q;
+    document.getElementById('question').focus();
+  });
+});
+
+async function submitQuestion() {
+  const q = document.getElementById('question').value.trim();
+  if (!q) return;
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Se procesează...';
+
+  const resultDiv = document.getElementById('result');
+  resultDiv.innerHTML = `
+    <div class="card shadow-sm border-0">
+      <div class="card-body text-center py-5 text-muted">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="mb-0">Claude generează interogarea SQL și procesează rezultatele…</p>
+      </div>
+    </div>`;
+
+  try {
+    const resp = await fetch('/api/ask', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question: q}),
+    });
+    const data = await resp.json();
+    renderResult(data, q);
+  } catch (e) {
+    resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-circle me-1"></i>Eroare de rețea: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-send-fill me-1"></i> Trimite';
+  }
+}
+
+function renderResult(data, question) {
+  const el = document.getElementById('result');
+
+  if (data.error) {
+    el.innerHTML = `
+      <div class="alert alert-danger d-flex align-items-start gap-2">
+        <i class="bi bi-exclamation-circle-fill flex-shrink-0 mt-1"></i>
+        <div><strong>Eroare:</strong> ${escHtml(data.error)}</div>
+      </div>
+      ${data.sql ? sqlBlock(data.sql) : ''}`;
+    return;
+  }
+
+  let html = `
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header bg-primary bg-opacity-10 border-0 fw-semibold">
+        <i class="bi bi-lightbulb-fill text-primary me-1"></i> Răspuns
+      </div>
+      <div class="card-body">
+        <p class="mb-0 fs-6">${mdToHtml(data.answer)}</p>
+      </div>
+    </div>`;
+
+  if (data.rows && data.rows.length > 0) {
+    html += buildTable(data.rows);
+  }
+
+  html += sqlBlock(data.sql);
+  el.innerHTML = html;
+}
+
+function buildTable(rows) {
+  const cols = Object.keys(rows[0]);
+  let t = `<div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-white fw-semibold">
+      <i class="bi bi-table me-1 text-secondary"></i> Date (${rows.length} rânduri)
+    </div>
+    <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+    <thead class="table-light"><tr>${cols.map(c => `<th>${escHtml(c)}</th>`).join('')}</tr></thead>
+    <tbody>`;
+  for (const row of rows) {
+    t += '<tr>' + cols.map(c => `<td>${escHtml(String(row[c] ?? ''))}</td>`).join('') + '</tr>';
+  }
+  t += '</tbody></table></div></div>';
+  return t;
+}
+
+function sqlBlock(sql) {
+  if (!sql) return '';
+  return `<details class="mb-3">
+    <summary class="text-muted small" style="cursor:pointer">
+      <i class="bi bi-code-slash me-1"></i> SQL generat <span class="text-muted">(click pentru detalii)</span>
+    </summary>
+    <pre class="bg-dark text-light p-3 mt-2 rounded small" style="white-space:pre-wrap">${escHtml(sql)}</pre>
+  </details>`;
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function mdToHtml(s) {
+  return escHtml(String(s))
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+}
+
+// Submit on Ctrl+Enter
+document.getElementById('question').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitQuestion();
+});
+</script>
+{% endblock %}

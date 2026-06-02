@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}Campanii{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-3">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <h4 class="mb-1">Calendar campanii</h4>
+      <p class="text-secondary small mb-0">Gestioneaza campaniile de promotii, gifting, lansari si sezoniere. Verifica fezabilitatea stocului inainte de a lansa.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button id="btnExportSedinta" class="btn btn-outline-secondary btn-sm">📤 Export sedinta</button>
+      <button id="btnAiGenerateCampaigns" class="btn btn-sm" style="background:linear-gradient(135deg,#4f8cff,#7c5cff);color:white;border:none;">🤖 Genereaza cu AI</button>
+      <button id="btnNewCampaign" class="btn btn-primary btn-sm">+ Adauga manual</button>
+    </div>
+  </div>
+
+  <div id="snapshotBar" class="mb-2"></div>
+  <div id="pricesBar" class="mb-2"></div>
+  <input type="file" id="pricesUpload" accept=".xlsx" hidden />
+
+  <div id="campaignList" class="campaign-list"></div>
+  <div id="campaignEmpty" class="text-secondary py-5 text-center" hidden>
+    Nu exista campanii inca. Apasa "Adauga campanie" sus dreapta pentru a crea prima.
+  </div>
+</div>
+
+<!-- Modal campanie -->
+<div id="campaignModal" class="modal fade" tabindex="-1" hidden>
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitle">Campanie noua</h5>
+        <button type="button" class="btn-close" id="modalClose"></button>
+      </div>
+      <div class="modal-body">
+        <form id="campaignForm" autocomplete="off">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Nume campanie *</label>
+              <input type="text" class="form-control" name="name" required maxlength="100" placeholder="ex: Martisor 2026" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Tip</label>
+              <select class="form-select" name="type">
+                <option value="promo">Promo / Reducere</option>
+                <option value="gifting">Gifting / Cadou</option>
+                <option value="lansare">Lansare produs</option>
+                <option value="sezonier">Sezonier</option>
+                <option value="giveaway">Giveaway</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Status</label>
+              <select class="form-select" name="status">
+                <option value="draft">Draft</option>
+                <option value="planned">Planificata</option>
+                <option value="active">Activa</option>
+                <option value="completed">Finalizata</option>
+                <option value="cancelled">Anulata</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Mecanica</label>
+              <input type="text" class="form-control" name="mechanic" maxlength="200" placeholder="ex: Reducere 20%, 2+1 cadou, Cadou la peste 200 RON" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Data start *</label>
+              <input type="date" class="form-control" name="date_start" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Data sfarsit *</label>
+              <input type="date" class="form-control" name="date_end" required />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Canale</label>
+              <div class="d-flex gap-3 flex-wrap">
+                <label class="form-check-label"><input class="form-check-input me-1" type="checkbox" name="channels" value="shopify" /> Shopify</label>
+                <label class="form-check-label"><input class="form-check-input me-1" type="checkbox" name="channels" value="emag" /> eMAG</label>
+                <label class="form-check-label"><input class="form-check-input me-1" type="checkbox" name="channels" value="instagram" /> Instagram</label>
+                <label class="form-check-label"><input class="form-check-input me-1" type="checkbox" name="channels" value="facebook" /> Facebook</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Reducere</label>
+              <div class="d-flex gap-2 align-items-center flex-wrap">
+                <select class="form-select w-auto" name="discount_type" id="discountType">
+                  <option value="none">Fara modificare de pret</option>
+                  <option value="percent_off">Reducere procentuala (-X%)</option>
+                  <option value="fixed_off">Reducere suma fixa (-X RON)</option>
+                  <option value="fixed_price">Pret nou exact (X RON)</option>
+                </select>
+                <input type="number" class="form-control w-auto" name="discount_value" id="discountValue" min="0" step="0.01" placeholder="Valoare" disabled />
+                <span id="discountHint" class="text-secondary small"></span>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Buget alocat (RON)</label>
+              <input type="number" class="form-control" name="budget_alloc" min="0" step="0.01" placeholder="optional" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Buget cheltuit (RON)</label>
+              <input type="number" class="form-control" name="budget_spent" min="0" step="0.01" placeholder="optional" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Produse <small class="text-secondary">(cauta dupa cod intern, codmare sau nume; din ultimul raport de stocuri)</small></label>
+              <div class="position-relative mb-2">
+                <input type="text" class="form-control" id="productSearch" placeholder="Cauta produs..." />
+                <div id="productSearchResults" class="position-absolute w-100 bg-body border rounded shadow-sm" style="z-index:1000;max-height:240px;overflow-y:auto;" hidden></div>
+              </div>
+              <div id="campaignProducts"></div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Note</label>
+              <textarea class="form-control" name="notes" rows="3" maxlength="1000" placeholder="Detalii, idei, link-uri..."></textarea>
+            </div>
+          </div>
+          <div class="d-flex justify-content-end gap-2 mt-3">
+            <button type="button" class="btn btn-secondary" id="formCancel">Anuleaza</button>
+            <button type="submit" class="btn btn-primary">Salveaza</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal AI campaign generator -->
+<div id="aiCampGenModal" class="modal fade" tabindex="-1" hidden>
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">🤖 Generator AI campanii</h5>
+        <button type="button" class="btn-close" id="aiCampGenClose"></button>
+      </div>
+      <div class="modal-body">
+        <div id="aiCampGenSetup">
+          <p class="text-secondary small">Spune-i AI-ului obiectivul si bugetul — el iti propune campanii complete. Tu bifezi care iti plac → se salveaza ca draft.</p>
+          <div class="row g-3">
+            <div class="col-md-3"><label class="form-label">Data start *</label><input type="date" class="form-control" id="aiCampStart" required /></div>
+            <div class="col-md-3"><label class="form-label">Data sfarsit *</label><input type="date" class="form-control" id="aiCampEnd" required /></div>
+            <div class="col-md-3"><label class="form-label">Buget total (RON) *</label><input type="number" class="form-control" id="aiCampBudget" min="100" step="50" placeholder="ex: 1000" required /></div>
+            <div class="col-md-3"><label class="form-label">Numar campanii</label>
+              <select class="form-select" id="aiCampNumCampaigns">
+                <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option>
+              </select>
+            </div>
+            <div class="col-12"><label class="form-label">Obiectiv strategic *</label><textarea class="form-control" id="aiCampGoal" rows="3" required placeholder="ex: Crestere vanzari online cu focus pe gifting de Ziua Mamei."></textarea></div>
+            <div class="col-12"><label class="form-label">Brand-uri focus <small class="text-secondary">(optional)</small></label><div id="aiCampBrandsBox" class="d-flex gap-3 flex-wrap"></div></div>
+            <div class="col-12"><label class="form-label">Indicatii suplimentare</label><textarea class="form-control" id="aiCampNotes" rows="2" maxlength="800" placeholder="ex: ton premium, evita giveaway-uri..."></textarea></div>
+          </div>
+          <div class="d-flex justify-content-end gap-2 mt-3">
+            <span class="text-secondary small align-self-center">Cost tipic: 0.20 - 0.50 RON per generare</span>
+            <button type="button" class="btn btn-primary" id="btnAiCampGenerate">✨ Genereaza propuneri</button>
+          </div>
+        </div>
+        <div id="aiCampLoading" hidden class="text-center py-5 text-secondary">
+          <div style="font-size:32px;" class="mb-2">🧠</div>
+          <div>AI gandeste strategia...</div>
+          <div class="small">~30-60 secunde</div>
+        </div>
+        <div id="aiCampError" hidden class="alert alert-danger"></div>
+        <div id="aiCampProposals" hidden></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal AI content generator -->
+<div id="aiModal" class="modal fade" tabindex="-1" hidden>
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="aiModalTitle">🤖 Generator AI continut</h5>
+        <button type="button" class="btn-close" id="aiModalClose"></button>
+      </div>
+      <div class="modal-body">
+        <div id="aiSetup">
+          <p class="text-secondary small">Foloseste Claude pentru a genera continut marketing complet.</p>
+          <div class="mb-3">
+            <label class="form-label">📸 Poza produs (optional)</label>
+            <div class="dropzone" id="aiPhotoDz">
+              <input type="file" id="aiPhotoInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
+              <div class="dz-inner text-center py-3">
+                <strong>Trage o poza aici</strong><br>
+                <span class="text-secondary small">sau click — .jpg / .png / .webp (max 10MB)</span><br>
+                <small id="aiPhotoName" class="text-info"></small>
+              </div>
+            </div>
+            <div id="aiPhotoPreview" class="mt-2" style="display:none;">
+              <img id="aiPhotoImg" class="rounded border" style="max-width:100%;max-height:200px;" />
+              <button type="button" class="btn btn-link btn-sm d-block" id="aiPhotoClear">✕ Elimina poza</button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Indicatii suplimentare (optional)</label>
+            <textarea class="form-control" id="aiNotes" rows="3" maxlength="800" placeholder="ex: focus pe gifting, ton premium..."></textarea>
+          </div>
+          <div class="d-flex justify-content-end gap-2">
+            <span class="text-secondary small align-self-center">Cost tipic: 0.05–0.20 RON</span>
+            <button type="button" class="btn btn-primary" id="btnGenerateAi">✨ Genereaza continut</button>
+          </div>
+        </div>
+        <div id="aiLoading" hidden class="text-center py-5 text-secondary">
+          <div style="font-size:24px;" class="mb-2">🤖</div>
+          <div>AI genereaza continutul...</div><div class="small">~10-30 secunde</div>
+        </div>
+        <div id="aiResult" hidden></div>
+        <div id="aiError" hidden class="alert alert-danger"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal task -->
+<div id="taskModal" class="modal fade" tabindex="-1" hidden>
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="taskModalTitle">Task nou</h5>
+        <button type="button" class="btn-close" id="taskModalClose"></button>
+      </div>
+      <div class="modal-body">
+        <form id="taskForm" autocomplete="off">
+          <div class="mb-3"><label class="form-label">Titlu *</label><input type="text" class="form-control" name="title" required maxlength="120" placeholder="ex: Brief designer banner" /></div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6"><label class="form-label">Status</label>
+              <select class="form-select" name="status"><option value="todo">Todo</option><option value="in_progress">In lucru</option><option value="blocked">Blocat</option><option value="done">Gata</option></select>
+            </div>
+            <div class="col-md-6"><label class="form-label">Prioritate</label>
+              <select class="form-select" name="priority"><option value="low">Joasa</option><option value="medium" selected>Medie</option><option value="high">Inalta</option><option value="urgent">Urgent</option></select>
+            </div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6"><label class="form-label">Deadline</label><input type="date" class="form-control" name="deadline" /></div>
+            <div class="col-md-6"><label class="form-label">Tip responsabil</label>
+              <select class="form-select" name="assignee_type"><option value="external">Furnizor extern</option><option value="internal">Coleg / intern</option></select>
+            </div>
+          </div>
+          <div class="mb-3"><label class="form-label">Responsabil</label><input type="text" class="form-control" name="assignee" maxlength="100" placeholder="ex: Maria (designer)..." /></div>
+          <div class="mb-3"><label class="form-label">Descriere</label><textarea class="form-control" name="description" rows="2" maxlength="500"></textarea></div>
+          <div class="mb-3"><label class="form-label">Note</label><textarea class="form-control" name="notes" rows="2" maxlength="500"></textarea></div>
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-secondary" id="taskFormCancel">Anuleaza</button>
+            <button type="submit" class="btn btn-primary">Salveaza</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/campanii.js') }}"></script>
+{% endblock %}

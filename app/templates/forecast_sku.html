@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}SKU {{ info.sku|truncate(40) if info else '?' }} — Forecast{% endblock %}
+
+{% block content %}
+<nav style="font-size:0.85rem;" class="mb-2">
+  <a href="{{ url_for('forecast_index') }}">Forecast</a> /
+  {% if info %}
+    <a href="{{ url_for('forecast_index', brand=info.furnizor) }}">{{ info.furnizor }}</a> /
+    <span>{{ info.cod_produs }}</span>
+  {% endif %}
+</nav>
+
+<h4 class="mb-1">
+  <i class="bi bi-box-seam"></i>
+  {{ info.sku if info else 'SKU necunoscut' }}
+</h4>
+<p class="text-muted mb-3">
+  Cod <code>{{ info.cod_produs }}</code> ·
+  Brand <strong>{{ info.furnizor }}</strong> ·
+  {{ info.first_seen }} → {{ info.last_seen }} ·
+  total istoric <strong>{{ info.total_qty | int if info.total_qty else 0 }}</strong> buc
+  ({{ info.total_val | int if info.total_val else 0 }} RON, marjă {{ info.marja_pct }}%)
+</p>
+
+{% if not latest %}
+  <div class="alert alert-warning">
+    Nu există forecast pentru acest SKU. Generează un forecast pentru brandul
+    {{ info.furnizor }}.
+  </div>
+{% else %}
+
+<div class="row mb-3">
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header fw-semibold py-2">
+        Serie săptămânală — istoric + forecast
+      </div>
+      <div class="card-body">
+        <canvas id="chart-sku" height="140"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    {% if reorder %}
+    <div class="card">
+      <div class="card-header fw-semibold py-2">Reaprovizionare</div>
+      <div class="card-body">
+        <dl class="row mb-0" style="font-size:0.9rem;">
+          <dt class="col-6">Urgență</dt>
+          <dd class="col-6">
+            {% if reorder.urgency == 'critical' %}<span class="badge bg-danger">CRITIC</span>
+            {% elif reorder.urgency == 'high' %}<span class="badge bg-warning text-dark">URGENT</span>
+            {% elif reorder.urgency == 'normal' %}<span class="badge bg-success">OK</span>
+            {% else %}<span class="badge bg-secondary">necunoscut</span>{% endif %}
+          </dd>
+
+          <dt class="col-6">Stoc curent</dt>
+          <dd class="col-6">
+            {% if reorder.stock_on_hand is none %}—{% else %}{{ reorder.stock_on_hand | int }}{% endif %}
+          </dd>
+
+          <dt class="col-6">Cerere (lead time)</dt>
+          <dd class="col-6">{{ reorder.demand_over_lead_time | int }}</dd>
+
+          <dt class="col-6">Safety stock</dt>
+          <dd class="col-6">{{ reorder.safety_stock | int }}</dd>
+
+          <dt class="col-6">Reorder point</dt>
+          <dd class="col-6">{{ reorder.reorder_point | int }}</dd>
+
+          <dt class="col-6">Cantitate sugerată</dt>
+          <dd class="col-6"><strong>{{ reorder.suggested_qty | int }}</strong></dd>
+
+          <dt class="col-6">Comandă până la</dt>
+          <dd class="col-6">{{ reorder.order_by_date }}</dd>
+        </dl>
+        <hr>
+        <small class="text-muted">{{ reorder.rationale }}</small>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header fw-semibold">Forecast per canal</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Săptămâna</th>
+            <th>Canal</th>
+            <th class="text-end">Forecast</th>
+            <th class="text-end">Banda jos</th>
+            <th class="text-end">Banda sus</th>
+            <th>Metodă</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in forecast_rows %}
+          <tr>
+            <td><code>{{ r.week_start }}</code></td>
+            <td>{{ r.canal }}</td>
+            <td class="text-end">{{ "%.1f" | format(r.yhat or 0) }}</td>
+            <td class="text-end"><small>{{ "%.1f" | format(r.yhat_lo or 0) }}</small></td>
+            <td class="text-end"><small>{{ "%.1f" | format(r.yhat_hi or 0) }}</small></td>
+            <td><small class="text-muted">{{ r.method }}</small></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const historical = {{ historical_json | safe }};
+  const forecast   = {{ forecast_json  | safe }};
+
+  const labels = historical.map(r => r.ds).concat(forecast.map(r => r.ds));
+  const histValues = historical.map(r => r.y)
+                       .concat(new Array(forecast.length).fill(null));
+  const fcValues = new Array(historical.length).fill(null)
+                       .concat(forecast.map(r => r.yhat));
+  const fcHi = new Array(historical.length).fill(null)
+                       .concat(forecast.map(r => r.hi));
+  const fcLo = new Array(historical.length).fill(null)
+                       .concat(forecast.map(r => r.lo));
+
+  const ctx = document.getElementById('chart-sku');
+  if (ctx) {
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Istoric (buc)', data: histValues,
+            borderColor: '#2C3E50', tension: 0.25, pointRadius: 1 },
+          { label: 'Forecast', data: fcValues,
+            borderColor: '#27AE60', backgroundColor: 'rgba(39,174,96,0.15)',
+            borderDash: [5,5], tension: 0.25, pointRadius: 2 },
+          { label: 'Banda 80%', data: fcHi,
+            borderColor: 'rgba(39,174,96,0.3)', fill: '+1',
+            backgroundColor: 'rgba(39,174,96,0.08)',
+            borderWidth: 0, pointRadius: 0 },
+          { label: ' ', data: fcLo,
+            borderColor: 'rgba(39,174,96,0.3)', fill: false,
+            borderWidth: 0, pointRadius: 0 },
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+          y: { beginAtZero: true, title: { display: true, text: 'Unități / săpt' } }
+        },
+        plugins: { legend: { position: 'bottom' } },
+      }
+    });
+  }
+</script>
+{% endblock %}

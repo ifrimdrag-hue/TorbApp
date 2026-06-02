@@ -1,0 +1,41 @@
+{#
+  Period selector — include in orice pagina care primeste 'an', 'luna', 'display_years' in context.
+  Pastreaza toti parametrii URL existenti (filtre, search etc.) la click.
+#}
+{% set _mo = ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','Nov','Dec'] %}
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+  <div class="btn-group btn-group-sm" role="group">
+    <button type="button"
+            class="btn {% if not luna %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+            onclick="torbSetLuna(null)">YTD</button>
+    {% for i in range(1, 13) %}
+    <button type="button"
+            class="btn {% if luna == i %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+            onclick="torbSetLuna({{ i }})">{{ _mo[i-1] }}</button>
+    {% endfor %}
+  </div>
+  <div class="btn-group btn-group-sm ms-1" role="group">
+    {% for yr in display_years %}
+    <button type="button"
+            class="btn {% if an == yr %}btn-dark{% else %}btn-outline-secondary{% endif %}"
+            onclick="torbSetAn({{ yr }})">{{ yr }}</button>
+    {% endfor %}
+  </div>
+</div>
+<script>
+(function () {
+  function torbSetLuna(m) {
+    var u = new URL(window.location.href);
+    if (m === null) u.searchParams.delete('luna');
+    else u.searchParams.set('luna', m);
+    window.location = u.toString();
+  }
+  function torbSetAn(y) {
+    var u = new URL(window.location.href);
+    u.searchParams.set('an', y);
+    window.location = u.toString();
+  }
+  window.torbSetLuna = torbSetLuna;
+  window.torbSetAn   = torbSetAn;
+}());
+</script>

@@ -1,0 +1,297 @@
+{% extends 'base.html' %}
+{% block title %}Basilur Report — Torb Logistic{% endblock %}
+
+{% block content %}
+{# ── Header ── #}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold">
+      <span class="me-2" style="background:#0d6efd;color:#fff;border-radius:6px;padding:2px 10px;font-size:0.85rem;">BASILUR</span>
+      Sales &amp; Stock Report
+    </h4>
+    <p class="text-muted small mb-0 mt-1">
+      Basilur Group &mdash; Basilur &middot; KingsLeaf &middot; Tipson &middot;
+      <span class="text-warning" title="Not yet imported">Organsia*</span>
+      &nbsp;|&nbsp;
+      <span class="text-muted">Rate: 1 USD = {{ usd_rate }} RON</span>
+    </p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <form class="d-flex align-items-center gap-1" method="get">
+      <input type="hidden" name="an" value="{{ an }}">
+      {% if luna %}<input type="hidden" name="luna" value="{{ luna }}">{% endif %}
+      <label class="small text-muted mb-0 text-nowrap">1 USD =</label>
+      <input type="number" name="curs" value="{{ usd_rate }}" step="0.01" min="1" max="20"
+             class="form-control form-control-sm" style="width:75px;">
+      <span class="small text-muted mb-0">RON</span>
+      <button class="btn btn-sm btn-outline-secondary" type="submit" title="Aplică curs">
+        <i class="bi bi-arrow-repeat"></i>
+      </button>
+    </form>
+    <a href="{{ url_for('reports.raportare_basilur_excel', an=an, luna=luna or '', curs=usd_rate) }}"
+       class="btn btn-sm btn-outline-success">
+      <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+    </a>
+    <a href="{{ url_for('reports.raportare_basilur_ppt', an=an, luna=luna or '', curs=usd_rate) }}"
+       class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-file-earmark-slides me-1"></i>Export PPT
+    </a>
+  </div>
+</div>
+
+{# ── Period selector ── #}
+{% include '_period_selector.html' %}
+
+{# ── KPI cards — group total ── #}
+{% set brand_colors = {'Basilur': '#0d6efd', 'KingsLeaf': '#198754', 'Tipson': '#fd7e14'} %}
+<div class="row g-3 mb-4">
+  {% set vn   = kpi_total.val_neta or 0 %}
+  {% set dlt  = kpi_total.delta_vn %}
+  {% set clnt = kpi_total.clienti_activi or 0 %}
+  {% set nsku = kpi_total.nr_sku or 0 %}
+  {% set stoc_val = stoc_total.valoare_achizitie or 0 %}
+  {% set stoc_sku = stoc_total.nr_sku or 0 %}
+
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-currency-dollar text-primary fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Group Net Sales</p>
+      <p class="fw-bold mb-1 fs-5">{{ vn | usd(usd_rate) }}</p>
+      {% if dlt is not none %}
+      <small class="{{ dlt | delta_class }}">
+        {% if dlt >= 0 %}▲{% else %}▼{% endif %}{{ dlt | abs | round(1) }}% vs {{ an-1 }}
+      </small>
+      {% else %}<small class="text-muted">—</small>{% endif %}
+    </div>
+  </div>
+
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-people-fill text-info fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Active Clients</p>
+      <p class="fw-bold mb-1 fs-5">{{ clnt }}</p>
+      <small class="text-muted">{{ period_label }}</small>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2">
+      <i class="bi bi-box-seam-fill text-warning fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Active SKUs</p>
+      <p class="fw-bold mb-1 fs-5">{{ nsku }}</p>
+      <small class="text-muted">sold</small>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2 border-start border-warning border-3">
+      <i class="bi bi-archive-fill text-warning fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">Unsold Stock</p>
+      <p class="fw-bold mb-1">{{ stoc_val | usd(usd_rate) }}</p>
+      <small class="text-muted">at acquisition cost</small>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 text-center p-2 border-start border-warning border-3">
+      <i class="bi bi-boxes text-warning fs-4 mt-2"></i>
+      <p class="text-muted small mb-1 mt-1">SKUs in Stock</p>
+      <p class="fw-bold mb-1 fs-5">{{ stoc_sku }}</p>
+      <small class="text-muted">{{ stoc_total.total_unitati or 0 | int }} units</small>
+    </div>
+  </div>
+</div>
+
+{# ── KPI per brand ── #}
+<div class="row g-3 mb-4">
+  {% for brand in basilur_brands %}
+  {% set k = kpi_map[brand] %}
+  {% set color = brand_colors[brand] %}
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header text-white fw-bold py-2" style="background:{{ color }};">
+        {{ brand }}
+      </div>
+      <div class="card-body p-3">
+        <div class="row g-2">
+          <div class="col-12">
+            <p class="text-muted small mb-0">Net Sales</p>
+            <p class="fw-bold mb-0 fs-5">{{ (k.val_neta or 0) | usd(usd_rate) }}</p>
+            {% if k.delta_vn is not none %}
+            <small class="{{ k.delta_vn | delta_class }}">
+              {% if k.delta_vn >= 0 %}▲{% else %}▼{% endif %}{{ k.delta_vn | abs | round(1) }}% vs {{ an-1 }}
+            </small>
+            {% endif %}
+          </div>
+          <div class="col-6">
+            <p class="text-muted small mb-0">Clients</p>
+            <p class="fw-bold mb-0">{{ k.clienti_activi or 0 }}</p>
+          </div>
+          <div class="col-6">
+            <p class="text-muted small mb-0">Active SKUs</p>
+            <p class="fw-bold mb-0">{{ k.nr_sku or 0 }}</p>
+          </div>
+          {% set st = stoc_map[brand] %}
+          <div class="col-12 border-top pt-2 mt-1">
+            <p class="text-muted small mb-0">Stock at Cost</p>
+            <p class="fw-bold mb-0 text-warning">{{ (st.valoare_achizitie or 0) | usd(usd_rate) }}</p>
+            <small class="text-muted">{{ (st.nr_sku or 0) }} SKU &middot; {{ (st.total_unitati or 0) | int }} units</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── Chart: monthly evolution ── #}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white border-0 pt-3 pb-0">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="fw-bold mb-0">
+        <i class="bi bi-bar-chart-fill text-primary me-2"></i>Monthly Net Sales — {{ an }} (USD)
+      </h6>
+      <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn btn-outline-secondary active" id="btnBar"
+                onclick="switchChart('bar')">Bar</button>
+        <button type="button" class="btn btn-outline-secondary" id="btnLine"
+                onclick="switchChart('line')">Line</button>
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    <canvas id="chartLunar" style="max-height:340px;"></canvas>
+  </div>
+</div>
+
+{# ── Stock table ── #}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+    <h6 class="fw-bold mb-0">
+      <i class="bi bi-archive-fill text-warning me-2"></i>Unsold Stock — Acquisition Value (USD)
+    </h6>
+    <small class="text-muted">Current snapshot</small>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Brand</th>
+            <th class="text-end">SKU Count</th>
+            <th class="text-end">Units</th>
+            <th class="text-end">Acquisition Value</th>
+            <th class="text-end">% of total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set stoc_total_val = stoc_total.valoare_achizitie or 0 %}
+          {% for brand in basilur_brands %}
+          {% set st = stoc_map[brand] %}
+          {% set color = brand_colors[brand] %}
+          {% set pct = ((st.valoare_achizitie or 0) / stoc_total_val * 100) | round(1) if stoc_total_val else 0 %}
+          <tr>
+            <td>
+              <span class="badge me-1" style="background:{{ color }};">&nbsp;</span>
+              <strong>{{ brand }}</strong>
+            </td>
+            <td class="text-end">{{ st.nr_sku or 0 }}</td>
+            <td class="text-end">{{ (st.total_unitati or 0) | int }}</td>
+            <td class="text-end fw-bold">{{ (st.valoare_achizitie or 0) | usd(usd_rate) }}</td>
+            <td class="text-end">
+              <div class="d-flex align-items-center justify-content-end gap-2">
+                <div class="progress flex-grow-1" style="height:8px;max-width:80px;">
+                  <div class="progress-bar" style="width:{{ pct }}%;background:{{ color }};"></div>
+                </div>
+                <span class="small text-muted" style="min-width:40px;">{{ pct }}%</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-secondary fw-bold">
+          <tr>
+            <td>TOTAL BASILUR GROUP</td>
+            <td class="text-end">{{ stoc_total.nr_sku or 0 }}</td>
+            <td class="text-end">{{ (stoc_total.total_unitati or 0) | int }}</td>
+            <td class="text-end">{{ (stoc_total.valoare_achizitie or 0) | usd(usd_rate) }}</td>
+            <td class="text-end">100%</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<p class="text-muted small">
+  <i class="bi bi-info-circle me-1"></i>
+  * <strong>Organsia</strong> is not yet imported as a separate brand in the ERP — Organsia SKUs
+  currently appear under the Basilur brand until the import flow is configured.
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const USD_RATE = {{ usd_rate }};
+  const months   = {{ months_json | safe }};
+  const rawData  = {{ monthly_data_json | safe }};
+  const BRANDS   = ['Basilur', 'KingsLeaf', 'Tipson'];
+  const COLORS   = ['#0d6efd', '#198754', '#fd7e14'];
+  const ALPHAS   = ['rgba(13,110,253,0.18)', 'rgba(25,135,84,0.18)', 'rgba(253,126,20,0.18)'];
+
+  const datasets = BRANDS.map((b, i) => ({
+    label:           b,
+    data:            (rawData[b] || Array(12).fill(0)).map(v => v / USD_RATE),
+    backgroundColor: COLORS[i],
+    borderColor:     COLORS[i],
+    borderWidth:     2,
+    fill:            false,
+    tension:         0.35,
+    pointRadius:     4,
+  }));
+
+  let chart;
+
+  function buildChart(type) {
+    const ctx = document.getElementById('chartLunar').getContext('2d');
+    if (chart) chart.destroy();
+    const ds = datasets.map(d => Object.assign({}, d, {
+      fill:            type === 'line' ? false : true,
+      backgroundColor: type === 'bar'  ? d.backgroundColor : ALPHAS[BRANDS.indexOf(d.label)],
+    }));
+    chart = new Chart(ctx, {
+      type: type,
+      data: { labels: months, datasets: ds },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: ctx => ' ' + ctx.dataset.label + ': $' +
+                Math.round(ctx.raw).toLocaleString('en-US'),
+            }
+          }
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v)
+            }
+          }
+        }
+      }
+    });
+  }
+
+  window.switchChart = function(type) {
+    document.getElementById('btnBar').classList.toggle('active',  type === 'bar');
+    document.getElementById('btnLine').classList.toggle('active', type === 'line');
+    buildChart(type);
+  };
+
+  buildChart('bar');
+}());
+</script>
+{% endblock %}
