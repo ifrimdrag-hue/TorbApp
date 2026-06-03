@@ -53,7 +53,7 @@ from paths import DB_PATH
 # â"€â"€ Flask extensions (bound to app via init_app in app.py) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"
-login_manager.login_message = "AutentificaÈ›i-vÄƒ pentru a accesa aceastÄƒ paginÄƒ."
+login_manager.login_message = "Autentificați-vă pentru a accesa această pagină."
 login_manager.login_message_category = "warning"
 
 csrf = CSRFProtect()
@@ -199,12 +199,12 @@ def _smtp_send(to_email: str, subject: str, body: str) -> bool:
 # â"€â"€ Email sender (degrades gracefully if SMTP not configured) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 def _send_reset_email(to_email: str, reset_url: str) -> bool:
     body = (
-        "BunÄƒ,\n\n"
-        "AÈ›i solicitat resetarea parolei pentru contul Torb Logistic.\n\n"
-        f"AccesaÈ›i link-ul urmÄƒtor (valid 1 orÄƒ):\n{reset_url}\n\n"
-        "DacÄƒ nu aÈ›i solicitat aceastÄƒ resetare, ignoraÈ›i acest email."
+        "Bună,\n\n"
+        "Ați solicitat resetarea parolei pentru contul Torb Logistic.\n\n"
+        f"Accesați link-ul următor (valid 1 oră):\n{reset_url}\n\n"
+        "Dacă nu ați solicitat această resetare, ignorați acest email."
     )
-    return _smtp_send(to_email, "Resetare parolÄƒ — Torb Logistic", body)
+    return _smtp_send(to_email, "Resetare parolă — Torb Logistic", body)
 
 
 def _send_admin_reset_email(to_email: str, username: str, reset_url: str) -> bool:
@@ -225,12 +225,12 @@ class LoginForm(FlaskForm):
 
 
 class ChangePasswordForm(FlaskForm):
-    current_password = PasswordField("Parola curentÄƒ", validators=[DataRequired()])
+    current_password = PasswordField("Parola curentă", validators=[DataRequired()])
     new_password = PasswordField(
-        "ParolÄƒ nouÄƒ", validators=[DataRequired(), Length(min=6)]
+        "Parolă nouă", validators=[DataRequired(), Length(min=6)]
     )
     confirm = PasswordField(
-        "ConfirmÄƒ parola", validators=[DataRequired(), EqualTo("new_password")]
+        "Confirmă parola", validators=[DataRequired(), EqualTo("new_password")]
     )
 
 
@@ -240,10 +240,10 @@ class ResetRequestForm(FlaskForm):
 
 class ResetPasswordForm(FlaskForm):
     new_password = PasswordField(
-        "ParolÄƒ nouÄƒ", validators=[DataRequired(), Length(min=6)]
+        "Parolă nouă", validators=[DataRequired(), Length(min=6)]
     )
     confirm = PasswordField(
-        "ConfirmÄƒ parola", validators=[DataRequired(), EqualTo("new_password")]
+        "Confirmă parola", validators=[DataRequired(), EqualTo("new_password")]
     )
 
 
@@ -294,7 +294,7 @@ def login():
     if form.validate_on_submit():
         ip = request.remote_addr or "0.0.0.0"
         if not _check_rate_limit(ip):
-            error = "Prea multe Ã®ncercÄƒri eÈ™uate. ÃŽncercaÈ›i din nou Ã®n 15 minute."
+            error = "Prea multe încercări eșuate. Încercați din nou în 15 minute."
         else:
             user = User.get_by_username(form.username.data.strip())
             if user and user.is_active and check_password_hash(
@@ -326,7 +326,7 @@ def login():
                     ip,
                     form.username.data.strip(),
                 )
-                error = "CredenÈ›iale incorecte sau cont inactiv."
+                error = "Credențiale incorecte sau cont inactiv."
 
     return render_template("auth/login.html", form=form, error=error)
 
@@ -347,7 +347,7 @@ def change_password():
 
     if form.validate_on_submit():
         if not check_password_hash(current_user.password_hash, form.current_password.data):
-            error = "Parola curentÄƒ este incorectÄƒ."
+            error = "Parola curentă este incorectă."
         else:
             new_password = form.new_password.data
             new_hash = generate_password_hash(new_password)
@@ -360,7 +360,7 @@ def change_password():
                     )
                 _log(current_user.id, "pw_change", request.remote_addr or "0.0.0.0")
                 current_user.force_pw_reset = False  # refresh in-memory object
-                flash("Parola a fost schimbatÄƒ cu succes.", "success")
+                flash("Parola a fost schimbată cu succes.", "success")
                 return redirect(url_for("analytics.dashboard"))
             except Exception as exc:
                 error = f"Eroare: {exc}"
@@ -436,7 +436,7 @@ def reset_confirm(token):
                 c.execute(
                     "UPDATE password_reset_tokens SET used=1 WHERE id=?", (row["id"],)
                 )
-            flash("Parola a fost resetatÄƒ. VÄƒ puteÈ›i autentifica.", "success")
+            flash("Parola a fost resetată. Vă puteți autentifica.", "success")
             return redirect(url_for("auth.login"))
         except Exception as exc:
             return render_template(
@@ -591,7 +591,7 @@ def user_toggle_active(uid):
     except Exception:
         abort(403)
     if uid == current_user.id:
-        flash("Nu vÄƒ puteÈ›i dezactiva propriul cont.", "warning")
+        flash("Nu vă puteți dezactiva propriul cont.", "warning")
         return redirect(url_for("admin.users"))
     with sqlite3.connect(DB_PATH) as c:
         c.execute(
