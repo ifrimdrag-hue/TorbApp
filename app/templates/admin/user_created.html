@@ -7,29 +7,51 @@
     <div class="card shadow-sm border-success">
       <div class="card-header bg-success text-white py-3">
         <i class="bi bi-check-circle-fill me-2"></i>
-        {% if reset %}Parolă resetată{% else %}Utilizator creat{% endif %}
+        {% if reset %}Link de resetare trimis{% else %}Utilizator creat{% endif %}
       </div>
       <div class="card-body p-4">
-        <div class="alert alert-warning">
-          <i class="bi bi-exclamation-triangle-fill me-2"></i>
-          <strong>Salvați aceste credențiale acum.</strong>
-          Nu vor mai fi afișate.
-        </div>
 
-        <table class="table table-bordered mb-4">
-          <tr>
-            <th class="bg-light small">Username</th>
-            <td class="font-monospace">{{ username }}</td>
-          </tr>
-          <tr>
-            <th class="bg-light small">Parolă</th>
-            <td class="font-monospace fw-bold fs-5">{{ password }}</td>
-          </tr>
-        </table>
-
-        <p class="text-muted small">
-          Utilizatorul va fi solicitat să schimbe parola la prima autentificare.
-        </p>
+        {% if reset %}
+          <div class="alert alert-info">
+            <i class="bi bi-envelope-fill me-2"></i>
+            Un link de resetare a parolei (valid <strong>24 ore</strong>) a fost trimis la:
+          </div>
+          <table class="table table-bordered mb-4">
+            <tr>
+              <th class="bg-light small">Username</th>
+              <td class="font-monospace">{{ username }}</td>
+            </tr>
+            <tr>
+              <th class="bg-light small">Email</th>
+              <td class="font-monospace">{{ email or '—' }}</td>
+            </tr>
+          </table>
+          <p class="text-muted small">
+            Utilizatorul va accesa link-ul din email pentru a-și seta o parolă nouă.
+            {% if not email %}
+              <strong class="text-danger">Contul nu are email configurat — link-ul nu a fost trimis.</strong>
+            {% endif %}
+          </p>
+        {% else %}
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>Salvați aceste credențiale acum.</strong>
+            Nu vor mai fi afișate.
+          </div>
+          <table class="table table-bordered mb-4">
+            <tr>
+              <th class="bg-light small">Username</th>
+              <td class="font-monospace">{{ username }}</td>
+            </tr>
+            <tr>
+              <th class="bg-light small">Parolă</th>
+              <td class="font-monospace fw-bold fs-5">{{ password }}</td>
+            </tr>
+          </table>
+          <p class="text-muted small">
+            Utilizatorul va fi solicitat să schimbe parola la prima autentificare.
+          </p>
+        {% endif %}
 
         <a href="{{ url_for('admin.users') }}" class="btn btn-outline-secondary w-100">
           <i class="bi bi-arrow-left me-1"></i> Înapoi la lista utilizatori

@@ -3,11 +3,11 @@
 Authentication and administration module.
 
 Exports:
-    auth_bp      â€” Blueprint mounted at /auth  (login, logout, password routes)
-    admin_bp     â€” Blueprint mounted at /admin (user management, admin-only)
-    login_manager â€” Flask-Login LoginManager, call login_manager.init_app(app)
-    csrf         â€” Flask-WTF CSRFProtect, call csrf.init_app(app)
-    require_role â€” decorator factory for role-based access control
+    auth_bp      — Blueprint mounted at /auth  (login, logout, password routes)
+    admin_bp     — Blueprint mounted at /admin (user management, admin-only)
+    login_manager — Flask-Login LoginManager, call login_manager.init_app(app)
+    csrf         — Flask-WTF CSRFProtect, call csrf.init_app(app)
+    require_role — decorator factory for role-based access control
 """
 
 import hashlib
@@ -50,7 +50,7 @@ from wtforms.validators import DataRequired, EqualTo, Length
 
 from paths import DB_PATH
 
-# â”€â”€ Flask extensions (bound to app via init_app in app.py) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Flask extensions (bound to app via init_app in app.py) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"
 login_manager.login_message = "AutentificaÈ›i-vÄƒ pentru a accesa aceastÄƒ paginÄƒ."
@@ -58,7 +58,7 @@ login_manager.login_message_category = "warning"
 
 csrf = CSRFProtect()
 
-# â”€â”€ In-memory rate limiter for login attempts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ In-memory rate limiter for login attempts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 _rate_lock = threading.Lock()
 _rate_store: dict = {}  # ip -> [unix_timestamps]
 _RATE_LIMIT = 10
@@ -83,7 +83,7 @@ def _clear_rate(ip: str) -> None:
         _rate_store.pop(ip, None)
 
 
-# â”€â”€ User model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ User model â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 class User(UserMixin):
     def __init__(self, row):
         self.id = row["id"]
@@ -150,7 +150,7 @@ def _unauthorized():
     return redirect(url_for("auth.login", next=request.full_path))
 
 
-# â”€â”€ Auth audit log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Auth audit log â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 def _log(user_id, event: str, ip: str, details: str = "") -> None:
     try:
         with sqlite3.connect(DB_PATH) as c:
@@ -166,10 +166,10 @@ _log_mail = logging.getLogger(__name__)
 
 
 def _smtp_send(to_email: str, subject: str, body: str) -> bool:
-    """Shared SMTP sender â€” mirrors the working VPS test script exactly."""
+    """Shared SMTP sender — mirrors the working VPS test script exactly."""
     host = os.environ.get("SMTP_HOST")
     if not host:
-        _log_mail.warning("SMTP_HOST not set â€” email not sent to %s", to_email)
+        _log_mail.warning("SMTP_HOST not set — email not sent to %s", to_email)
         return False
     try:
         port = int(os.environ.get("SMTP_PORT", 587))
@@ -196,7 +196,7 @@ def _smtp_send(to_email: str, subject: str, body: str) -> bool:
         return False
 
 
-# â”€â”€ Email sender (degrades gracefully if SMTP not configured) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Email sender (degrades gracefully if SMTP not configured) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 def _send_reset_email(to_email: str, reset_url: str) -> bool:
     body = (
         "BunÄƒ,\n\n"
@@ -204,20 +204,20 @@ def _send_reset_email(to_email: str, reset_url: str) -> bool:
         f"AccesaÈ›i link-ul urmÄƒtor (valid 1 orÄƒ):\n{reset_url}\n\n"
         "DacÄƒ nu aÈ›i solicitat aceastÄƒ resetare, ignoraÈ›i acest email."
     )
-    return _smtp_send(to_email, "Resetare parolÄƒ â€” Torb Logistic", body)
+    return _smtp_send(to_email, "Resetare parolÄƒ — Torb Logistic", body)
 
 
-def _send_new_password_email(to_email: str, username: str, new_password: str) -> bool:
+def _send_admin_reset_email(to_email: str, username: str, reset_url: str) -> bool:
     body = (
-        f"BunÄƒ, {username},\n\n"
-        "Parola dvs. pentru contul Torb Logistic a fost schimbatÄƒ cu succes.\n\n"
-        f"Noua parolÄƒ: {new_password}\n\n"
-        "DacÄƒ nu aÈ›i iniÈ›iat aceastÄƒ schimbare, contactaÈ›i administratorul imediat."
+        f"Bună, {username},\n\n"
+        "Administratorul a solicitat resetarea parolei dvs. pentru contul Torb Logistic.\n\n"
+        f"Accesați link-ul următor pentru a seta o parolă nouă (valid 24 ore):\n{reset_url}\n\n"
+        "Dacă nu așteptați această resetare, contactați administratorul."
     )
-    return _smtp_send(to_email, "ParolÄƒ schimbatÄƒ â€” Torb Logistic", body)
+    return _smtp_send(to_email, "Resetare parolă — Torb Logistic", body)
 
 
-# â”€â”€ WTForms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ WTForms â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 class LoginForm(FlaskForm):
     username = StringField("Username", validators=[DataRequired()])
     password = PasswordField("Parolă", validators=[DataRequired()])
@@ -260,9 +260,9 @@ class EditUserForm(UserForm):
     is_active = BooleanField("Activ")
 
 
-# â”€â”€ Role-based access decorator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Role-based access decorator â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 def require_role(*roles):
-    """Decorator â€” requires authentication AND one of the given roles."""
+    """Decorator — requires authentication AND one of the given roles."""
 
     def decorator(f):
         @wraps(f)
@@ -277,12 +277,12 @@ def require_role(*roles):
     return decorator
 
 
-# â”€â”€ Blueprints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Blueprints â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 
-# â”€â”€ Auth routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Auth routes â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
@@ -351,7 +351,6 @@ def change_password():
         else:
             new_password = form.new_password.data
             new_hash = generate_password_hash(new_password)
-            _send_new_password_email(current_user.email, current_user.username, new_password)
             try:
                 with sqlite3.connect(DB_PATH) as c:
                     c.execute(
@@ -400,7 +399,7 @@ def reset_request():
                 _send_reset_email(user.email, reset_url)
             except Exception:
                 _log_mail.exception("Password reset token creation failed for user %s", user.id)
-        sent = True  # always show â€” prevents email enumeration
+        sent = True  # always show — prevents email enumeration
 
     return render_template(
         "auth/reset_request.html",
@@ -447,7 +446,7 @@ def reset_confirm(token):
     return render_template("auth/reset_confirm.html", form=form, invalid=False)
 
 
-# â”€â”€ Admin routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Admin routes â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 @admin_bp.route("/users")
 @require_role("admin")
 def users():
@@ -551,26 +550,36 @@ def user_reset_password(uid):
         validate_csrf(request.form.get("csrf_token"))
     except Exception:
         abort(403)
-    raw_pw = secrets.token_urlsafe(10)
-    pw_hash = generate_password_hash(raw_pw)
     with sqlite3.connect(DB_PATH) as c:
-        c.execute(
-            "UPDATE users SET password_hash=?, force_pw_reset=1,"
-            " updated_at=datetime('now') WHERE id=?",
-            (pw_hash, uid),
-        )
+        c.row_factory = sqlite3.Row
         row = c.execute("SELECT username, email FROM users WHERE id=?", (uid,)).fetchone()
-    username = row[0] if row else f"User {uid}"
-    email = row[1] if row and row[1] else None
+    if not row:
+        abort(404)
+    username = row["username"]
+    email = row["email"]
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    expires = datetime.utcnow() + timedelta(hours=24)
+    with sqlite3.connect(DB_PATH) as c:
+        c.execute("UPDATE password_reset_tokens SET used=1 WHERE user_id=?", (uid,))
+        c.execute(
+            "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?,?,?)",
+            (uid, token_hash, expires.strftime("%Y-%m-%d %H:%M:%S")),
+        )
+        c.execute(
+            "UPDATE users SET force_pw_reset=1, updated_at=datetime('now') WHERE id=?",
+            (uid,),
+        )
     _log(current_user.id, "pw_reset", request.remote_addr or "0.0.0.0", username)
     if email:
+        reset_url = url_for("auth.reset_confirm", token=raw_token, _external=True)
         threading.Thread(
-            target=_send_new_password_email,
-            args=(email, username, raw_pw),
+            target=_send_admin_reset_email,
+            args=(email, username, reset_url),
             daemon=True,
         ).start()
     return render_template(
-        "admin/user_created.html", username=username, password=raw_pw, reset=True
+        "admin/user_created.html", username=username, email=email, reset=True
     )
 
 
