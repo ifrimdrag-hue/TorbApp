@@ -20,7 +20,7 @@ import ssl
 import threading
 import time
 from datetime import datetime, timedelta
-from email.mime.text import MIMEText
+from email.message import EmailMessage
 from functools import wraps
 from urllib.parse import urlparse
 
@@ -177,10 +177,11 @@ def _smtp_send(to_email: str, subject: str, body: str) -> bool:
         pw = os.environ.get("SMTP_PASSWORD", "")
         from_addr = os.environ.get("SMTP_FROM", user)
         _log_mail.info("SMTP: connecting to %s:%s to send to %s", host, port, to_email)
-        msg = MIMEText(body, "plain", "utf-8")
+        msg = EmailMessage()
         msg["Subject"] = subject
         msg["From"] = from_addr
         msg["To"] = to_email
+        msg.set_content(body, charset="utf-8")
         ctx = ssl.create_default_context()
         with smtplib.SMTP(host, port, timeout=10) as smtp:
             if port == 587:
