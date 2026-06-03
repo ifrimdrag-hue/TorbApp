@@ -111,6 +111,16 @@ jobs:
             grep -v '^SHOPIFY_CLIENT_SECRET=' .env > .env.tmp && mv .env.tmp .env
             echo "SHOPIFY_CLIENT_SECRET=${SHOPIFY_CLIENT_SECRET}" >> .env
 
+            # Non-sensitive config — hardcoded directly (no secrets needed)
+            grep -v '^SHOPIFY_SHOP_DOMAIN=' .env > .env.tmp && mv .env.tmp .env
+            echo "SHOPIFY_SHOP_DOMAIN=basilur-tea-romania.myshopify.com" >> .env
+            grep -v '^SHOPIFY_LOCATION_ID=' .env > .env.tmp && mv .env.tmp .env
+            echo "SHOPIFY_LOCATION_ID=110603567429" >> .env
+            grep -v '^SHOPIFY_STOCK_SAFETY_THRESHOLD=' .env > .env.tmp && mv .env.tmp .env
+            echo "SHOPIFY_STOCK_SAFETY_THRESHOLD=5" >> .env
+            grep -v '^EMAG_STOCK_SAFETY_THRESHOLD=' .env > .env.tmp && mv .env.tmp .env
+            echo "EMAG_STOCK_SAFETY_THRESHOLD=5" >> .env
+
             # Update dependencies
             source venv/bin/activate
             pip install --quiet --upgrade pip
