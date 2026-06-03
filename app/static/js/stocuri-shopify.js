@@ -72,8 +72,9 @@ btnDownloadShop.addEventListener("click", () => {
 
 async function runShop() {
   setStatusShop("Procesez fisierele...", "busy");
-  btnRunShop.disabled = true;
-  resultShopEl.hidden = true;
+  btnRunShop.disabled  = true;
+  btnRunShop.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Procesez...';
+  resultShopEl.hidden  = true;
 
   const fd = new FormData();
   fd.append("raport", shopReportFile);
@@ -92,13 +93,18 @@ async function runShop() {
   } catch (e) {
     setStatusShop("Eroare retea: " + e.message, "error");
   } finally {
-    btnRunShop.disabled = !(shopReportFile && shopInventoryFile);
+    btnRunShop.disabled  = !(shopReportFile && shopInventoryFile);
+    btnRunShop.textContent = "Genereaza CSV pentru Shopify";
   }
 }
 
 function setStatusShop(msg, kind) {
-  statusShopEl.textContent = msg;
-  statusShopEl.className   = "status" + (kind ? " " + kind : "");
+  if (kind === "busy") {
+    statusShopEl.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>${escapeHtml(msg)}`;
+  } else {
+    statusShopEl.textContent = msg;
+  }
+  statusShopEl.className = "status" + (kind ? " " + kind : "");
 }
 
 function renderShopResult(data) {

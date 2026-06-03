@@ -34,6 +34,9 @@
   <div id="emagStatus" class="status mb-2"></div>
 
   <div id="emagPreviewSection" hidden>
+    <div id="emagSummary" class="mb-3"></div>
+    <div id="emagIssues" class="issues"></div>
+
     <div class="emag-toolbar mb-2" id="emagToolbar" hidden>
       <label class="emag-filter-label me-2">Filtreaza:</label>
       <select id="emagFilter" class="form-select form-select-sm d-inline-block w-auto">
@@ -52,6 +55,7 @@
             <th style="width:36px;"><input type="checkbox" id="emagSelectAll" title="Selecteaza tot" /></th>
             <th data-sort="name" style="cursor:pointer;">Produs</th>
             <th data-sort="ean" style="cursor:pointer;">EAN</th>
+            <th data-sort="part_number_key" style="cursor:pointer;">Part Number</th>
             <th style="text-align:right; cursor:pointer;" data-sort="old_stock">Stoc eMAG</th>
             <th style="text-align:right; cursor:pointer;" data-sort="new_stock">Stoc nou</th>
             <th data-sort="status" style="cursor:pointer;">Status</th>
@@ -66,9 +70,6 @@
       <span id="emagPaginationInfo" class="emag-pagination-info text-secondary small"></span>
       <button id="emagNextPage" class="btn btn-sm btn-outline-secondary" disabled>Urmator →</button>
     </div>
-
-    <div id="emagSummary" class="mb-3"></div>
-    <div id="emagIssues" class="issues"></div>
   </div>
 
   <div id="emagSyncResults" hidden>

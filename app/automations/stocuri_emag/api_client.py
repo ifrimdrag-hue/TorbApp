@@ -2,6 +2,7 @@ import logging
 import httpx
 
 from config import settings
+from . import request_logger
 
 log = logging.getLogger(__name__)
 
@@ -29,13 +30,18 @@ class EmagClient:
     async def test_connection(self) -> None:
         """Ping eMAG API using product_offer/count. Raises on any failure."""
         self._check_configured()
+        url = f"{self.base_url}/product_offer/count"
+        payload = {}
         timeout = httpx.Timeout(8.0, connect=5.0)
         async with httpx.AsyncClient(timeout=timeout, auth=self._auth) as client:
-            resp = await client.post(f"{self.base_url}/product_offer/count", json={})
-            resp.raise_for_status()
-            data = resp.json()
-            if data.get("isError"):
-                raise RuntimeError(str(data.get("messages") or "API error"))
+            with request_logger.capture(url=url, payload=payload) as ctx:
+                resp = await client.post(url, json=payload)
+                ctx.status_code = resp.status_code
+                ctx.response_text = resp.text
+                resp.raise_for_status()
+                data = resp.json()
+                if data.get("isError"):
+                    raise RuntimeError(str(data.get("messages") or "API error"))
 
     async def fetch_all_offers_raw(self) -> list[dict]:
         """Fetch all seller offers as a raw list, paginated."""
@@ -45,14 +51,16 @@ class EmagClient:
         per_page = 100
         async with httpx.AsyncClient(timeout=self._timeout, auth=self._auth) as client:
             while True:
-                resp = await client.post(
-                    f"{self.base_url}/product_offer/read",
-                    json={"currentPage": page, "itemsPerPage": per_page},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                if data.get("isError"):
-                    raise RuntimeError(f"eMAG API error: {data.get('messages')}")
+                url = f"{self.base_url}/product_offer/read"
+                payload = {"currentPage": page, "itemsPerPage": per_page}
+                with request_logger.capture(url=url, payload=payload) as ctx:
+                    resp = await client.post(url, json=payload)
+                    ctx.status_code = resp.status_code
+                    ctx.response_text = resp.text
+                    resp.raise_for_status()
+                    data = resp.json()
+                    if data.get("isError"):
+                        raise RuntimeError(f"eMAG API error: {data.get('messages')}")
                 results = data.get("results") or []
                 all_offers.extend(results)
                 if len(results) < per_page:
@@ -67,7 +75,7 @@ class EmagClient:
         eMAG rate limits (3 req/sec cumulative for non-order resources).
 
         Args:
-            updates: list of {"id": offer_id, "stock": qty}
+            updates: list of {"id": offer_id, "part_number_key": str, "stock": qty}
 
         Returns:
             list of {"id": offer_id, "ok": bool, "error": str | None}
@@ -78,12 +86,13 @@ class EmagClient:
         async with httpx.AsyncClient(timeout=self._timeout, auth=self._auth) as client:
             for i in range(0, len(updates), BATCH_SIZE):
                 batch = updates[i : i + BATCH_SIZE]
+                url = f"{self.base_url}/offer/save"
                 try:
-                    resp = await client.post(
-                        f"{self.base_url}/offer/save",
-                        json=batch,
-                    )
-                    data = resp.json()
+                    with request_logger.capture(url=url, payload=batch) as ctx:
+                        resp = await client.post(url, json=batch)
+                        ctx.status_code = resp.status_code
+                        ctx.response_text = resp.text
+                        data = resp.json()
 
                     if data.get("isError"):
                         error_msg = str(data.get("messages") or "Unknown eMAG error")

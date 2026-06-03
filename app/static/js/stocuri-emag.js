@@ -126,7 +126,7 @@ class PaginationController {
     this._filtered = [...rows];
     this._selectedIds = new Set(
       rows
-        .filter((r) => r.status === "updated" || r.status === "zeroed_threshold")
+        .filter((r) => r.new_stock !== null && r.new_stock !== undefined && r.new_stock !== r.old_stock)
         .map((r) => String(r.offer_id))
     );
     this._applySort();
@@ -134,9 +134,15 @@ class PaginationController {
   }
 
   setFilter(status) {
-    this._filtered = status
-      ? this._all.filter((r) => r.status === status)
-      : [...this._all];
+    if (status === "updated") {
+      this._filtered = this._all.filter(
+        (r) => r.new_stock !== null && r.new_stock !== undefined && r.new_stock !== r.old_stock
+      );
+    } else {
+      this._filtered = status
+        ? this._all.filter((r) => r.status === status)
+        : [...this._all];
+    }
     this._applySort();
     this._goTo(0);
   }
@@ -169,10 +175,8 @@ class PaginationController {
     });
   }
 
-  selectCurrentPage(checked) {
-    const start = this._page * this._pageSize;
-    const slice = this._filtered.slice(start, start + this._pageSize);
-    slice.forEach((r) => {
+  selectAll(checked) {
+    this._filtered.forEach((r) => {
       const canUpdate = r.status === "updated" || r.status === "zeroed_threshold";
       if (!canUpdate) return;
       if (checked) this._selectedIds.add(String(r.offer_id));
@@ -228,6 +232,7 @@ function renderEmagRow(r, selectedIds) {
          ${canUpdate ? (isChecked ? "checked" : "") : "disabled"} /></td>
     <td class="emag-name">${escapeHtml(r.name)}</td>
     <td><code>${escapeHtml(r.ean || "—")}</code></td>
+    <td><code>${escapeHtml(r.part_number_key || "—")}</code></td>
     <td style="text-align:right;">${r.old_stock}</td>
     <td style="text-align:right;">${newStockCell}</td>
     <td>${EMAG_STATUS_LABEL[r.status] || escapeHtml(r.status)}</td>
@@ -236,10 +241,7 @@ function renderEmagRow(r, selectedIds) {
 
 setupDropzone("dzReport", "fileReport", "nameReport", (f) => {
   emagReportFile = f;
-  btnEmagPreview.disabled = false;
-  emagPreviewSection.hidden = true;
-  emagSyncResults.hidden = true;
-  setEmagStatus("", "");
+  runEmagPreview();
 });
 
 const emagPagination = new PaginationController({
@@ -273,15 +275,15 @@ btnEmagPreview.addEventListener("click", runEmagPreview);
 btnEmagSync.addEventListener("click", runEmagSync);
 
 emagSelectAll.addEventListener("change", () => {
-  emagPagination.selectCurrentPage(emagSelectAll.checked);
+  emagPagination.selectAll(emagSelectAll.checked);
 });
 
 async function runEmagPreview() {
-  setEmagStatus("Se preiau ofertele din eMAG...", "busy");
-  btnEmagPreview.disabled    = true;
-  btnEmagPreview.textContent = "Se incarca...";
-  emagPreviewSection.hidden  = true;
-  emagSyncResults.hidden     = true;
+  setEmagStatus("", "");
+  btnEmagPreview.disabled   = true;
+  btnEmagPreview.innerHTML  = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Se incarca...';
+  emagPreviewSection.hidden = true;
+  emagSyncResults.hidden    = true;
 
   const fd = new FormData();
   if (emagReportFile) fd.append("raport", emagReportFile);
@@ -302,7 +304,7 @@ async function runEmagPreview() {
   } catch (e) {
     setEmagStatus("Eroare retea: " + e.message, "error");
   } finally {
-    btnEmagPreview.disabled    = false;
+    btnEmagPreview.disabled   = false;
     btnEmagPreview.textContent = "Incarca stoc emag";
   }
 }
@@ -376,15 +378,27 @@ async function runEmagSync() {
     return;
   }
 
-  const rows_to_update = selectedRows.map((r) => ({
-    offer_id:  r.offer_id,
-    ean:       r.ean || "",
-    name:      r.name,
-    new_stock: r.new_stock,
+  const changed = selectedRows.filter(
+    (r) => r.new_stock !== null && r.new_stock !== undefined && r.new_stock !== r.old_stock
+  );
+
+  if (!changed.length) {
+    setEmagStatus("Niciun stoc modificat fata de eMAG. Nimic de sincronizat.", "warning");
+    return;
+  }
+
+  const skipped = selectedRows.length - changed.length;
+  const rows_to_update = changed.map((r) => ({
+    offer_id:        r.offer_id,
+    ean:             r.ean || "",
+    name:            r.name,
+    new_stock:       r.new_stock,
+    part_number_key: r.part_number_key || "",
   }));
 
-  setEmagStatus(`Se trimit ${rows_to_update.length} actualizari catre eMAG...`, "busy");
+  setEmagStatus("", "");
   btnEmagSync.disabled = true;
+  btnEmagSync.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Se trimit...';
 
   try {
     const resp = await fetch("/api/stocuri/emag/sync", {
@@ -398,14 +412,16 @@ async function runEmagSync() {
       return;
     }
     renderSyncResults(data);
+    const skipNote = skipped > 0 ? ` (${skipped} nemodificate, sarite)` : "";
     setEmagStatus(
-      `Sincronizare finalizata: ${data.success_count} succes, ${data.error_count} erori.`,
+      `Sincronizare finalizata: ${data.success_count} succes, ${data.error_count} erori${skipNote}.`,
       data.error_count ? "warning" : "success"
     );
   } catch (e) {
     setEmagStatus("Eroare retea: " + e.message, "error");
   } finally {
-    btnEmagSync.disabled = false;
+    btnEmagSync.disabled  = false;
+    btnEmagSync.textContent = "Sincronizeaza pe eMAG";
   }
 }
 
@@ -428,7 +444,11 @@ function renderSyncResults(data) {
 }
 
 function setEmagStatus(msg, kind) {
-  emagStatusEl.textContent = msg;
+  if (kind === "busy") {
+    emagStatusEl.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>${escapeHtml(msg)}`;
+  } else {
+    emagStatusEl.textContent = msg;
+  }
   emagStatusEl.className = "status" + (kind ? " " + kind : "");
 }
 

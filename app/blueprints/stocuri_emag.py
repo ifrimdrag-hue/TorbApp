@@ -15,30 +15,38 @@ def stocuri_emag_page():
 
 @stocuri_emag_bp.route('/api/stocuri/emag/preview', methods=['POST'])
 async def api_emag_preview():
-    raport = request.files.get('raport')
-    if raport:
-        result = await preview(raport.read(), raport.filename)
-    else:
-        result = await preview_emag_only()
-    return jsonify({
-        'rows': [r._asdict() for r in result.rows],
-        'skus_not_in_emag': result.skus_not_in_emag,
-        'warnings': result.warnings,
-        'summary': result.summary,
-        'has_report': result.has_report,
-    })
+    try:
+        raport = request.files.get('raport')
+        if raport:
+            result = await preview(raport.read(), raport.filename)
+        else:
+            result = await preview_emag_only()
+        return jsonify({
+            'rows': [r._asdict() for r in result.rows],
+            'skus_not_in_emag': result.skus_not_in_emag,
+            'warnings': result.warnings,
+            'summary': result.summary,
+            'has_report': result.has_report,
+        })
+    except Exception as exc:
+        logger.exception("eMAG preview failed")
+        return jsonify({'error': str(exc)}), 500
 
 
 @stocuri_emag_bp.route('/api/stocuri/emag/sync', methods=['POST'])
 async def api_emag_sync():
-    data = request.get_json(force=True)
-    rows_to_update = data.get('rows_to_update', [])
-    result = await sync(rows_to_update)
-    return jsonify({
-        'results': result.results,
-        'success_count': result.success_count,
-        'error_count': result.error_count,
-    })
+    try:
+        data = request.get_json(force=True)
+        rows_to_update = data.get('rows_to_update', [])
+        result = await sync(rows_to_update)
+        return jsonify({
+            'results': result.results,
+            'success_count': result.success_count,
+            'error_count': result.error_count,
+        })
+    except Exception as exc:
+        logger.exception("eMAG sync failed")
+        return jsonify({'error': str(exc)}), 500
 
 
 @stocuri_emag_bp.route('/api/stocuri/emag/connection-test')
@@ -48,5 +56,5 @@ async def api_emag_connection_test():
         await client.test_connection()
         return jsonify({'ok': True})
     except Exception as exc:
-        logger.warning("eMAG connection test failed: %s", exc)
+        logger.exception("eMAG connection test failed")
         return jsonify({'ok': False, 'error': str(exc)})

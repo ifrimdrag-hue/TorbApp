@@ -217,10 +217,17 @@ Write-Host "  Pornire server la $Url" -ForegroundColor Green
 Write-Host "  Apasa Ctrl+C pentru a opri." -ForegroundColor DarkGray
 Write-Host ""
 
-# Deschide browserul dupa 2 secunde (job in fundal)
+# Deschide browserul dupa ce Flask raspunde (polling pana la 30 sec)
 $null = Start-Job -ScriptBlock {
     param($u)
-    Start-Sleep -Seconds 2
+    $deadline = (Get-Date).AddSeconds(30)
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 1
+        try {
+            $r = Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+            if ($r.StatusCode -lt 500) { break }
+        } catch {}
+    }
     Start-Process $u
 } -ArgumentList $Url
 

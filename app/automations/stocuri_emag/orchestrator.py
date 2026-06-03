@@ -23,6 +23,7 @@ class PreviewRow(NamedTuple):
     old_stock: int
     new_stock: int | None  # None = not in report, will not be updated
     status: str            # updated | zeroed_threshold | unchanged | no_ean
+    part_number_key: str | None = None
 
 
 class PreviewResult(NamedTuple):
@@ -93,11 +94,13 @@ async def preview(report_bytes: bytes, source_filename: str = "") -> PreviewResu
         name = (offer.get("name") or offer.get("part_number") or "—").strip()
         old_stock = _parse_stock(offer.get("stock"))
         eans = _normalize_eans(offer.get("ean"))
+        part_number_key = offer.get("part_number_key") or None
 
         if not eans:
             rows.append(PreviewRow(
                 offer_id=offer_id, name=name, ean=None,
                 old_stock=old_stock, new_stock=None, status="no_ean",
+                part_number_key=part_number_key,
             ))
             continue
 
@@ -108,15 +111,20 @@ async def preview(report_bytes: bytes, source_filename: str = "") -> PreviewResu
             matched_eans.add(matched_ean)
             new_stock = new_stock_by_ean[matched_ean]
             real_qty = raw_qty_by_ean[matched_ean]
-            status = "zeroed_threshold" if real_qty <= threshold else "updated"
+            if real_qty <= threshold:
+                status = "zeroed_threshold" if new_stock != old_stock else "unchanged"
+            else:
+                status = "updated" if new_stock != old_stock else "unchanged"
             rows.append(PreviewRow(
                 offer_id=offer_id, name=name, ean=matched_ean,
                 old_stock=old_stock, new_stock=new_stock, status=status,
+                part_number_key=part_number_key,
             ))
         else:
             rows.append(PreviewRow(
                 offer_id=offer_id, name=name, ean=display_ean,
                 old_stock=old_stock, new_stock=None, status="unchanged",
+                part_number_key=part_number_key,
             ))
 
     # SKUs from internal report whose EAN doesn't exist on eMAG at all
@@ -152,7 +160,14 @@ async def sync(rows_to_update: list[dict]) -> SyncResult:
     Args:
         rows_to_update: list of {offer_id, ean, name, new_stock}
     """
-    updates = [{"id": r["offer_id"], "stock": r["new_stock"]} for r in rows_to_update]
+    updates = [
+        {
+            "id": r["offer_id"],
+            "part_number_key": r.get("part_number_key") or "",
+            "stock": r["new_stock"],
+        }
+        for r in rows_to_update
+    ]
 
     client = EmagClient()
     raw_results = await client.bulk_update_stock(updates)
@@ -193,6 +208,7 @@ async def preview_emag_only() -> PreviewResult:
         old_stock = _parse_stock(offer.get("stock"))
         eans = _normalize_eans(offer.get("ean"))
         ean = eans[0] if eans else None
+        part_number_key = offer.get("part_number_key") or None
         rows.append(PreviewRow(
             offer_id=offer_id,
             name=name,
@@ -200,6 +216,7 @@ async def preview_emag_only() -> PreviewResult:
             old_stock=old_stock,
             new_stock=None,
             status="no_ean" if ean is None else "no_report",
+            part_number_key=part_number_key,
         ))
 
     summary = {
