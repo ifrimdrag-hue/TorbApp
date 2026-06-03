@@ -71,16 +71,19 @@ jobs:
 
       - name: Deploy via SSH
         env:
+          FLASK_SECRET_KEY: ${{ secrets.FLASK_SECRET_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           EMAG_USERNAME: ${{ secrets.EMAG_USERNAME }}
           EMAG_PASSWORD: ${{ secrets.EMAG_PASSWORD }}
+          SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
+          SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 2112
-          envs: ANTHROPIC_API_KEY,EMAG_USERNAME,EMAG_PASSWORD
+          envs: FLASK_SECRET_KEY,ANTHROPIC_API_KEY,EMAG_USERNAME,EMAG_PASSWORD,SHOPIFY_CLIENT_ID,SHOPIFY_CLIENT_SECRET
           script: |
             set -e
             git config --global --add safe.directory /var/www/html/torb-py
@@ -95,12 +98,18 @@ jobs:
 
             # Inject secrets into .env (create if missing, update if present)
             touch .env
+            grep -v '^FLASK_SECRET_KEY=' .env > .env.tmp && mv .env.tmp .env
+            echo "FLASK_SECRET_KEY=${FLASK_SECRET_KEY}" >> .env
             grep -v '^ANTHROPIC_API_KEY=' .env > .env.tmp && mv .env.tmp .env
             echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> .env
             grep -v '^EMAG_USERNAME=' .env > .env.tmp && mv .env.tmp .env
             echo "EMAG_USERNAME=${EMAG_USERNAME}" >> .env
             grep -v '^EMAG_PASSWORD=' .env > .env.tmp && mv .env.tmp .env
             echo "EMAG_PASSWORD=${EMAG_PASSWORD}" >> .env
+            grep -v '^SHOPIFY_CLIENT_ID=' .env > .env.tmp && mv .env.tmp .env
+            echo "SHOPIFY_CLIENT_ID=${SHOPIFY_CLIENT_ID}" >> .env
+            grep -v '^SHOPIFY_CLIENT_SECRET=' .env > .env.tmp && mv .env.tmp .env
+            echo "SHOPIFY_CLIENT_SECRET=${SHOPIFY_CLIENT_SECRET}" >> .env
 
             # Update dependencies
             source venv/bin/activate
