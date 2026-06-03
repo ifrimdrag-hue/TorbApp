@@ -18,7 +18,19 @@ def test_emag_preview_no_report_returns_200(client):
     assert data['has_report'] is False
 
 
-def test_emag_preview_page_loads(client):
-    resp = client.get('/stocuri/emag')
+def test_stoc_page_loads(client):
+    resp = client.get('/stocuri')
     assert resp.status_code == 200
     assert b'<!DOCTYPE' in resp.data or b'<html' in resp.data
+
+
+def test_stoc_emag_redirect(client):
+    resp = client.get('/stocuri/emag')
+    assert resp.status_code == 302
+    assert '/stocuri' in resp.headers['Location']
+
+
+def test_stoc_shopify_redirect(client):
+    resp = client.get('/stocuri/shopify')
+    assert resp.status_code == 302
+    assert '/stocuri' in resp.headers['Location']

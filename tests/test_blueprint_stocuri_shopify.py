@@ -1,4 +1,7 @@
-def test_shopify_page_loads(client):
-    resp = client.get('/stocuri/shopify')
+def test_shopify_api_connection_test_unconfigured(client):
+    """GET /api/stocuri/shopify/connection-test returns ok=False when not configured."""
+    resp = client.get('/api/stocuri/shopify/connection-test')
     assert resp.status_code == 200
-    assert b'<!DOCTYPE' in resp.data or b'<html' in resp.data
+    import json
+    data = json.loads(resp.data)
+    assert 'ok' in data
