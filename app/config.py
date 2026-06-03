@@ -22,9 +22,11 @@ class Settings(BaseSettings):
     emag_stock_safety_threshold: int = 5
 
     shopify_shop_domain: str = ""
-    shopify_access_token: str = ""
-    shopify_api_version: str = "2025-01"
+    shopify_client_id: str = ""
+    shopify_client_secret: str = ""
+    shopify_api_version: str = "2025-04"
     shopify_location_id: str = ""
+    shopify_stock_safety_threshold: int = 5
 
     log_level: str = "INFO"
 

@@ -1,35 +1,60 @@
-import base64
 import logging
-from flask import Blueprint, render_template, request, jsonify
-from automations.stocuri_shopify.orchestrator import run
+from flask import Blueprint, request, jsonify
+from automations.stocuri_shopify.orchestrator import preview, preview_shopify_only, sync
+from automations.stocuri_shopify.api_client import ShopifyClient
 
 stocuri_shopify_bp = Blueprint('stocuri_shopify', __name__)
-
 logger = logging.getLogger(__name__)
 
 
 @stocuri_shopify_bp.route('/stocuri/shopify')
 def stocuri_shopify_page():
-    return render_template('stocuri/shopify.html')
+    from flask import redirect, url_for
+    return redirect(url_for('stocuri_emag.stocuri_page'))
 
 
-@stocuri_shopify_bp.route('/api/stocuri/shopify/run', methods=['POST'])
-def api_shopify_run():
-    raport = request.files.get('raport')
-    inventory = request.files.get('inventory')
-    if not raport or not inventory:
-        return jsonify({'error': 'Fisierele raport si inventory sunt obligatorii.'}), 400
+@stocuri_shopify_bp.route('/api/stocuri/shopify/preview', methods=['POST'])
+async def api_shopify_preview():
     try:
-        result = run(raport.read(), inventory.read(), raport.filename)
+        raport = request.files.get('raport')
+        if raport:
+            result = await preview(raport.read(), raport.filename)
+        else:
+            result = await preview_shopify_only()
         return jsonify({
-            'file_b64': base64.b64encode(result.file_bytes).decode(),
-            'filename': 'inventory_updated.csv',
-            'summary': result.summary,
+            'rows': [r._asdict() for r in result.rows],
+            'skus_not_in_shopify': result.skus_not_in_shopify,
             'warnings': result.warnings,
-            'skus_no_codmare': result.skus_no_codmare,
-            'codmare_not_in_shopify': result.codmare_not_in_shopify,
-            'codmare_below_threshold': result.codmare_below_threshold,
+            'summary': result.summary,
+            'has_report': result.has_report,
         })
     except Exception as exc:
-        logger.exception("Shopify run failed")
+        logger.exception("Shopify preview failed")
         return jsonify({'error': str(exc)}), 500
+
+
+@stocuri_shopify_bp.route('/api/stocuri/shopify/sync', methods=['POST'])
+async def api_shopify_sync():
+    try:
+        data = request.get_json(force=True)
+        rows_to_update = data.get('rows_to_update', [])
+        result = await sync(rows_to_update)
+        return jsonify({
+            'results': result.results,
+            'success_count': result.success_count,
+            'error_count': result.error_count,
+        })
+    except Exception as exc:
+        logger.exception("Shopify sync failed")
+        return jsonify({'error': str(exc)}), 500
+
+
+@stocuri_shopify_bp.route('/api/stocuri/shopify/connection-test')
+async def api_shopify_connection_test():
+    try:
+        client = ShopifyClient()
+        locations = await client.test_connection()
+        return jsonify({'ok': True, 'locations': locations})
+    except Exception as exc:
+        logger.exception("Shopify connection test failed")
+        return jsonify({'ok': False, 'error': str(exc)})

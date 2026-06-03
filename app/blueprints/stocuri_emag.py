@@ -1,5 +1,5 @@
 import logging
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 from automations.stocuri_emag.orchestrator import preview, preview_emag_only, sync
 from automations.stocuri_emag.api_client import EmagClient
 
@@ -8,9 +8,14 @@ stocuri_emag_bp = Blueprint('stocuri_emag', __name__)
 logger = logging.getLogger(__name__)
 
 
+@stocuri_emag_bp.route('/stocuri')
+def stocuri_page():
+    return render_template('stocuri/stoc.html')
+
+
 @stocuri_emag_bp.route('/stocuri/emag')
 def stocuri_emag_page():
-    return render_template('stocuri/emag.html')
+    return redirect(url_for('stocuri_emag.stocuri_page'))
 
 
 @stocuri_emag_bp.route('/api/stocuri/emag/preview', methods=['POST'])

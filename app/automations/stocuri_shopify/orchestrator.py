@@ -1,11 +1,10 @@
-"""Orchestrator pentru sincronizare stoc Shopify (mod Inventory CSV).
+"""Orchestrator pentru sincronizare stoc Shopify (mod API direct).
 
 Flow:
-  1. parseaza raportul intern (acelasi parser ca pentru eMAG)
-  2. agregare cantitate pe codmare (NU pe cod — pentru ca codmare e cheia care
-     se potriveste cu Variant SKU pe Shopify)
-  3. aplica pragul de siguranta (stoc <= prag → 0)
-  4. completeaza CSV-ul Shopify Inventory cu valorile corecte in 'On hand (new)'
+  1. preview()  — parseaza raportul intern + preia inventarul live din Shopify
+                   → returneaza tabel comparativ (stoc vechi vs nou) pentru review
+  2. sync()     — trimite actualizarile de stoc prin inventorySetQuantities mutation
+                   → returneaza rezultate per-produs
 """
 
 from collections import defaultdict
@@ -14,75 +13,164 @@ from typing import NamedTuple
 from config import settings
 from .._shared.report_parser import parse_excel
 from .._shared.snapshot import save_snapshot
-from .csv_filler import fill_inventory_csv, _normalize_sku as _norm
+from .csv_filler import _normalize_sku as _norm
+from .api_client import ShopifyClient
 
 
-class StockSyncResult(NamedTuple):
-    file_bytes: bytes
-    summary: dict
+class ShopifyPreviewRow(NamedTuple):
+    inventory_item_id: str
+    sku: str
+    name: str
+    old_stock: int
+    new_stock: int | None
+    status: str  # updated | zeroed_threshold | unchanged | no_sku | no_report
+
+
+class ShopifyPreviewResult(NamedTuple):
+    rows: list[ShopifyPreviewRow]
+    skus_not_in_shopify: list[dict]
     warnings: list[str]
-    skus_no_codmare: list[dict]            # SKU-uri din raport fara codmare (sarite)
-    codmare_not_in_shopify: list[str]      # codmare din raport care nu apar in Shopify
-    codmare_below_threshold: list[dict]    # codmare cu stoc <= prag (zerificate)
+    summary: dict
+    has_report: bool = True
 
 
-def run(report_bytes: bytes, csv_bytes: bytes, source_filename: str = "") -> StockSyncResult:
+class ShopifySyncResult(NamedTuple):
+    results: list[dict]
+    success_count: int
+    error_count: int
+
+
+async def preview(report_bytes: bytes, source_filename: str = "") -> ShopifyPreviewResult:
     parsed = parse_excel(report_bytes)
     save_snapshot(parsed, source_filename)
-    threshold = settings.emag_stock_safety_threshold  # acelasi prag ca eMAG
+    threshold = settings.shopify_stock_safety_threshold
 
-    # Agregare pe codmare normalizat (aceeasi normalizare ca SKU-urile Shopify
-    # — strip apostrof + strip sufix -XX — pentru match simetric)
-    raw_stocks_by_codmare: dict[str, int] = defaultdict(int)
+    raw_by_sku: dict[str, int] = defaultdict(int)
     skus_no_codmare: list[dict] = []
-    for r in parsed.rows:
-        cm_norm = _norm(r.codmare) if r.codmare else None
-        if cm_norm:
-            raw_stocks_by_codmare[cm_norm] += r.qty
+    for row in parsed.rows:
+        cm = _norm(row.codmare) if row.codmare else None
+        if cm:
+            raw_by_sku[cm] += row.qty
         else:
-            skus_no_codmare.append({"sku": r.sku, "qty": r.qty})
+            skus_no_codmare.append({"sku": row.sku, "qty": row.qty})
 
-    # Aplicam pragul de siguranta
-    stocks_by_codmare: dict[str, int] = {}
-    codmare_below_threshold: list[dict] = []
-    for cm, qty in raw_stocks_by_codmare.items():
-        if qty <= threshold:
-            stocks_by_codmare[cm] = 0
-            codmare_below_threshold.append({"codmare": cm, "qty_real": qty})
-        else:
-            stocks_by_codmare[cm] = qty
-
-    fill = fill_inventory_csv(csv_bytes, stocks_by_codmare)
-
-    codmare_not_in_shopify = sorted(set(raw_stocks_by_codmare.keys()) - fill.matched_skus)
-
-    # Defalcare matched: cu stoc real vs zerificate prin prag
-    below_set = {x["codmare"] for x in codmare_below_threshold}
-    shopify_active = len(fill.matched_skus - below_set)
-    shopify_zero_low_stock = len(fill.matched_skus & below_set)
-
-    summary = {
-        "report_total_rows": parsed.total_rows_in_file,
-        "report_unique_skus": len(parsed.rows),
-        "report_duplicates_summed": parsed.duplicates_summed,
-        "report_skus_with_codmare": len(raw_stocks_by_codmare),
-        "report_skus_no_codmare": len(skus_no_codmare),
-        # Stare finala pe Shopify (Shop location)
-        "shopify_active": shopify_active,
-        "shopify_zero_low_stock": shopify_zero_low_stock,
-        "shopify_zero_not_in_report": fill.set_to_zero,
-        "shopify_rows_other_location": fill.rows_other_location,
-        # Pierderi
-        "codmare_not_in_shopify": len(codmare_not_in_shopify),
-        "safety_threshold": threshold,
-        "codmare_below_threshold_total": len(codmare_below_threshold),
+    new_by_sku: dict[str, int] = {
+        cm: (0 if qty <= threshold else qty) for cm, qty in raw_by_sku.items()
     }
 
-    return StockSyncResult(
-        file_bytes=fill.file_bytes,
-        summary=summary,
-        warnings=parsed.warnings,
-        skus_no_codmare=skus_no_codmare,
-        codmare_not_in_shopify=codmare_not_in_shopify,
-        codmare_below_threshold=codmare_below_threshold,
+    client = ShopifyClient()
+    live_items = await client.fetch_all_inventory()
+
+    shopify_by_sku: dict[str, dict] = {}
+    for item in live_items:
+        n = _norm(item["sku"])
+        if n:
+            shopify_by_sku[n] = item
+
+    all_shopify_skus = set(shopify_by_sku.keys())
+    rows: list[ShopifyPreviewRow] = []
+
+    for item in live_items:
+        n = _norm(item["sku"])
+        old = item["on_hand"]
+
+        if not n:
+            rows.append(ShopifyPreviewRow(
+                inventory_item_id=item["inventory_item_id"], sku=item["sku"],
+                name=item["name"], old_stock=old, new_stock=None, status="no_sku",
+            ))
+            continue
+
+        if n in new_by_sku:
+            new = new_by_sku[n]
+            real = raw_by_sku[n]
+            if real <= threshold:
+                status = "zeroed_threshold" if new != old else "unchanged"
+            else:
+                status = "updated" if new != old else "unchanged"
+            rows.append(ShopifyPreviewRow(
+                inventory_item_id=item["inventory_item_id"], sku=item["sku"],
+                name=item["name"], old_stock=old, new_stock=new, status=status,
+            ))
+        else:
+            rows.append(ShopifyPreviewRow(
+                inventory_item_id=item["inventory_item_id"], sku=item["sku"],
+                name=item["name"], old_stock=old, new_stock=None, status="unchanged",
+            ))
+
+    skus_not_in_shopify = [
+        {"codmare": cm, "qty": raw_by_sku[cm]}
+        for cm in raw_by_sku
+        if cm not in all_shopify_skus
+    ]
+
+    warnings = list(parsed.warnings)
+    if skus_no_codmare:
+        warnings.append(f"{len(skus_no_codmare)} SKU-uri din raport fara codmare (sarite)")
+
+    summary = {
+        "total_shopify_items": len(rows),
+        "to_update": sum(1 for r in rows if r.status in ("updated", "zeroed_threshold")),
+        "updated_with_stock": sum(1 for r in rows if r.status == "updated"),
+        "zeroed_threshold": sum(1 for r in rows if r.status == "zeroed_threshold"),
+        "unchanged": sum(1 for r in rows if r.status == "unchanged"),
+        "no_sku": sum(1 for r in rows if r.status == "no_sku"),
+        "not_in_shopify": len(skus_not_in_shopify),
+        "safety_threshold": threshold,
+        "report_warnings": len(parsed.warnings),
+    }
+
+    return ShopifyPreviewResult(
+        rows=rows, skus_not_in_shopify=skus_not_in_shopify,
+        warnings=warnings, summary=summary,
+    )
+
+
+async def sync(rows_to_update: list[dict]) -> ShopifySyncResult:
+    updates = [
+        {
+            "inventory_item_id": r["inventory_item_id"],
+            "sku": r.get("sku", ""),
+            "name": r.get("name", ""),
+            "new_stock": r["new_stock"],
+        }
+        for r in rows_to_update
+    ]
+    client = ShopifyClient()
+    raw = await client.set_on_hand_quantities(updates)
+
+    results = [
+        {
+            "inventory_item_id": r["inventory_item_id"],
+            "sku": r.get("sku", ""),
+            "name": r.get("name", ""),
+            "new_stock": r.get("new_stock"),
+            "ok": r["ok"],
+            "error": r.get("error"),
+        }
+        for r in raw
+    ]
+    success_count = sum(1 for r in results if r["ok"])
+    error_count = len(results) - success_count
+    return ShopifySyncResult(results=results, success_count=success_count, error_count=error_count)
+
+
+async def preview_shopify_only() -> ShopifyPreviewResult:
+    client = ShopifyClient()
+    live_items = await client.fetch_all_inventory()
+
+    rows = [
+        ShopifyPreviewRow(
+            inventory_item_id=item["inventory_item_id"], sku=item["sku"],
+            name=item["name"], old_stock=item["on_hand"], new_stock=None,
+            status="no_sku" if not _norm(item["sku"]) else "no_report",
+        )
+        for item in live_items
+    ]
+    summary = {
+        "total_shopify_items": len(rows),
+        "no_sku": sum(1 for r in rows if r.status == "no_sku"),
+    }
+    return ShopifyPreviewResult(
+        rows=rows, skus_not_in_shopify=[], warnings=[], summary=summary, has_report=False,
     )

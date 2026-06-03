@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Sincronizare Stoc{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-3">
+
+  <div class="d-flex align-items-center gap-3 mb-1">
+    <h4 class="mb-0">Sincronizare Stoc</h4>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Platforma">
+      <input type="radio" class="btn-check" name="platform" id="radioEmag" value="emag" autocomplete="off" checked>
+      <label class="btn btn-outline-primary" for="radioEmag">eMAG</label>
+      <input type="radio" class="btn-check" name="platform" id="radioShopify" value="shopify" autocomplete="off">
+      <label class="btn btn-outline-primary" for="radioShopify">Shopify</label>
+    </div>
+    <span id="connDot" class="conn-dot conn-dot--loading" title="Verific conexiunea..."></span>
+  </div>
+  <p id="pageDesc" class="text-secondary small mb-4"></p>
+
+  <div class="mb-3">
+    <div class="dz-card p-3 border rounded" style="max-width:480px;">
+      <div class="fw-semibold mb-1">Raport intern stocuri</div>
+      <div class="text-secondary small mb-2">.xls / .xlsx</div>
+      <div class="dropzone" id="dzReport">
+        <input type="file" id="fileReport" accept=".xls,.xlsx" hidden />
+        <div class="dz-inner text-center py-3">
+          <strong>Trage fisierul aici</strong><br>
+          <span class="text-secondary small">sau click pentru a alege</span><br>
+          <small id="nameReport" class="text-info"></small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 mb-3">
+    <button id="btnPreview" class="btn btn-primary">Incarca stoc</button>
+    <button id="btnSync" class="btn btn-success" disabled>Sincronizeaza</button>
+  </div>
+
+  <div id="stocStatus" class="status mb-2"></div>
+
+  <div id="previewSection" hidden>
+    <div id="stocSummary" class="mb-3"></div>
+    <div id="stocIssues" class="issues"></div>
+
+    <div class="emag-toolbar mb-2" id="stocToolbar" hidden>
+      <label class="emag-filter-label me-2">Filtreaza:</label>
+      <select id="stocFilter" class="form-select form-select-sm d-inline-block w-auto">
+        <option value="">Toate</option>
+        <option value="updated">De actualizat</option>
+        <option value="zeroed_threshold">Zerificate</option>
+        <option value="unchanged">Nemodificate</option>
+        <option id="optNoSku" value="no_ean">Fara EAN</option>
+      </select>
+    </div>
+
+    <div class="emag-table-wrap table-responsive">
+      <table class="emag-table table table-sm table-hover" id="stocTable">
+        <thead>
+          <tr>
+            <th style="width:36px;"><input type="checkbox" id="stocSelectAll" title="Selecteaza tot" /></th>
+            <th data-sort="name" style="cursor:pointer;">Produs</th>
+            <th id="thSku" data-sort="sku_field" style="cursor:pointer;">EAN</th>
+            <th id="thExtra" data-sort="part_number_key" style="cursor:pointer;">Part Number</th>
+            <th id="thOldStock" style="text-align:right; cursor:pointer;" data-sort="old_stock">Stoc curent</th>
+            <th style="text-align:right; cursor:pointer;" data-sort="new_stock">Stoc nou</th>
+            <th data-sort="status" style="cursor:pointer;">Status</th>
+          </tr>
+        </thead>
+        <tbody id="stocTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="emag-pagination d-flex align-items-center gap-2 my-2">
+      <button id="stocPrevPage" class="btn btn-sm btn-outline-secondary" disabled>← Anterior</button>
+      <span id="stocPageInfo" class="emag-pagination-info text-secondary small"></span>
+      <button id="stocNextPage" class="btn btn-sm btn-outline-secondary" disabled>Urmator →</button>
+    </div>
+  </div>
+
+  <div id="syncResults" hidden>
+    <div class="summary mb-2" id="syncSummary"></div>
+    <div id="syncErrors" class="issues"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/stocuri.js') }}"></script>
+{% endblock %}

@@ -113,13 +113,9 @@
       <i class="bi bi-chevron-down sidebar-group-chevron link-text"></i>
     </div>
     <div class="sidebar-group-links" id="group-ecommerce">
-    <a class="sidebar-link {% if request.endpoint == 'stocuri_emag.stocuri_emag_page' %}active{% endif %}"
-       href="{{ url_for('stocuri_emag.stocuri_emag_page') }}" data-label="Stoc eMAG">
-      <i class="bi bi-box-seam"></i><span class="link-text"> Stoc eMAG</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint == 'stocuri_shopify.stocuri_shopify_page' %}active{% endif %}"
-       href="{{ url_for('stocuri_shopify.stocuri_shopify_page') }}" data-label="Stoc Shopify">
-      <i class="bi bi-shop"></i><span class="link-text"> Stoc Shopify</span>
+    <a class="sidebar-link {% if request.endpoint == 'stocuri_emag.stocuri_page' %}active{% endif %}"
+       href="{{ url_for('stocuri_emag.stocuri_page') }}" data-label="Sincronizare Stoc">
+      <i class="bi bi-arrow-repeat"></i><span class="link-text"> Sincronizare Stoc</span>
     </a>
     <a class="sidebar-link {% if request.endpoint == 'pachete.trendyol_page' %}active{% endif %}"
        href="{{ url_for('pachete.trendyol_page') }}" data-label="Trendyol Pachete">
