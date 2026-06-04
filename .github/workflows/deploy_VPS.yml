@@ -126,7 +126,10 @@ jobs:
             pip install --quiet --upgrade pip
             pip install --quiet -r requirements.txt
 
-            # Restart app (migrations run automatically on startup)
+            # Run migrations explicitly — failure here aborts deploy and leaves service running
+            python migrations/runner.py data/torb.db
+
+            # Restart app
             sudo systemctl restart torb-py
 
   # 5. Post-deployment smoke tests
