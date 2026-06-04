@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     anthropic_api_key: str = ""
-    ai_model: str = "claude-opus-4-7"
+    ai_model: str = "claude-sonnet-4-6"
 
 
 settings = Settings()
