@@ -1,4 +1,4 @@
-name: CI/CD Pipeline - Test, Scan, and Deploy
+name: CI/CD Pipeline - Test->Scan->Deploy_Dev->Approve->Deploy->Prd
 
 on:
   push:
