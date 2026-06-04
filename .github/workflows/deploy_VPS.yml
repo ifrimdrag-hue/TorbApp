@@ -61,9 +61,136 @@ jobs:
           pip install pip-audit
           pip-audit -r requirements.txt
 
-  # 4. Deploy to VPS
-  deploy:
+  # 4. Deploy to Dev
+  deploy_dev:
     needs: [test, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Dev via SSH
+        env:
+          FLASK_SECRET_KEY: ${{ secrets.FLASK_SECRET_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EMAG_USERNAME: ${{ secrets.EMAG_USERNAME }}
+          EMAG_PASSWORD: ${{ secrets.EMAG_PASSWORD }}
+          SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
+          SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 2112
+          envs: FLASK_SECRET_KEY,ANTHROPIC_API_KEY,EMAG_USERNAME,EMAG_PASSWORD,SHOPIFY_CLIENT_ID,SHOPIFY_CLIENT_SECRET
+          script: |
+            set -e
+            git config --global --add safe.directory /var/www/html/torb-py-dev
+            cd /var/www/html/torb-py-dev
+
+            # Discard any accidental local changes on the server — source of truth is git
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Inject secrets into .env (create if missing, update if present)
+            touch .env
+            grep -v '^FLASK_SECRET_KEY=' .env > .env.tmp && mv .env.tmp .env
+            echo "FLASK_SECRET_KEY=${FLASK_SECRET_KEY}" >> .env
+            grep -v '^ANTHROPIC_API_KEY=' .env > .env.tmp && mv .env.tmp .env
+            echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> .env
+            grep -v '^EMAG_USERNAME=' .env > .env.tmp && mv .env.tmp .env
+            echo "EMAG_USERNAME=${EMAG_USERNAME}" >> .env
+            grep -v '^EMAG_PASSWORD=' .env > .env.tmp && mv .env.tmp .env
+            echo "EMAG_PASSWORD=${EMAG_PASSWORD}" >> .env
+            grep -v '^SHOPIFY_CLIENT_ID=' .env > .env.tmp && mv .env.tmp .env
+            echo "SHOPIFY_CLIENT_ID=${SHOPIFY_CLIENT_ID}" >> .env
+            grep -v '^SHOPIFY_CLIENT_SECRET=' .env > .env.tmp && mv .env.tmp .env
+            echo "SHOPIFY_CLIENT_SECRET=${SHOPIFY_CLIENT_SECRET}" >> .env
+
+            # Non-sensitive config — hardcoded directly (no secrets needed)
+            grep -v '^SHOPIFY_SHOP_DOMAIN=' .env > .env.tmp && mv .env.tmp .env
+            echo "SHOPIFY_SHOP_DOMAIN=basilur-tea-romania.myshopify.com" >> .env
+            grep -v '^SHOPIFY_LOCATION_ID=' .env > .env.tmp && mv .env.tmp .env
+            echo "SHOPIFY_LOCATION_ID=110603567429" >> .env
+            grep -v '^SHOPIFY_STOCK_SAFETY_THRESHOLD=' .env > .env.tmp && mv .env.tmp .env
+            echo "SHOPIFY_STOCK_SAFETY_THRESHOLD=5" >> .env
+            grep -v '^EMAG_STOCK_SAFETY_THRESHOLD=' .env > .env.tmp && mv .env.tmp .env
+            echo "EMAG_STOCK_SAFETY_THRESHOLD=5" >> .env
+
+            # Update dependencies (gunicorn installed separately — not in requirements.txt)
+            source venv/bin/activate
+            pip install --quiet --upgrade pip
+            pip install --quiet -r requirements.txt
+            pip install --quiet gunicorn
+
+            # Run migrations explicitly — failure here aborts deploy and leaves service running
+            python migrations/runner.py data/torb.db
+
+            # Restart dev app
+            sudo systemctl restart torb-dev
+
+  # 5. Smoke tests on Dev
+  test_dev:
+    needs: deploy_dev
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for dev service to come up
+        run: |
+          for i in $(seq 1 12); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://app.robrands.ro:5001/healthz" || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "Dev service is up after ~$((i*5))s"
+              exit 0
+            fi
+            echo "Attempt $i: got $STATUS, retrying in 5s..."
+            sleep 5
+          done
+          echo "Dev service did not come up in time"
+          exit 1
+
+      - name: Smoke test dev main routes
+        run: |
+          BASE="https://app.robrands.ro:5001"
+          FAILED=0
+          for path in / /forecast /bonus /actualizare /preturi /conditii /clients /team /products; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 --retry 3 --retry-delay 5 "$BASE$path")
+            echo "$STATUS  $path"
+            if [ "$STATUS" != "200" ] && [ "$STATUS" != "302" ]; then
+              echo "FAIL: $path returned $STATUS"
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" = "0" ] || exit 1
+
+      - name: Smoke test dev API endpoints
+        run: |
+          BASE="https://app.robrands.ro:5001"
+          FAILED=0
+          for path in /api/actualizare-date/status /api/clienti-export /api/comenzi/drafts; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 --retry 3 --retry-delay 5 "$BASE$path")
+            echo "$STATUS  $path"
+            if [ "$STATUS" != "200" ] && [ "$STATUS" != "401" ]; then
+              echo "FAIL: $path returned $STATUS"
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" = "0" ] || exit 1
+
+  # 6. Manual approval gate before production
+  approve_prd:
+    needs: test_dev
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Approved for production deployment
+        run: echo "Approved"
+
+  # 7. Deploy to Production
+  deploy_prd:
+    needs: approve_prd
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -135,9 +262,9 @@ jobs:
             # Restart app
             sudo systemctl restart torb-py
 
-  # 5. Post-deployment smoke tests
-  smoke-test-vps:
-    needs: deploy
+  # 8. Post-deployment smoke tests on Production
+  test_prd:
+    needs: deploy_prd
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
