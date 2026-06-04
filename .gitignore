@@ -18,7 +18,7 @@ __pycache__/
 
 # Claude Code / AI session artifacts
 .claude/
-docs/superpowers/
+docs/superpowers/specs/
 extra/
 
 # Windows crash dumps

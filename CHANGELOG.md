@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-06-04
+
+### Technical Debt — Phases 1, 2, 3
+
+- Deleted `etl/init_forecast_tables.py` (dead code — broken DB path, schema superseded by migrations 0001 + 0004)
+- Updated default AI model in `app/config.py` from retired `claude-opus-4-7` to `claude-sonnet-4-6`
+- CI/CD: added explicit `python migrations/runner.py data/torb.db` step before `systemctl restart` — failed migrations now abort deploy rather than crashing the running app
+- Tests: replaced 289-line hand-maintained schema in `tests/conftest.py` with `migrations.runner.run_all()` — test schema is always in sync with production schema automatically
+- Refactored `app/queries.py` (3,236 lines) into `app/queries/` package with 9 domain modules (`_shared`, `analytics`, `clients`, `products`, `pricing`, `orders`, `forecast`, `bonus`, `export`); `__init__.py` re-exports all names — zero callsite changes required
+- DB cleanup (earlier in session): deleted orphan `clienti_export_old` table (migration 0005), moved forecast tables to migration 0004, removed dead `db_stock.py` + `data/stock.db`
+- Documentation: corrected `CLAUDE.md` file paths (STATUS.md, plan_strategic_5ani.md moved to `docs/`), updated `README.md` test count, refreshed `docs/STATUS.md` (45 days stale), updated `context/project_ai_opportunities.md` (Shopify delivered)
+
 ## [0.4.0] - 2026-05-23
 
 ### Authentication

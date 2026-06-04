@@ -139,7 +139,7 @@ Request logs (last 20 calls each): `logs/emag_req.json`, `logs/shopify_req.json`
 pytest tests/ -v
 ```
 
-67 tests covering: Flask routes, auth, stock blueprints, ETL parsers, forecast engine, bonus calculator.
+66 tests covering: Flask routes, auth, stock blueprints, ETL parsers, forecast engine, bonus calculator.
 
 ---
 
@@ -195,11 +195,18 @@ torbapp/
 ├── tools/                      # Windows launcher scripts
 │   └── Start-Hub.ps1
 ├── context/                    # Project research and reference docs
+├── docs/                       # Strategic docs and plans
+│   ├── plan_strategic_5ani.md  # 5-year strategic plan 2026–2030
+│   ├── STATUS.md               # Current execution status
+│   ├── torb_background.md      # Company background research
+│   ├── plans/                  # Implementation plans
+│   ├── analysis/               # Analysis documents
+│   └── superpowers/            # AI-generated specs and plans
+├── migrations/                 # Versioned DB migration files (applied on startup)
 ├── data/                       # SQLite database (gitignored)
 ├── logs/                       # App and request logs (gitignored)
 ├── docs_input/                 # Source Excel/CSV files (gitignored)
 ├── .env.example                # Environment variable template
 ├── requirements.txt
-├── plan_strategic_5ani.md      # 5-year strategic plan 2026–2030
-└── STATUS.md                   # Current execution status
+└── Start-Hub.bat               # Windows quick launcher
 ```

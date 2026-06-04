@@ -15,7 +15,7 @@ AI consulting for Torb Logistic SRL, a Romanian FMCG distributor. Goal: identify
 - The reporting dashboards are well-designed templates but **contain no data** — the core gap is a missing data pipeline from raw transactions to management reports.
 
 ## File map
-- `torb_background.md` — company background research (note: incomplete on brand portfolio)
+- `docs/torb_background.md` — company background research (note: incomplete on brand portfolio)
 - `docs_input/` — all Excel data files. See memory for detailed file map.
 - `docs_input/vanzari_01.03.2026.xlsx` — main sales database (Baza sheet = raw transactions)
 - `docs_input/bonusare_torb_structura_echipa.xlsx` — team structure + KPI/bonus system
@@ -27,7 +27,7 @@ AI consulting for Torb Logistic SRL, a Romanian FMCG distributor. Goal: identify
 Main table: `tranzactii` (31 columns). Useful views: `v_vanzari_an_furnizor`, `v_vanzari_luna_agent`, `v_vanzari_luna_client`, `v_top_sku`, `v_clienti`.
 To rebuild: `python etl/import_to_sqlite.py`
 
-Forecast tables (Faza 1 livrată pe 2026-04-19): `brands_config`, `stock_snapshot`, `forecast_runs`, `forecasts`, `reorder_suggestions`, `forecast_backtests`. Schema auto-created on first run of the forecast module.
+Forecast tables (Faza 1 livrată pe 2026-04-19): `brands_config`, `stock_snapshot`, `forecast_runs`, `forecasts`, `reorder_suggestions`, `forecast_backtests`. Schema created by **migration 0004** — auto-applied on Flask startup (no manual step needed).
 
 ## Forecast module
 Localizare: `forecast/` + pagina `/forecast` în Flask.
@@ -49,16 +49,16 @@ wb = openpyxl.load_workbook('file.xlsx', data_only=True, read_only=True)
 ## Where to start each session
 
 **Citește obligatoriu la începutul fiecărei sesiuni:**
-1. `plan_strategic_5ani.md` — planul strategic 2026–2030 (teza, piloni, roadmap, financial model). Nu reinterpreta strategia de la zero — pleacă de aici.
-2. `STATUS.md` — starea curentă a execuției. Ce s-a livrat, ce e în lucru, ce e blocat, care e următorul pas. **Actualizează acest fișier la fiecare schimbare de stare**, nu la fiecare discuție.
+1. `docs/plan_strategic_5ani.md` — planul strategic 2026–2030 (teza, piloni, roadmap, financial model). Nu reinterpreta strategia de la zero — pleacă de aici.
+2. `docs/STATUS.md` — starea curentă a execuției. Ce s-a livrat, ce e în lucru, ce e blocat, care e următorul pas. **Actualizează acest fișier la fiecare schimbare de stare**, nu la fiecare discuție.
 3. Fișierele din `context/` — findings de research (overview business, riscuri, oportunități AI, reference fișiere de date).
 
 **Separarea responsabilităților:**
-- `plan_strategic_5ani.md` = ce vrem să realizăm (stabil, revizuit trimestrial).
-- `STATUS.md` = unde suntem acum (volatil, actualizat des).
+- `docs/plan_strategic_5ani.md` = ce vrem să realizăm (stabil, revizuit trimestrial).
+- `docs/STATUS.md` = unde suntem acum (volatil, actualizat des).
 - `context/*.md` + memorie = fapte durabile despre proiect.
 
-Actual #1 open question: bonusarea automată lunară (pasul 5 din `STATUS.md`, deadline 31 mai 2026) și validarea forecast Basilur cu owner-ul.
+Actual #1 open question: bonusarea automată lunară (pasul 5 din `docs/STATUS.md`, deadline 31 mai 2026 — întârziat) și validarea forecast Basilur cu owner-ul.
 
 ## Project Directory Structure
 
@@ -69,18 +69,19 @@ All new files must follow this layout. Never add `.py` files to root.
 | `app/` | Flask web application only: routes, db, queries, AI helpers, Excel/PPT exports, migrations |
 | `etl/` | Data pipeline scripts: `import_*.py`, `rebuild_*.py`, `init_*.py`, `update_*.py` |
 | `forecast/` | Forecast CLI package (statsforecast-based) — standalone, do not mix with app/ |
-| `scripts/` | OS automation: `.sh`, `.bat`, `.vbs`, `.ps1`, server management Python (`_torb_server.py`), desktop launcher (`launcher.py`) |
+| `tools/` | Windows launcher scripts (`Start-Hub.ps1`); `Start-Hub.bat` is at project root |
 | `tests/` | pytest test files |
 | `context/` | Project research and reference markdown files |
+| `docs/` | Strategic docs: `plan_strategic_5ani.md`, `STATUS.md`, `torb_background.md`, `plans/`, `analysis/`, `superpowers/` |
 | `docs_input/` | Input Excel/CSV data files (never committed, gitignored) |
 | `data/` | SQLite database and generated outputs (gitignored) |
-| Root | Config/doc files only: `requirements.txt`, `.gitignore`, `.env.example`, `CLAUDE.md`, `README.md`, `STATUS.md`, `CHANGELOG.md`, `plan_strategic_5ani.md`, `torb_background.md` |
+| Root | Config/doc files only: `requirements.txt`, `.gitignore`, `.env.example`, `CLAUDE.md`, `README.md`, `CHANGELOG.md`, `Start-Hub.bat` |
 
 ### Rules when creating new files
 
 - New Flask route or feature module → `app/`
 - New import from Excel/ERP/supplier file → `etl/`
-- New OS-level script, cron job, or scheduled task → `scripts/`
+- New Windows launcher script → `tools/`
 - New forecast model, backtest, or forecast CLI tool → `forecast/`
 - New pytest test → `tests/`
 

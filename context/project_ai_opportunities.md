@@ -44,7 +44,12 @@ Weekly alert on Kaufland order volume trend vs. same period last year.
 Monitor competitor pricing and listing quality on eMAG for Basilur.
 Auto-generate improved product copy for underperforming listings.
 
+## Delivered
+- **Shopify stock sync** (2026-06-03) — `/stocuri` unified page, GraphQL Admin API, OAuth client credentials, request logging.
+- **eMAG stock sync** — upload Excel → diff preview → sync via eMAG Marketplace API v3.
+- **Demand forecasting** (F above, 2026-04-19) — AutoETS per SKU, safety stock reorder, `/forecast` UI, Excel export.
+
 ## Not Yet Explored
-- basilurtea.ro Shopify integration possibilities
 - HoReCa lead generation agent
 - Supply chain risk monitor (Sri Lanka / USD/RON)
+- basilurtea.ro D2C relansare (Shopify vs WooCommerce decision pending)
