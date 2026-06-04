@@ -125,7 +125,7 @@ jobs:
             pip install --quiet gunicorn
 
             # Run migrations explicitly — failure here aborts deploy and leaves service running
-            python migrations/runner.py data/torb.db
+            sudo -u www-data venv/bin/python migrations/runner.py data/torb.db
 
             # Restart dev app
             sudo systemctl restart torb-dev
