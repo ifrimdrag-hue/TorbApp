@@ -182,6 +182,19 @@ Push to `main` triggers GitHub Actions (`.github/workflows/deploy_VPS.yml`):
 
 Secrets required in GitHub Actions: `FLASK_SECRET_KEY`, `ANTHROPIC_API_KEY`, `EMAG_USERNAME`, `EMAG_PASSWORD`, `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET`, `VPS_HOST`, `VPS_USERNAME`, `VPS_SSH_KEY`.
 
+### Emergency rollback
+
+If a blocking issue is found in production and the technical team is unavailable, any GitHub collaborator with write access can roll back to the previous version without touching code or a terminal:
+
+1. Go to the repository on GitHub
+2. Click **Actions** → **Rollback Production to Previous Version**
+3. Click **Run workflow** (top-right)
+4. Type `ROLLBACK` in the confirmation field and click **Run workflow**
+
+The workflow will revert the VPS to the previous commit, restart the service, and run smoke tests to confirm it came back up. If the smoke tests fail, the workflow exits with an error — contact the technical team immediately in that case.
+
+> **Note:** database migrations are not reversed by a rollback (they are additive and safe to leave in place). Only the application code reverts.
+
 ---
 
 ## Project structure
