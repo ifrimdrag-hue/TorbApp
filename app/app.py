@@ -78,11 +78,9 @@ def create_app(test_config=None):
         app.config.update(test_config)
 
     # ── Extensions ───────────────────────────────────────────────────────────
-    from db_stock import close_request_db_stock
     login_manager.init_app(app)
     csrf.init_app(app)
     app.teardown_appcontext(db.close_request_db)
-    app.teardown_appcontext(close_request_db_stock)
 
     # ── Blueprints ───────────────────────────────────────────────────────────
     app.register_blueprint(auth_bp)
