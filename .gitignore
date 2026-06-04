@@ -16,8 +16,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# Claude Code / AI session artifacts
-.claude/
+# Claude Code / AI session artifacts — ignore session state, keep shared skills
+.claude/settings.json
+.claude/settings.local.json
+.claude/__store/
 docs/superpowers/specs/
 extra/
 
