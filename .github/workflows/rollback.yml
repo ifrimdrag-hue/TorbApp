@@ -36,14 +36,21 @@ jobs:
             git config --global --add safe.directory /var/www/html/torb-py
             cd /var/www/html/torb-py
 
-            CURRENT=$(git rev-parse --short HEAD)
+            if [ ! -f .previous_deploy_sha ]; then
+              echo "ERROR: .previous_deploy_sha not found."
+              echo "This file is written by the deploy workflow on every deploy."
+              echo "It will exist after the next successful deployment."
+              exit 1
+            fi
+
+            PREVIOUS_SHA=$(cat .previous_deploy_sha)
             CURRENT_FULL=$(git log -1 --format="%h %s (%ci)" HEAD)
-            PREVIOUS_FULL=$(git log -1 --format="%h %s (%ci)" HEAD~1)
+            PREVIOUS_FULL=$(git log -1 --format="%h %s (%ci)" "$PREVIOUS_SHA")
 
             echo "Current version:  $CURRENT_FULL"
             echo "Rolling back to:  $PREVIOUS_FULL"
 
-            git reset --hard HEAD~1
+            git reset --hard "$PREVIOUS_SHA"
 
             source venv/bin/activate
 

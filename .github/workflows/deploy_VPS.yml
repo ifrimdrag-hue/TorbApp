@@ -89,6 +89,9 @@ jobs:
             git config --global --add safe.directory /var/www/html/torb-py
             cd /var/www/html/torb-py
 
+            # Save current SHA before overwriting — used by rollback workflow
+            git rev-parse HEAD > .previous_deploy_sha
+
             # Discard any accidental local changes on the server — source of truth is git
             git fetch origin main
             git reset --hard origin/main
