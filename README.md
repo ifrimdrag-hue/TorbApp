@@ -143,6 +143,33 @@ pytest tests/ -v
 
 ---
 
+## Working with Claude Code (AI-assisted development)
+
+This project ships a Claude Code skill in `.claude/skills/` that all collaborators with [Claude Code](https://claude.ai/code) installed will get automatically.
+
+### `BUG:` — bug fix with mandatory regression test
+
+Prefix any message to Claude with `BUG:` and describe the problem:
+
+```
+BUG: the bonus calculator shows the wrong total when an agent has zero sales in one month
+```
+
+Claude will:
+1. Locate the affected code and root cause
+2. Check whether an existing test would have caught this
+3. Write a **regression test first** (it must fail before the fix)
+4. Apply the fix
+5. Verify the test turns green
+6. Run the full suite (`pytest tests/ -v`) — must be 100% green
+7. Commit the fix and the test together
+
+**Why this matters:** every bug that goes through this workflow leaves a permanent test that guards that code path. Over time the suite becomes a complete map of every bug that has ever existed, and CI (`ruff` + `pytest`) prevents any of them from coming back silently before reaching production.
+
+The skill lives at `.claude/skills/bug-fix-with-coverage/SKILL.md` — read it for the full workflow detail.
+
+---
+
 ## Deployment (CI/CD)
 
 Push to `main` triggers GitHub Actions (`.github/workflows/deploy_VPS.yml`):
@@ -202,6 +229,8 @@ torbapp/
 │   ├── plans/                  # Implementation plans
 │   ├── analysis/               # Analysis documents
 │   └── superpowers/            # AI-generated specs and plans
+├── .claude/skills/             # Shared Claude Code skills (auto-loaded for all collaborators)
+│   └── bug-fix-with-coverage/  # BUG: prefix — fix + regression test workflow
 ├── migrations/                 # Versioned DB migration files (applied on startup)
 ├── data/                       # SQLite database (gitignored)
 ├── logs/                       # App and request logs (gitignored)
