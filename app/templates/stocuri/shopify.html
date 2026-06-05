@@ -11,8 +11,9 @@
     diferentele. Bifezi ce vrei sa actualizezi si apesi Sincronizeaza — stocurile se trimit direct prin API.
   </p>
 
-  <div class="mb-3">
-    <div class="dz-card p-3 border rounded" style="max-width:480px;">
+  <div class="d-flex gap-3 mb-3 flex-wrap align-items-start">
+    <!-- Left card: unchanged -->
+    <div class="dz-card p-3 border rounded" style="min-width:320px; max-width:480px;">
       <div class="fw-semibold mb-1">Raport intern stocuri</div>
       <div class="text-secondary small mb-2">.xls / .xlsx — match dupa coloana <code>codmare</code></div>
       <div class="dropzone" id="dzShopReport">
@@ -24,11 +25,32 @@
         </div>
       </div>
     </div>
+
+    <!-- Right card: Istoric sincronizari -->
+    <div class="dz-card p-3 border rounded" style="min-width:320px; max-width:480px;">
+      <div class="fw-semibold mb-1">Istoric sincronizari</div>
+      <div class="table-responsive" style="max-height:180px; overflow-y:auto;">
+        <table class="table table-sm table-hover mb-0" id="syncHistoryTable">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Fisier</th>
+            </tr>
+          </thead>
+          <tbody id="syncHistoryBody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <div class="d-flex gap-2 mb-3">
     <button id="btnShopPreview" class="btn btn-primary">Incarca stoc Shopify</button>
+    <button id="btnHistoryLoad" class="btn btn-secondary" disabled>Incarca date</button>
     <button id="btnShopSync" class="btn btn-success" disabled>Sincronizeaza pe Shopify</button>
+  </div>
+
+  <div id="shopHistoricalBanner" class="alert alert-info py-2 px-3 mb-2" hidden>
+    <small id="shopHistoricalBannerText"></small>
   </div>
 
   <div id="shopStatus" class="status mb-2"></div>
