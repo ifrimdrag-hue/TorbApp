@@ -1,7 +1,10 @@
 import logging
+import sqlite3
+from datetime import datetime
 from flask import Blueprint, request, jsonify
 from automations.stocuri_shopify.orchestrator import preview, preview_shopify_only, sync
 from automations.stocuri_shopify.api_client import ShopifyClient
+from paths import DB_PATH
 
 stocuri_shopify_bp = Blueprint('stocuri_shopify', __name__)
 logger = logging.getLogger(__name__)
@@ -58,3 +61,30 @@ async def api_shopify_connection_test():
     except Exception as exc:
         logger.exception("Shopify connection test failed")
         return jsonify({'ok': False, 'error': str(exc)})
+
+
+@stocuri_shopify_bp.route('/api/stocuri/shopify/sync-history')
+def api_shopify_sync_history():
+    try:
+        with sqlite3.connect(DB_PATH) as c:
+            c.row_factory = sqlite3.Row
+            rows = c.execute(
+                "SELECT id, sync_at, filename FROM shopify_sync_sessions"
+                " ORDER BY id DESC LIMIT 10"
+            ).fetchall()
+        result = []
+        for r in rows:
+            try:
+                dt = datetime.fromisoformat(r['sync_at'])
+                formatted = dt.strftime('%d-%m-%Y %H:%M')
+            except Exception:
+                formatted = r['sync_at']
+            result.append({
+                'id': r['id'],
+                'sync_at': formatted,
+                'filename': r['filename'] or '',
+            })
+        return jsonify(result)
+    except Exception as exc:
+        logger.exception("Shopify sync history fetch failed")
+        return jsonify({'error': str(exc)}), 500

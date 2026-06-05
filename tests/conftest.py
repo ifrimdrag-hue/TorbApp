@@ -80,3 +80,8 @@ def client(flask_app):
     rv = c.post('/auth/login', data={'username': 'testadmin', 'password': 'testpass'})
     assert rv.status_code == 302, f"Test login failed (status {rv.status_code}) — check test DB seeding"
     return c
+
+
+@pytest.fixture(scope='session')
+def db_path():
+    return _TEST_DB
