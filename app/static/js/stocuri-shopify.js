@@ -91,6 +91,111 @@ const shopFilterEl       = document.getElementById("shopFilter");
 const shopPaginationInfo = document.getElementById("shopPaginationInfo");
 const shopPrevPageBtn    = document.getElementById("shopPrevPage");
 const shopNextPageBtn    = document.getElementById("shopNextPage");
+const btnHistoryLoad        = document.getElementById("btnHistoryLoad");
+const syncHistoryBody       = document.getElementById("syncHistoryBody");
+const shopHistoricalBanner  = document.getElementById("shopHistoricalBanner");
+const shopHistoricalBannerText = document.getElementById("shopHistoricalBannerText");
+
+let selectedHistorySessionId = null;
+let isHistoricalView = false;
+
+// ───────────── Sync history ─────────────
+function renderSyncHistory(sessions) {
+  if (!sessions || !sessions.length) {
+    syncHistoryBody.innerHTML =
+      '<tr><td colspan="2" class="text-secondary small">Niciun istoric disponibil</td></tr>';
+    return;
+  }
+  syncHistoryBody.innerHTML = sessions
+    .map(
+      (s) =>
+        `<tr class="sync-history-row" data-session-id="${s.id}" style="cursor:pointer;">
+           <td class="small text-nowrap">${escapeHtml(s.sync_at)}</td>
+           <td class="small text-truncate" style="max-width:200px;" title="${escapeHtml(s.filename)}">${escapeHtml(s.filename)}</td>
+         </tr>`
+    )
+    .join("");
+}
+
+async function loadSyncHistory() {
+  try {
+    const resp = await fetch("/api/stocuri/shopify/sync-history");
+    if (!resp.ok) throw new Error(resp.statusText);
+    const sessions = await resp.json();
+    renderSyncHistory(sessions);
+  } catch (e) {
+    syncHistoryBody.innerHTML =
+      '<tr><td colspan="2" class="text-secondary small">Eroare la incarcare.</td></tr>';
+  }
+}
+
+loadSyncHistory();
+
+syncHistoryBody.addEventListener("click", (e) => {
+  const row = e.target.closest(".sync-history-row");
+  if (!row) return;
+  syncHistoryBody
+    .querySelectorAll(".sync-history-row")
+    .forEach((r) => r.classList.remove("table-active"));
+  row.classList.add("table-active");
+  selectedHistorySessionId = parseInt(row.dataset.sessionId, 10);
+  btnHistoryLoad.disabled = false;
+});
+
+function renderHistoricalView(rows, syncAt) {
+  isHistoricalView = true;
+
+  shopTableBody.innerHTML = rows
+    .map((r) => renderShopRow(r, null))
+    .join("");
+  shopTableBody
+    .querySelectorAll("input[type=checkbox]")
+    .forEach((cb) => { cb.disabled = true; });
+  shopSelectAll.disabled = true;
+
+  shopHistoricalBannerText.textContent = `Vizualizare istorica — ${syncAt}`;
+  shopHistoricalBanner.hidden = false;
+
+  shopSummaryEl.innerHTML = "";
+  shopIssuesEl.innerHTML = "";
+  shopToolbarEl.hidden = true;
+  shopPaginationInfo.textContent = `${rows.length} produse sincronizate`;
+  shopPrevPageBtn.disabled = true;
+  shopNextPageBtn.disabled = true;
+  btnShopSync.disabled = true;
+
+  shopPreviewSection.hidden = false;
+  shopSyncResults.hidden = true;
+}
+
+// Partial reset — caller must follow with renderShopPreview to restore toolbar/pagination/sync button.
+function exitHistoricalView() {
+  if (!isHistoricalView) return;
+  isHistoricalView = false;
+  shopHistoricalBanner.hidden = true;
+  shopSelectAll.disabled = false;
+}
+
+btnHistoryLoad.addEventListener("click", async () => {
+  if (!selectedHistorySessionId) return;
+  btnHistoryLoad.disabled = true;
+  btnHistoryLoad.innerHTML =
+    '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Se incarca...';
+  try {
+    const resp = await fetch(
+      `/api/stocuri/shopify/sync-history/${selectedHistorySessionId}`
+    );
+    const rows = await resp.json();
+    const activeRow = syncHistoryBody.querySelector(".sync-history-row.table-active");
+    const syncAt = activeRow ? activeRow.cells[0].textContent : "";
+    renderHistoricalView(rows, syncAt);
+  } catch (e) {
+    setShopStatus("Eroare la incarcarea datelor istorice: " + e.message, "error");
+  } finally {
+    btnHistoryLoad.disabled = false;
+    btnHistoryLoad.textContent = "Incarca date";
+  }
+});
 
 // ───────────── PaginationController ─────────────
 class PaginationController {
@@ -221,6 +326,7 @@ btnShopSync.addEventListener("click", runShopSync);
 shopSelectAll.addEventListener("change", () => shopPagination.selectAll(shopSelectAll.checked));
 
 async function runShopPreview() {
+  exitHistoricalView();
   setShopStatus("", "");
   btnShopPreview.disabled  = true;
   btnShopPreview.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Se incarca...';
@@ -303,8 +409,10 @@ async function runShopSync() {
     inventory_item_id: r.inventory_item_id,
     sku:       r.sku || "",
     name:      r.name,
+    old_stock: r.old_stock ?? null,
     new_stock: r.new_stock,
   }));
+  const report_filename = shopReportFile ? shopReportFile.name : "";
 
   setShopStatus("", "");
   btnShopSync.disabled  = true;
@@ -313,11 +421,12 @@ async function runShopSync() {
   try {
     const resp = await fetch("/api/stocuri/shopify/sync", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows_to_update }),
+      body: JSON.stringify({ rows_to_update, report_filename }),
     });
     const data = await resp.json();
     if (!resp.ok) { setShopStatus(data.error || "Eroare necunoscuta", "error"); return; }
     renderSyncResults(data);
+    await loadSyncHistory();
     const skipNote = skipped > 0 ? ` (${skipped} nemodificate, sarite)` : "";
     setShopStatus(
       `Sincronizare finalizata: ${data.success_count} succes, ${data.error_count} erori${skipNote}.`,
