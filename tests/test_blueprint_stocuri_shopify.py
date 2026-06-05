@@ -54,3 +54,21 @@ def test_sync_history_max_ten(client, db_path):
     resp = client.get('/api/stocuri/shopify/sync-history')
     data = json.loads(resp.data)
     assert len(data) == 10
+
+
+def test_sync_history_rows_for_session(client, db_path):
+    session_id = _seed_session(db_path, filename='rows_test.xlsx')
+    resp = client.get(f'/api/stocuri/shopify/sync-history/{session_id}')
+    assert resp.status_code == 200
+    rows = json.loads(resp.data)
+    assert len(rows) == 2
+    skus = {r['sku'] for r in rows}
+    assert skus == {'SKU001', 'SKU002'}
+    assert rows[0]['status'] == 'updated'
+
+
+def test_sync_history_rows_unknown_session(client):
+    resp = client.get('/api/stocuri/shopify/sync-history/99999')
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    assert data == []

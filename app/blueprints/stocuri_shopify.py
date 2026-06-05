@@ -88,3 +88,19 @@ def api_shopify_sync_history():
     except Exception as exc:
         logger.exception("Shopify sync history fetch failed")
         return jsonify({'error': str(exc)}), 500
+
+
+@stocuri_shopify_bp.route('/api/stocuri/shopify/sync-history/<int:session_id>')
+def api_shopify_sync_history_rows(session_id):
+    try:
+        with sqlite3.connect(DB_PATH) as c:
+            c.row_factory = sqlite3.Row
+            rows = c.execute(
+                """SELECT inventory_item_id, sku, name, old_stock, new_stock, status
+                   FROM shopify_sync_rows WHERE session_id = ?""",
+                (session_id,),
+            ).fetchall()
+        return jsonify([dict(r) for r in rows])
+    except Exception as exc:
+        logger.exception("Shopify sync history rows fetch failed")
+        return jsonify({'error': str(exc)}), 500
