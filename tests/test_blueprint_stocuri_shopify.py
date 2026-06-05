@@ -72,3 +72,54 @@ def test_sync_history_rows_unknown_session(client):
     assert resp.status_code == 200
     data = json.loads(resp.data)
     assert data == []
+
+
+def test_sync_saves_history_to_db(client, db_path):
+    from unittest.mock import patch, AsyncMock
+
+    fake_result = type('R', (), {
+        'results': [
+            {'ok': True,  'inventory_item_id': 'IID_HIST_A',
+             'sku': 'SKU_A', 'name': 'Produs A', 'error': None},
+            {'ok': False, 'inventory_item_id': 'IID_HIST_B',
+             'sku': 'SKU_B', 'name': 'Produs B', 'error': 'timeout'},
+        ],
+        'success_count': 1,
+        'error_count': 1,
+    })()
+
+    payload = {
+        'report_filename': 'stoc_test.xlsx',
+        'rows_to_update': [
+            {'inventory_item_id': 'IID_HIST_A', 'sku': 'SKU_A',
+             'name': 'Produs A', 'old_stock': 5, 'new_stock': 10},
+            {'inventory_item_id': 'IID_HIST_B', 'sku': 'SKU_B',
+             'name': 'Produs B', 'old_stock': 3, 'new_stock': 0},
+        ],
+    }
+
+    with patch('blueprints.stocuri_shopify.sync', new=AsyncMock(return_value=fake_result)):
+        resp = client.post(
+            '/api/stocuri/shopify/sync',
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+
+    assert resp.status_code == 200
+
+    with _sqlite3.connect(db_path) as c:
+        c.row_factory = _sqlite3.Row
+        session = c.execute(
+            "SELECT * FROM shopify_sync_sessions WHERE filename='stoc_test.xlsx'"
+            " ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        assert session is not None
+
+        rows = c.execute(
+            "SELECT * FROM shopify_sync_rows WHERE session_id=?", (session['id'],)
+        ).fetchall()
+        assert len(rows) == 1
+        assert rows[0]['inventory_item_id'] == 'IID_HIST_A'
+        assert rows[0]['old_stock'] == 5
+        assert rows[0]['new_stock'] == 10
+        assert rows[0]['status'] == 'updated'

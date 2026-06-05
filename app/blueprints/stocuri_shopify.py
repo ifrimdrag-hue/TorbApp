@@ -41,7 +41,34 @@ async def api_shopify_sync():
     try:
         data = request.get_json(force=True)
         rows_to_update = data.get('rows_to_update', [])
+        report_filename = data.get('report_filename', '')
         result = await sync(rows_to_update)
+
+        successful_ids = {
+            r['inventory_item_id'] for r in result.results if r.get('ok')
+        }
+        rows_by_id = {r['inventory_item_id']: r for r in rows_to_update}
+        rows_to_save = [rows_by_id[iid] for iid in successful_ids if iid in rows_by_id]
+
+        if rows_to_save:
+            with sqlite3.connect(DB_PATH) as c:
+                cur = c.execute(
+                    "INSERT INTO shopify_sync_sessions (sync_at, filename)"
+                    " VALUES (datetime('now','localtime'), ?)",
+                    (report_filename,),
+                )
+                session_id = cur.lastrowid
+                c.executemany(
+                    """INSERT INTO shopify_sync_rows
+                       (session_id, inventory_item_id, sku, name, old_stock, new_stock, status)
+                       VALUES (?, ?, ?, ?, ?, ?, 'updated')""",
+                    [
+                        (session_id, r['inventory_item_id'], r.get('sku', ''),
+                         r.get('name', ''), r.get('old_stock'), r['new_stock'])
+                        for r in rows_to_save
+                    ],
+                )
+
         return jsonify({
             'results': result.results,
             'success_count': result.success_count,
