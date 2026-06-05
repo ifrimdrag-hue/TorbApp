@@ -82,3 +82,13 @@ def test_forecast_setari_returns_brands(client):
     assert resp.status_code == 200
     # Page should render even with empty termene_aprovizionare
     assert b'<!DOCTYPE' in resp.data or b'<html' in resp.data
+
+
+def test_stocuri_shopify_history_elements_present(client):
+    """The /stocuri page must contain Shopify history DOM elements so the history card renders."""
+    resp = client.get('/stocuri')
+    assert resp.status_code == 200
+    html = resp.data.decode('utf-8')
+    assert 'id="syncHistoryBody"' in html, "Shopify history tbody missing from stoc page"
+    assert 'id="btnHistoryLoad"' in html, "Incarca date button missing from stoc page"
+    assert 'id="shopHistoricalBanner"' in html, "Historical view banner missing from stoc page"

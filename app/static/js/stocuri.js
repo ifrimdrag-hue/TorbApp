@@ -104,8 +104,17 @@ const PLATFORMS = {
     stockLabel: "Stoc Shopify",
     previewBtn: "Incarca stoc Shopify",
     syncBtn:    "Sincronizeaza pe Shopify",
-    buildPayload(rows) {
-      return { rows_to_update: rows.map((r) => ({ inventory_item_id: r.inventory_item_id, sku: r.sku || "", name: r.name, new_stock: r.new_stock })) };
+    buildPayload(rows, filename = "") {
+      return {
+        rows_to_update: rows.map((r) => ({
+          inventory_item_id: r.inventory_item_id,
+          sku: r.sku || "",
+          name: r.name,
+          old_stock: r.old_stock ?? null,
+          new_stock: r.new_stock,
+        })),
+        report_filename: filename,
+      };
     },
     renderSummary(s) {
       return `
@@ -157,6 +166,9 @@ let previewData  = null;
 let connTimer    = null;
 const CONN_INTERVAL = 3 * 60 * 1000;
 
+let selectedHistorySessionId = null;
+let isHistoricalView = false;
+
 // ───────────── DOM refs ─────────────
 const connDot        = document.getElementById("connDot");
 const pageDesc       = document.getElementById("pageDesc");
@@ -180,6 +192,100 @@ const thSku          = document.getElementById("thSku");
 const thExtra        = document.getElementById("thExtra");
 const thOldStock     = document.getElementById("thOldStock");
 const optNoSku       = document.getElementById("optNoSku");
+
+const shopHistoryCard          = document.getElementById("shopHistoryCard");
+const btnHistoryLoad           = document.getElementById("btnHistoryLoad");
+const syncHistoryBody          = document.getElementById("syncHistoryBody");
+const shopHistoricalBanner     = document.getElementById("shopHistoricalBanner");
+const shopHistoricalBannerText = document.getElementById("shopHistoricalBannerText");
+
+// ───────────── Sync history (Shopify only) ─────────────
+function renderSyncHistory(sessions) {
+  if (!sessions || !sessions.length) {
+    syncHistoryBody.innerHTML =
+      '<tr><td colspan="2" class="text-secondary small">Niciun istoric disponibil</td></tr>';
+    return;
+  }
+  syncHistoryBody.innerHTML = sessions
+    .map(
+      (s) =>
+        `<tr class="sync-history-row" data-session-id="${s.id}" style="cursor:pointer;">
+           <td class="small text-nowrap">${escapeHtml(s.sync_at)}</td>
+           <td class="small text-truncate" style="max-width:200px;" title="${escapeHtml(s.filename)}">${escapeHtml(s.filename)}</td>
+         </tr>`
+    )
+    .join("");
+}
+
+async function loadSyncHistory() {
+  try {
+    const resp = await fetch("/api/stocuri/shopify/sync-history");
+    if (!resp.ok) throw new Error(resp.statusText);
+    const sessions = await resp.json();
+    renderSyncHistory(sessions);
+  } catch (e) {
+    syncHistoryBody.innerHTML =
+      '<tr><td colspan="2" class="text-secondary small">Eroare la incarcare.</td></tr>';
+  }
+}
+
+syncHistoryBody.addEventListener("click", (e) => {
+  const row = e.target.closest(".sync-history-row");
+  if (!row) return;
+  syncHistoryBody
+    .querySelectorAll(".sync-history-row")
+    .forEach((r) => r.classList.remove("table-active"));
+  row.classList.add("table-active");
+  selectedHistorySessionId = parseInt(row.dataset.sessionId, 10);
+  btnHistoryLoad.disabled = false;
+});
+
+// Partial reset — caller must follow with renderPreview to restore toolbar/pagination/sync button.
+function exitHistoricalView() {
+  if (!isHistoricalView) return;
+  isHistoricalView = false;
+  shopHistoricalBanner.hidden = true;
+  stocSelectAll.disabled = false;
+}
+
+function renderHistoricalView(rows, syncAt) {
+  isHistoricalView = true;
+  stocTableBody.innerHTML = rows.map((r) => p.renderRow(r, new Set())).join("");
+  stocTableBody
+    .querySelectorAll("input[type=checkbox]")
+    .forEach((cb) => { cb.disabled = true; });
+  stocSelectAll.disabled = true;
+  shopHistoricalBannerText.textContent = `Vizualizare istorica — ${syncAt}`;
+  shopHistoricalBanner.hidden = false;
+  stocSummaryEl.innerHTML = "";
+  stocIssuesEl.innerHTML = "";
+  stocToolbarEl.hidden = true;
+  stocPageInfo.textContent = `${rows.length} produse sincronizate`;
+  stocPrevBtn.disabled = true;
+  stocNextBtn.disabled = true;
+  btnSync.disabled = true;
+  previewSection.hidden = false;
+  syncResults.hidden = true;
+}
+
+btnHistoryLoad.addEventListener("click", async () => {
+  if (!selectedHistorySessionId) return;
+  btnHistoryLoad.disabled = true;
+  btnHistoryLoad.innerHTML =
+    '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Se incarca...';
+  try {
+    const resp = await fetch(`/api/stocuri/shopify/sync-history/${selectedHistorySessionId}`);
+    const rows = await resp.json();
+    const activeRow = syncHistoryBody.querySelector(".sync-history-row.table-active");
+    const syncAt = activeRow ? activeRow.cells[0].textContent : "";
+    renderHistoricalView(rows, syncAt);
+  } catch (e) {
+    setStatus("Eroare la incarcarea datelor istorice: " + e.message, "error");
+  } finally {
+    btnHistoryLoad.disabled = false;
+    btnHistoryLoad.textContent = "Incarca date";
+  }
+});
 
 // ───────────── PaginationController ─────────────
 class PaginationController {
@@ -278,6 +384,18 @@ function applyPlatform(name) {
   document.getElementById("dzReport").classList.remove("has-file");
   document.getElementById("fileReport").value = "";
 
+  // Shopify-only elements
+  const isShopify = name === "shopify";
+  shopHistoryCard.hidden = !isShopify;
+  btnHistoryLoad.hidden  = !isShopify;
+  if (isShopify) {
+    loadSyncHistory();
+  } else {
+    exitHistoricalView();
+    selectedHistorySessionId = null;
+    btnHistoryLoad.disabled = true;
+  }
+
   // Update labels
   pageDesc.textContent     = p.desc;
   btnPreview.textContent   = p.previewBtn;
@@ -357,6 +475,7 @@ btnSync.addEventListener("click", runSync);
 
 // ───────────── Preview ─────────────
 async function runPreview() {
+  exitHistoricalView();
   setStatus("", "");
   btnPreview.disabled  = true;
   btnPreview.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Se incarca...';
@@ -422,11 +541,12 @@ async function runSync() {
   try {
     const resp = await fetch(p.syncUrl, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(p.buildPayload(changed)),
+      body: JSON.stringify(p.buildPayload(changed, reportFile ? reportFile.name : "")),
     });
     const data = await resp.json();
     if (!resp.ok) { setStatus(data.error || "Eroare necunoscuta", "error"); return; }
     renderSyncResults(data, skipped);
+    if (currentPlatform === "shopify") await loadSyncHistory();
     const skipNote = skipped > 0 ? ` (${skipped} nemodificate, sarite)` : "";
     setStatus(`Sincronizare finalizata: ${data.success_count} succes, ${data.error_count} erori${skipNote}.`,
       data.error_count ? "warning" : "success");

@@ -15,8 +15,8 @@
   </div>
   <p id="pageDesc" class="text-secondary small mb-4"></p>
 
-  <div class="mb-3">
-    <div class="dz-card p-3 border rounded" style="max-width:480px;">
+  <div class="d-flex gap-3 mb-3 flex-wrap align-items-start">
+    <div class="dz-card p-3 border rounded" style="min-width:320px; max-width:480px;">
       <div class="fw-semibold mb-1">Raport intern stocuri</div>
       <div class="text-secondary small mb-2">.xls / .xlsx</div>
       <div class="dropzone" id="dzReport">
@@ -28,11 +28,31 @@
         </div>
       </div>
     </div>
+
+    <div id="shopHistoryCard" class="dz-card p-3 border rounded" style="min-width:320px; max-width:480px;" hidden>
+      <div class="fw-semibold mb-1">Istoric sincronizari</div>
+      <div class="table-responsive" style="max-height:180px; overflow-y:auto;">
+        <table class="table table-sm table-hover mb-0" id="syncHistoryTable">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Fisier</th>
+            </tr>
+          </thead>
+          <tbody id="syncHistoryBody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <div class="d-flex gap-2 mb-3">
     <button id="btnPreview" class="btn btn-primary">Incarca stoc</button>
+    <button id="btnHistoryLoad" class="btn btn-secondary" disabled hidden>Incarca date</button>
     <button id="btnSync" class="btn btn-success" disabled>Sincronizeaza</button>
+  </div>
+
+  <div id="shopHistoricalBanner" class="alert alert-info py-2 px-3 mb-2" hidden>
+    <small id="shopHistoricalBannerText"></small>
   </div>
 
   <div id="stocStatus" class="status mb-2"></div>
