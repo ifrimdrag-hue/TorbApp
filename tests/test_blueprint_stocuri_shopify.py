@@ -76,7 +76,7 @@ def test_sync_history_rows_unknown_session(client):
     assert data == []
 
 
-def test_sync_saves_history_to_db(client, db_path):
+def test_sync_saves_history_to_db(client, db_path, testadmin_id):
     from unittest.mock import patch, AsyncMock
 
     fake_result = type('R', (), {
@@ -125,19 +125,11 @@ def test_sync_saves_history_to_db(client, db_path):
         assert rows[0]['old_stock'] == 5
         assert rows[0]['new_stock'] == 10
         assert rows[0]['status'] == 'updated'
-        assert session['user_id'] == _testadmin_id(db_path)
+        assert session['user_id'] == testadmin_id
 
 
-def _testadmin_id(db_path):
-    with _sqlite3.connect(db_path) as c:
-        return c.execute(
-            "SELECT id FROM users WHERE username='testadmin'"
-        ).fetchone()[0]
-
-
-def test_sync_history_returns_username(client, db_path):
-    uid = _testadmin_id(db_path)
-    session_id = _seed_session(db_path, filename='cu_user.xlsx', user_id=uid)
+def test_sync_history_returns_username(client, db_path, testadmin_id):
+    session_id = _seed_session(db_path, filename='cu_user.xlsx', user_id=testadmin_id)
     resp = client.get('/api/stocuri/shopify/sync-history')
     assert resp.status_code == 200
     data = json.loads(resp.data)

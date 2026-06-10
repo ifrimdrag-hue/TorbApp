@@ -85,3 +85,11 @@ def client(flask_app):
 @pytest.fixture(scope='session')
 def db_path():
     return _TEST_DB
+
+
+@pytest.fixture(scope='session')
+def testadmin_id(db_path):
+    conn = sqlite3.connect(db_path)
+    uid = conn.execute("SELECT id FROM users WHERE username='testadmin'").fetchone()[0]
+    conn.close()
+    return uid
