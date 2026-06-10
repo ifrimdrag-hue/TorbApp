@@ -15,13 +15,13 @@ def _seed_session(db_path, filename='test.xlsx', sync_at='2026-06-05 14:32:00',
     """Insert one session with two rows; return session_id."""
     with _sqlite3.connect(db_path) as c:
         cur = c.execute(
-            "INSERT INTO shopify_sync_sessions (sync_at, filename, user_id)"
+            "INSERT INTO sync_sessions (sync_at, filename, user_id)"
             " VALUES (?, ?, ?)",
             (sync_at, filename, user_id),
         )
         session_id = cur.lastrowid
         c.executemany(
-            """INSERT INTO shopify_sync_rows
+            """INSERT INTO sync_rows
                (session_id, inventory_item_id, sku, name, old_stock, new_stock, status)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             [
@@ -112,13 +112,13 @@ def test_sync_saves_history_to_db(client, db_path):
     with _sqlite3.connect(db_path) as c:
         c.row_factory = _sqlite3.Row
         session = c.execute(
-            "SELECT * FROM shopify_sync_sessions WHERE filename='stoc_test.xlsx'"
+            "SELECT * FROM sync_sessions WHERE filename='stoc_test.xlsx'"
             " ORDER BY id DESC LIMIT 1"
         ).fetchone()
         assert session is not None
 
         rows = c.execute(
-            "SELECT * FROM shopify_sync_rows WHERE session_id=?", (session['id'],)
+            "SELECT * FROM sync_rows WHERE session_id=?", (session['id'],)
         ).fetchall()
         assert len(rows) == 1
         assert rows[0]['inventory_item_id'] == 'IID_HIST_A'

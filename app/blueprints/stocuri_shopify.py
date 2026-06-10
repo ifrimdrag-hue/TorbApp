@@ -54,13 +54,13 @@ async def api_shopify_sync():
         if rows_to_save:
             with sqlite3.connect(DB_PATH) as c:
                 cur = c.execute(
-                    "INSERT INTO shopify_sync_sessions (sync_at, filename, platform, user_id)"
+                    "INSERT INTO sync_sessions (sync_at, filename, platform, user_id)"
                     " VALUES (datetime('now','localtime'), ?, 'shopify', ?)",
                     (report_filename, current_user.id),
                 )
                 session_id = cur.lastrowid
                 c.executemany(
-                    """INSERT INTO shopify_sync_rows
+                    """INSERT INTO sync_rows
                        (session_id, inventory_item_id, sku, name, old_stock, new_stock, status, platform)
                        VALUES (?, ?, ?, ?, ?, ?, 'updated', 'shopify')""",
                     [
@@ -98,7 +98,7 @@ def api_shopify_sync_history():
             c.row_factory = sqlite3.Row
             rows = c.execute(
                 "SELECT s.id, s.sync_at, s.filename, u.username"
-                " FROM shopify_sync_sessions s"
+                " FROM sync_sessions s"
                 " LEFT JOIN users u ON u.id = s.user_id"
                 " WHERE s.platform = 'shopify' ORDER BY s.id DESC LIMIT 10"
             ).fetchall()
@@ -128,7 +128,7 @@ def api_shopify_sync_history_rows(session_id):
             c.row_factory = sqlite3.Row
             rows = c.execute(
                 """SELECT inventory_item_id, sku, name, old_stock, new_stock, status
-                   FROM shopify_sync_rows WHERE session_id = ?""",
+                   FROM sync_rows WHERE session_id = ?""",
                 (session_id,),
             ).fetchall()
         return jsonify([dict(r) for r in rows])
