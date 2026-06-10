@@ -15,11 +15,11 @@
   </div>
   <p id="pageDesc" class="text-secondary small mb-4"></p>
 
-  <div class="d-flex gap-3 mb-3 flex-wrap align-items-start">
-    <div class="dz-card p-3 border rounded" style="min-width:320px; max-width:480px;">
+  <div class="mb-3" style="display:grid; grid-template-columns: minmax(320px,480px) minmax(320px,480px); gap:1rem; align-items:stretch;">
+    <div id="raportInternCard" class="dz-card p-3 border rounded d-flex flex-column" style="height:300px;">
       <div class="fw-semibold mb-1">Raport intern stocuri</div>
       <div class="text-secondary small mb-2">.xls / .xlsx</div>
-      <div class="dropzone" id="dzReport">
+      <div class="dropzone flex-grow-1" id="dzReport">
         <input type="file" id="fileReport" accept=".xls,.xlsx" hidden />
         <div class="dz-inner text-center py-3">
           <strong>Trage fisierul aici</strong><br>
@@ -27,11 +27,15 @@
           <small id="nameReport" class="text-info"></small>
         </div>
       </div>
+      <div class="d-flex gap-2 mt-2">
+        <button id="btnPreview" class="btn btn-primary">Incarca stoc</button>
+        <button id="btnSync" class="btn btn-success" disabled>Sincronizeaza</button>
+      </div>
     </div>
 
-    <div id="shopHistoryCard" class="dz-card p-3 border rounded" style="min-width:320px; max-width:480px;" hidden>
+    <div id="shopHistoryCard" class="dz-card p-3 border rounded d-flex flex-column" style="height:300px; min-height:0;">
       <div class="fw-semibold mb-1">Istoric sincronizari</div>
-      <div class="table-responsive" style="max-height:180px; overflow-y:auto;">
+      <div class="table-responsive flex-grow-1" style="min-height:0; max-height:200px; overflow-y:auto;">
         <table class="table table-sm table-hover mb-0" id="syncHistoryTable">
           <thead>
             <tr>
@@ -42,13 +46,10 @@
           <tbody id="syncHistoryBody"></tbody>
         </table>
       </div>
+      <div class="mt-2">
+        <button id="btnHistoryLoad" class="btn btn-secondary" disabled>Incarca date istorice</button>
+      </div>
     </div>
-  </div>
-
-  <div class="d-flex gap-2 mb-3">
-    <button id="btnPreview" class="btn btn-primary">Incarca stoc</button>
-    <button id="btnHistoryLoad" class="btn btn-secondary" disabled hidden>Incarca date</button>
-    <button id="btnSync" class="btn btn-success" disabled>Sincronizeaza</button>
   </div>
 
   <div id="shopHistoricalBanner" class="alert alert-info py-2 px-3 mb-2" hidden>
@@ -61,15 +62,23 @@
     <div id="stocSummary" class="mb-3"></div>
     <div id="stocIssues" class="issues"></div>
 
-    <div class="emag-toolbar mb-2" id="stocToolbar" hidden>
-      <label class="emag-filter-label me-2">Filtreaza:</label>
-      <select id="stocFilter" class="form-select form-select-sm d-inline-block w-auto">
-        <option value="">Toate</option>
-        <option value="updated">De actualizat</option>
-        <option value="zeroed_threshold">Zerificate</option>
-        <option value="unchanged">Nemodificate</option>
-        <option id="optNoSku" value="no_ean">Fara EAN</option>
-      </select>
+    <div class="emag-toolbar mb-2 d-flex align-items-center gap-2 flex-wrap" id="stocToolbar">
+      <label class="emag-filter-label me-1">Filtreaza:</label>
+      <span id="stocStatusFilter" hidden>
+        <select id="stocFilter" class="form-select form-select-sm d-inline-block w-auto">
+          <option value="">Toate</option>
+          <option value="updated">De actualizat</option>
+          <option value="zeroed_threshold">Zerificate</option>
+          <option value="unchanged">Nemodificate</option>
+          <option id="optNoSku" value="no_ean">Fara EAN</option>
+        </select>
+      </span>
+      <div class="input-group input-group-sm d-inline-flex w-auto">
+        <input type="text" id="stocSearch" class="form-control" placeholder="Produs sau SKU (min. 3 car.)" style="width:230px;">
+        <button id="btnStocSearch" class="btn btn-outline-secondary" type="button" title="Cauta">
+          <i class="bi bi-search"></i>
+        </button>
+      </div>
     </div>
 
     <div class="emag-table-wrap table-responsive">

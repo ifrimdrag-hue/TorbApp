@@ -45,8 +45,17 @@ const PLATFORMS = {
     stockLabel: "Stoc eMAG",
     previewBtn: "Incarca stoc eMAG",
     syncBtn:    "Sincronizeaza pe eMAG",
-    buildPayload(rows) {
-      return { rows_to_update: rows.map((r) => ({ offer_id: r.offer_id, ean: r.ean || "", name: r.name, new_stock: r.new_stock, part_number_key: r.part_number_key || "" })) };
+    historyUrl:     "/api/stocuri/emag/sync-history",
+    historyRowsUrl: (id) => `/api/stocuri/emag/sync-history/${id}`,
+    buildPayload(rows, filename = "") {
+      return {
+        rows_to_update: rows.map((r) => ({
+          offer_id: r.offer_id, ean: r.ean || "", name: r.name,
+          old_stock: r.old_stock ?? null, new_stock: r.new_stock,
+          part_number_key: r.part_number_key || "",
+        })),
+        report_filename: filename,
+      };
     },
     renderSummary(s) {
       return `
@@ -102,8 +111,10 @@ const PLATFORMS = {
     noSkuFilter:"Fara SKU",
     hasExtra:   false,
     stockLabel: "Stoc Shopify",
-    previewBtn: "Incarca stoc Shopify",
-    syncBtn:    "Sincronizeaza pe Shopify",
+    previewBtn:     "Incarca stoc Shopify",
+    syncBtn:        "Sincronizeaza pe Shopify",
+    historyUrl:     "/api/stocuri/shopify/sync-history",
+    historyRowsUrl: (id) => `/api/stocuri/shopify/sync-history/${id}`,
     buildPayload(rows, filename = "") {
       return {
         rows_to_update: rows.map((r) => ({
@@ -183,8 +194,11 @@ const syncResults    = document.getElementById("syncResults");
 const syncSummaryEl  = document.getElementById("syncSummary");
 const syncErrorsEl   = document.getElementById("syncErrors");
 const stocSelectAll  = document.getElementById("stocSelectAll");
-const stocToolbarEl  = document.getElementById("stocToolbar");
-const stocFilterEl   = document.getElementById("stocFilter");
+const stocToolbarEl      = document.getElementById("stocToolbar");
+const stocStatusFilterEl = document.getElementById("stocStatusFilter");
+const stocFilterEl       = document.getElementById("stocFilter");
+const stocSearchEl   = document.getElementById("stocSearch");
+const btnStocSearch  = document.getElementById("btnStocSearch");
 const stocPageInfo   = document.getElementById("stocPageInfo");
 const stocPrevBtn    = document.getElementById("stocPrevPage");
 const stocNextBtn    = document.getElementById("stocNextPage");
@@ -219,7 +233,7 @@ function renderSyncHistory(sessions) {
 
 async function loadSyncHistory() {
   try {
-    const resp = await fetch("/api/stocuri/shopify/sync-history");
+    const resp = await fetch(p.historyUrl);
     if (!resp.ok) throw new Error(resp.statusText);
     const sessions = await resp.json();
     renderSyncHistory(sessions);
@@ -259,7 +273,7 @@ function renderHistoricalView(rows, syncAt) {
   shopHistoricalBanner.hidden = false;
   stocSummaryEl.innerHTML = "";
   stocIssuesEl.innerHTML = "";
-  stocToolbarEl.hidden = true;
+  stocStatusFilterEl.hidden = true;
   stocPageInfo.textContent = `${rows.length} produse sincronizate`;
   stocPrevBtn.disabled = true;
   stocNextBtn.disabled = true;
@@ -274,7 +288,7 @@ btnHistoryLoad.addEventListener("click", async () => {
   btnHistoryLoad.innerHTML =
     '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Se incarca...';
   try {
-    const resp = await fetch(`/api/stocuri/shopify/sync-history/${selectedHistorySessionId}`);
+    const resp = await fetch(p.historyRowsUrl(selectedHistorySessionId));
     const rows = await resp.json();
     const activeRow = syncHistoryBody.querySelector(".sync-history-row.table-active");
     const syncAt = activeRow ? activeRow.cells[0].textContent : "";
@@ -283,7 +297,7 @@ btnHistoryLoad.addEventListener("click", async () => {
     setStatus("Eroare la incarcarea datelor istorice: " + e.message, "error");
   } finally {
     btnHistoryLoad.disabled = false;
-    btnHistoryLoad.textContent = "Incarca date";
+    btnHistoryLoad.textContent = "Incarca date istorice";
   }
 });
 
@@ -295,6 +309,7 @@ class PaginationController {
     this._tableBody = tableBody; this._infoEl = infoEl;
     this._prevEl = prevEl; this._nextEl = nextEl;
     this._sortKey = null; this._sortDir = "asc";
+    this._statusFilter = ""; this._searchQuery = "";
     prevEl.addEventListener("click", () => this._goTo(this._page - 1));
     nextEl.addEventListener("click", () => this._goTo(this._page + 1));
     tableBody.addEventListener("change", (e) => {
@@ -304,7 +319,7 @@ class PaginationController {
       else            this._selectedIds.delete(cb.dataset.id);
     });
   }
-  reset() { this._all = []; this._filtered = []; this._selectedIds = new Set(); this._page = 0; this._tableBody.innerHTML = ""; this._infoEl.textContent = ""; this._prevEl.disabled = true; this._nextEl.disabled = true; }
+  reset() { this._all = []; this._filtered = []; this._selectedIds = new Set(); this._page = 0; this._statusFilter = ""; this._searchQuery = ""; this._tableBody.innerHTML = ""; this._infoEl.textContent = ""; this._prevEl.disabled = true; this._nextEl.disabled = true; }
   setRows(rows) {
     this._all = rows;
     this._filtered = [...rows];
@@ -313,12 +328,20 @@ class PaginationController {
     );
     this._applySort(); this._goTo(0);
   }
-  setFilter(status) {
-    if (status === "updated") {
-      this._filtered = this._all.filter((r) => r.new_stock != null && r.new_stock !== r.old_stock);
-    } else {
-      this._filtered = status ? this._all.filter((r) => r.status === status) : [...this._all];
+  setFilter(status) { this._statusFilter = status; this._applyFilters(); }
+  setSearch(query)  { this._searchQuery  = query;  this._applyFilters(); }
+  _applyFilters() {
+    let rows = this._all;
+    if (this._statusFilter === "updated") {
+      rows = rows.filter((r) => r.new_stock != null && r.new_stock !== r.old_stock);
+    } else if (this._statusFilter) {
+      rows = rows.filter((r) => r.status === this._statusFilter);
     }
+    if (this._searchQuery.length >= 3) {
+      const q = this._searchQuery.toLowerCase();
+      rows = rows.filter((r) => (r.name || "").toLowerCase().includes(q) || (r[p.skuField] || "").toLowerCase().includes(q));
+    }
+    this._filtered = rows;
     this._applySort(); this._goTo(0);
   }
   setSort(key) {
@@ -344,7 +367,7 @@ class PaginationController {
     });
     this._renderPage();
   }
-  getSelectedRows() { return this._all.filter((r) => this._selectedIds.has(p.rowId(r))); }
+  getSelectedRows() { return this._filtered.filter((r) => this._selectedIds.has(p.rowId(r))); }
   _goTo(page) {
     const total = this._filtered.length;
     this._page = Math.max(0, Math.min(page, Math.max(0, Math.ceil(total / this._pageSize) - 1)));
@@ -379,22 +402,17 @@ function applyPlatform(name) {
   btnSync.disabled = true;
   stocSelectAll.checked = false;
   stocFilterEl.value    = "";
-  stocToolbarEl.hidden  = true;
+  stocSearchEl.value    = "";
+  stocStatusFilterEl.hidden  = true;
   document.getElementById("nameReport").textContent = "";
   document.getElementById("dzReport").classList.remove("has-file");
   document.getElementById("fileReport").value = "";
 
-  // Shopify-only elements
-  const isShopify = name === "shopify";
-  shopHistoryCard.hidden = !isShopify;
-  btnHistoryLoad.hidden  = !isShopify;
-  if (isShopify) {
-    loadSyncHistory();
-  } else {
-    exitHistoricalView();
-    selectedHistorySessionId = null;
-    btnHistoryLoad.disabled = true;
-  }
+  // History card — visible for both platforms, reset on switch
+  exitHistoricalView();
+  selectedHistorySessionId = null;
+  btnHistoryLoad.disabled = true;
+  loadSyncHistory();
 
   // Update labels
   pageDesc.textContent     = p.desc;
@@ -469,6 +487,14 @@ document.querySelectorAll("#stocTable thead th[data-sort]").forEach((th) => {
 });
 
 stocFilterEl.addEventListener("change", () => pagination.setFilter(stocFilterEl.value));
+
+function runSearch() {
+  const q = stocSearchEl.value.trim();
+  if (q.length > 0 && q.length < 3) return;
+  pagination.setSearch(q);
+}
+btnStocSearch.addEventListener("click", runSearch);
+stocSearchEl.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
 stocSelectAll.addEventListener("change", () => pagination.selectAll(stocSelectAll.checked));
 btnPreview.addEventListener("click", runPreview);
 btnSync.addEventListener("click", runSync);
@@ -512,7 +538,7 @@ function renderPreview(data) {
 
   document.querySelector(".emag-table-wrap").classList.toggle("table--emag-only", !data.has_report);
   btnSync.disabled     = !data.has_report;
-  stocToolbarEl.hidden = !data.has_report;
+  stocStatusFilterEl.hidden = !data.has_report;
   if (!data.has_report) stocFilterEl.value = "";
 
   pagination.setRows(data.rows);
@@ -546,7 +572,7 @@ async function runSync() {
     const data = await resp.json();
     if (!resp.ok) { setStatus(data.error || "Eroare necunoscuta", "error"); return; }
     renderSyncResults(data, skipped);
-    if (currentPlatform === "shopify") await loadSyncHistory();
+    await loadSyncHistory();
     const skipNote = skipped > 0 ? ` (${skipped} nemodificate, sarite)` : "";
     setStatus(`Sincronizare finalizata: ${data.success_count} succes, ${data.error_count} erori${skipNote}.`,
       data.error_count ? "warning" : "success");

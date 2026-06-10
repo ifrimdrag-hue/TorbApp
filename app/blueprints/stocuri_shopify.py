@@ -53,15 +53,15 @@ async def api_shopify_sync():
         if rows_to_save:
             with sqlite3.connect(DB_PATH) as c:
                 cur = c.execute(
-                    "INSERT INTO shopify_sync_sessions (sync_at, filename)"
-                    " VALUES (datetime('now','localtime'), ?)",
+                    "INSERT INTO shopify_sync_sessions (sync_at, filename, platform)"
+                    " VALUES (datetime('now','localtime'), ?, 'shopify')",
                     (report_filename,),
                 )
                 session_id = cur.lastrowid
                 c.executemany(
                     """INSERT INTO shopify_sync_rows
-                       (session_id, inventory_item_id, sku, name, old_stock, new_stock, status)
-                       VALUES (?, ?, ?, ?, ?, ?, 'updated')""",
+                       (session_id, inventory_item_id, sku, name, old_stock, new_stock, status, platform)
+                       VALUES (?, ?, ?, ?, ?, ?, 'updated', 'shopify')""",
                     [
                         (session_id, r['inventory_item_id'], r.get('sku', ''),
                          r.get('name', ''), r.get('old_stock'), r['new_stock'])
@@ -97,7 +97,7 @@ def api_shopify_sync_history():
             c.row_factory = sqlite3.Row
             rows = c.execute(
                 "SELECT id, sync_at, filename FROM shopify_sync_sessions"
-                " ORDER BY id DESC LIMIT 10"
+                " WHERE platform = 'shopify' ORDER BY id DESC LIMIT 10"
             ).fetchall()
         result = []
         for r in rows:

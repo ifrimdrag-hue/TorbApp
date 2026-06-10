@@ -1,7 +1,12 @@
 import logging
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for
-from automations.stocuri_emag.orchestrator import preview, preview_emag_only, sync
+import sqlite3
+from datetime import datetime
+
+from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+
 from automations.stocuri_emag.api_client import EmagClient
+from automations.stocuri_emag.orchestrator import preview, preview_emag_only, sync
+from paths import DB_PATH
 
 stocuri_emag_bp = Blueprint('stocuri_emag', __name__)
 
@@ -43,7 +48,32 @@ async def api_emag_sync():
     try:
         data = request.get_json(force=True)
         rows_to_update = data.get('rows_to_update', [])
+        report_filename = data.get('report_filename', '')
         result = await sync(rows_to_update)
+
+        successful_ids = {r['offer_id'] for r in result.results if r.get('ok')}
+        rows_by_id = {r['offer_id']: r for r in rows_to_update}
+        rows_to_save = [rows_by_id[oid] for oid in successful_ids if oid in rows_by_id]
+
+        if rows_to_save:
+            with sqlite3.connect(DB_PATH) as c:
+                cur = c.execute(
+                    "INSERT INTO shopify_sync_sessions (sync_at, filename, platform)"
+                    " VALUES (datetime('now','localtime'), ?, 'emag')",
+                    (report_filename,),
+                )
+                session_id = cur.lastrowid
+                c.executemany(
+                    """INSERT INTO shopify_sync_rows
+                       (session_id, inventory_item_id, sku, name, old_stock, new_stock, status, platform)
+                       VALUES (?, ?, ?, ?, ?, ?, 'updated', 'emag')""",
+                    [
+                        (session_id, str(r['offer_id']), r.get('ean', ''),
+                         r.get('name', ''), r.get('old_stock'), r['new_stock'])
+                        for r in rows_to_save
+                    ],
+                )
+
         return jsonify({
             'results': result.results,
             'success_count': result.success_count,
@@ -63,3 +93,43 @@ async def api_emag_connection_test():
     except Exception as exc:
         logger.exception("eMAG connection test failed")
         return jsonify({'ok': False, 'error': str(exc)})
+
+
+@stocuri_emag_bp.route('/api/stocuri/emag/sync-history')
+def api_emag_sync_history():
+    try:
+        with sqlite3.connect(DB_PATH) as c:
+            c.row_factory = sqlite3.Row
+            rows = c.execute(
+                "SELECT id, sync_at, filename FROM shopify_sync_sessions"
+                " WHERE platform = 'emag' ORDER BY id DESC LIMIT 10"
+            ).fetchall()
+        result = []
+        for r in rows:
+            try:
+                dt = datetime.fromisoformat(r['sync_at'])
+                formatted = dt.strftime('%d-%m-%Y %H:%M')
+            except Exception:
+                formatted = r['sync_at']
+            result.append({'id': r['id'], 'sync_at': formatted, 'filename': r['filename'] or ''})
+        return jsonify(result)
+    except Exception as exc:
+        logger.exception("eMAG sync history fetch failed")
+        return jsonify({'error': str(exc)}), 500
+
+
+@stocuri_emag_bp.route('/api/stocuri/emag/sync-history/<int:session_id>')
+def api_emag_sync_history_rows(session_id):
+    try:
+        with sqlite3.connect(DB_PATH) as c:
+            c.row_factory = sqlite3.Row
+            rows = c.execute(
+                """SELECT inventory_item_id AS offer_id, sku AS ean,
+                          name, old_stock, new_stock, status
+                   FROM shopify_sync_rows WHERE session_id = ? AND platform = 'emag'""",
+                (session_id,),
+            ).fetchall()
+        return jsonify([dict(r) for r in rows])
+    except Exception as exc:
+        logger.exception("eMAG sync history rows fetch failed")
+        return jsonify({'error': str(exc)}), 500

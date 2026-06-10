@@ -160,11 +160,11 @@ async def sync(rows_to_update: list[dict]) -> SyncResult:
     Args:
         rows_to_update: list of {offer_id, ean, name, new_stock}
     """
+    warehouse_id = settings.emag_warehouse_id
     updates = [
         {
             "id": r["offer_id"],
-            "part_number_key": r.get("part_number_key") or "",
-            "stock": r["new_stock"],
+            "stock": [{"warehouse_id": warehouse_id, "value": r["new_stock"]}],
         }
         for r in rows_to_update
     ]

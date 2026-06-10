@@ -52,7 +52,7 @@ class EmagClient:
         async with httpx.AsyncClient(timeout=self._timeout, auth=self._auth) as client:
             while True:
                 url = f"{self.base_url}/product_offer/read"
-                payload = {"currentPage": page, "itemsPerPage": per_page}
+                payload = {"currentPage": page, "itemsPerPage": per_page, "status": 1}
                 with request_logger.capture(url=url, payload=payload) as ctx:
                     resp = await client.post(url, json=payload)
                     ctx.status_code = resp.status_code
@@ -75,7 +75,7 @@ class EmagClient:
         eMAG rate limits (3 req/sec cumulative for non-order resources).
 
         Args:
-            updates: list of {"id": offer_id, "part_number_key": str, "stock": qty}
+            updates: list of {"id": offer_id, "stock": qty}
 
         Returns:
             list of {"id": offer_id, "ok": bool, "error": str | None}
