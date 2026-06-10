@@ -217,7 +217,7 @@ const shopHistoricalBannerText = document.getElementById("shopHistoricalBannerTe
 function renderSyncHistory(sessions) {
   if (!sessions || !sessions.length) {
     syncHistoryBody.innerHTML =
-      '<tr><td colspan="2" class="text-secondary small">Niciun istoric disponibil</td></tr>';
+      '<tr><td colspan="3" class="text-secondary small">Niciun istoric disponibil</td></tr>';
     return;
   }
   syncHistoryBody.innerHTML = sessions
@@ -226,6 +226,7 @@ function renderSyncHistory(sessions) {
         `<tr class="sync-history-row" data-session-id="${s.id}" style="cursor:pointer;">
            <td class="small text-nowrap">${escapeHtml(s.sync_at)}</td>
            <td class="small text-truncate" style="max-width:200px;" title="${escapeHtml(s.filename)}">${escapeHtml(s.filename)}</td>
+           <td class="small text-nowrap">${s.username ? escapeHtml(s.username) : "&mdash;"}</td>
          </tr>`
     )
     .join("");
@@ -239,7 +240,7 @@ async function loadSyncHistory() {
     renderSyncHistory(sessions);
   } catch (e) {
     syncHistoryBody.innerHTML =
-      '<tr><td colspan="2" class="text-secondary small">Eroare la incarcare.</td></tr>';
+      '<tr><td colspan="3" class="text-secondary small">Eroare la incarcare.</td></tr>';
   }
 }
 
