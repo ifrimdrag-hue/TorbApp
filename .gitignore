@@ -23,6 +23,11 @@ __pycache__/
 docs/superpowers/specs/
 extra/
 
+# Manuals — only compiled PDFs are versioned
+docs/manuals/**
+!docs/manuals/**/
+!docs/manuals/**/*.pdf
+
 # Windows crash dumps
 *.stackdump
 
