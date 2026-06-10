@@ -23,10 +23,10 @@ import sqlite3
 import numpy as np
 import pandas as pd
 
-from forecast.data import weekly_brand_channel
-from forecast.models import (apply_overlays, compute_q4_multipliers,
-                             compute_summer_dampener, fit_and_forecast)
-from forecast.schema import DB_PATH
+from .data import weekly_brand_channel
+from .models import (apply_overlays, compute_q4_multipliers,
+                     compute_summer_dampener, fit_and_forecast)
+from .schema import DB_PATH
 
 
 def _wape(y_true, y_pred):

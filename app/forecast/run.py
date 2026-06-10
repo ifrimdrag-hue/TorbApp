@@ -21,12 +21,12 @@ from datetime import datetime
 
 import pandas as pd
 
-from forecast.data import weekly_brand_channel, sku_mix_recent
-from forecast.hierarchy import allocate_to_sku
-from forecast.models import (apply_overlays, compute_q4_multipliers,
-                             compute_summer_dampener, fit_and_forecast)
-from forecast.reorder import compute_reorder
-from forecast.schema import DB_PATH, init_schema
+from .data import weekly_brand_channel, sku_mix_recent
+from .hierarchy import allocate_to_sku
+from .models import (apply_overlays, compute_q4_multipliers,
+                     compute_summer_dampener, fit_and_forecast)
+from .reorder import compute_reorder
+from .schema import DB_PATH, init_schema
 
 LOCK_FILE = os.path.join(os.path.dirname(DB_PATH), ".forecast.lock")
 

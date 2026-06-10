@@ -3,8 +3,8 @@ import json
 import logging
 from flask import Blueprint, render_template, request, abort, send_file
 import queries
-import ppt_export
-from excel_export import send_excel, timestamped_filename
+from exports import ppt_export
+from exports.excel_export import send_excel, timestamped_filename
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -503,7 +503,7 @@ def raportare_basilur_ppt():
 
 @reports_bp.route('/export/comenzi/<int:comanda_id>')
 def export_comanda_intern(comanda_id):
-    from excel_export import export_comenzi_intern
+    from exports.excel_export import export_comenzi_intern
     cmd = queries.query_one("SELECT nr_comanda, furnizor FROM comenzi_furnizori WHERE id=?", (comanda_id,))
     if not cmd:
         return "Comanda nu există", 404
@@ -515,7 +515,7 @@ def export_comanda_intern(comanda_id):
 
 @reports_bp.route('/export/comenzi/<int:comanda_id>/furnizor')
 def export_comanda_furnizor(comanda_id):
-    from excel_export import export_comenzi_basilur, export_comenzi_intern
+    from exports.excel_export import export_comenzi_basilur, export_comenzi_intern
     cmd = queries.query_one("SELECT nr_comanda, furnizor FROM comenzi_furnizori WHERE id=?", (comanda_id,))
     if not cmd:
         return "Comanda nu există", 404
@@ -531,7 +531,7 @@ def export_comanda_furnizor(comanda_id):
 
 @reports_bp.route('/export/expirare')
 def export_expirare_view():
-    from excel_export import export_expirare
+    from exports.excel_export import export_expirare
     brand = request.args.get('brand', '') or None
     prag  = int(request.args.get('prag', 6))
     out   = export_expirare(furnizor=brand, prag_luni=prag)

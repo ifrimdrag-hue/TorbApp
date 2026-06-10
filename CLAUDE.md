@@ -30,12 +30,12 @@ To rebuild: `python etl/import_to_sqlite.py`
 Forecast tables (Faza 1 livrată pe 2026-04-19): `brands_config`, `stock_snapshot`, `forecast_runs`, `forecasts`, `reorder_suggestions`, `forecast_backtests`. Schema created by **migration 0004** — auto-applied on Flask startup (no manual step needed).
 
 ## Forecast module
-Localizare: `forecast/` + pagina `/forecast` în Flask.
+Localizare: `app/forecast/` + pagina `/forecast` în Flask.
 
 - **Setup:** `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt` (adăugate: pandas, numpy, scipy, statsforecast, openpyxl).
 - **Import stoc:** `python etl/import_stoc.py docs_input/stoc.xlsx` — coloane detectate flexibil (cod_produs, stoc, opțional sku/furnizor/on_order).
-- **Rulează forecast:** `python3 -m forecast.run --brand Basilur --horizon 20` sau `--all`.
-- **Backtest:** `python3 -m forecast.backtest --brand Basilur` — rolling-origin 3 folds × 13 săpt; raportează WAPE/MASE/bias/service-level.
+- **Rulează forecast:** `.\tools\run_forecast.ps1 --brand Basilur --horizon 20` sau `--all`.
+- **Backtest:** `.\tools\run_backtest.ps1 --brand Basilur` — rolling-origin 3 folds × 13 săpt; raportează WAPE/MASE/bias/service-level.
 - **UI:** pornește `Start-Hub.bat` (Windows) sau `tools\Start-Hub.ps1` în PowerShell, apoi `http://localhost:5000/forecast`.
 - **Reguli business în `brands_config`:** Basilur lead time 16 săpt + SL 99% + creditare furnizor; Toras/Delaviuda au flag `summer_restriction`; restul lead time 4 săpt.
 
@@ -68,7 +68,7 @@ All new files must follow this layout. Never add `.py` files to root.
 |-----------|---------------|
 | `app/` | Flask web application only: routes, db, queries, AI helpers, Excel/PPT exports, migrations |
 | `etl/` | Data pipeline scripts: `import_*.py`, `rebuild_*.py`, `init_*.py`, `update_*.py` |
-| `forecast/` | Forecast CLI package (statsforecast-based) — standalone, do not mix with app/ |
+| `app/forecast/` | Forecast package: statistical engine, data queries, CLI, Flask-facing logic, AI agent |
 | `tools/` | Windows launcher scripts (`Start-Hub.ps1`); `Start-Hub.bat` is at project root |
 | `tests/` | pytest test files |
 | `context/` | Project research, reference markdown files, strategic docs (`plan_strategic_5ani.md`, `STATUS.md`, `torb_background.md`) |

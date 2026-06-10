@@ -11,7 +11,7 @@ from bonus_calc import (
     STRATEGIC_WEIGHTS_DEFAULT,
     simulate,
 )
-from excel_export import send_excel, timestamped_filename
+from exports.excel_export import send_excel, timestamped_filename
 
 bonus_bp = Blueprint('bonus', __name__)
 

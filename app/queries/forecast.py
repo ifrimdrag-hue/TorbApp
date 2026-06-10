@@ -263,7 +263,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
         ORDER BY zile_stoc ASC NULLS LAST, valoare_stoc DESC
     """, params)
 
-    import forecast_logic
+    from forecast import forecast_logic
 
     transit_by_sku = {}
     transit_sku_meta = {}  # {sku: {'furnizor': ..., 'cod_produs': ...}}

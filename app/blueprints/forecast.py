@@ -9,8 +9,8 @@ import uuid as _uuid
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, abort
 import queries
 import db
-import forecast_logic
-from excel_export import send_excel, timestamped_filename
+from forecast import forecast_logic
+from exports.excel_export import send_excel, timestamped_filename
 import paths
 
 logger = logging.getLogger(__name__)
@@ -708,7 +708,7 @@ def api_forecast_chat():
     if not question:
         return jsonify({'error': 'ÃŽntrebarea lipsÄƒ'}), 400
     try:
-        from forecast_agent import forecast_ask
+        from forecast.forecast_agent import forecast_ask
         result = forecast_ask(question, furnizor)
         return jsonify(result)
     except Exception as exc:

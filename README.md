@@ -107,15 +107,15 @@ Database migrations run automatically on Flask startup (`app/migrate.py`).
 
 The demand forecast engine lives in `forecast/` and is accessible at `/forecast` in the web app.
 
-```bash
+```powershell
 # Run forecast for a single brand (horizon = weeks ahead)
-python -m forecast.run --brand Basilur --horizon 20
+.\tools\run_forecast.ps1 --brand Basilur --horizon 20
 
 # Run forecast for all brands
-python -m forecast.run --all
+.\tools\run_forecast.ps1 --all
 
 # Rolling-origin backtest (3 folds × 13 weeks)
-python -m forecast.backtest --brand Basilur
+.\tools\run_backtest.ps1 --brand Basilur
 ```
 
 Results are stored in `data/torb.db` (tables: `forecasts`, `reorder_suggestions`, `forecast_runs`, `forecast_backtests`). Business rules per brand (lead times, safety stock, seasonal restrictions) are in the `brands_config` table.
@@ -220,12 +220,15 @@ torbapp/
 │   │   └── ...
 │   ├── templates/              # Jinja2 HTML templates
 │   └── static/                 # CSS, JS assets
-├── forecast/                   # Demand forecasting CLI package
-│   ├── run.py                  # CLI entry point
-│   ├── backtest.py             # Rolling-origin backtest
-│   ├── models.py               # AutoETS + seasonal overlays
-│   ├── reorder.py              # Reorder suggestion logic
-│   └── schema.py               # Forecast table DDL
+│   ├── forecast/               # Demand forecasting package
+│   │   ├── run.py              # CLI pipeline (use tools/run_forecast.ps1)
+│   │   ├── backtest.py         # Rolling-origin backtest
+│   │   ├── models.py           # AutoETS + seasonal overlays
+│   │   ├── reorder.py          # Reorder suggestion logic
+│   │   ├── schema.py           # Forecast table DDL + DB_PATH
+│   │   ├── forecast_logic.py   # Procurement suggestion logic (Flask-facing)
+│   │   ├── forecast_engine.py  # ForecastEngine data class
+│   │   └── forecast_agent.py   # AI procurement agent
 ├── etl/                        # Data pipeline scripts (run from project root)
 │   ├── import_to_sqlite.py     # Main transaction data import
 │   ├── import_stoc.py          # Stock snapshot import
