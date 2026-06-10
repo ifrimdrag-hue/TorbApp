@@ -9,6 +9,7 @@ logs/
 *.log
 
 # Python
+test_results.txt
 __pycache__/
 *.py[cod]
 *$py.class
