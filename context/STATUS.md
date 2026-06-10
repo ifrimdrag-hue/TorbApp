@@ -55,6 +55,9 @@
 
 ## Livrări recente
 
+- **2026-06-10 — Audit utilizator pe sincronizările de stoc.**
+  `sync_sessions.user_id` (migration 0008) înregistrează cine a rulat fiecare sync eMAG/Shopify; username afișat în istoricul din `/stocuri`. Tabelele redenumite `shopify_sync_*` → `sync_sessions`/`sync_rows` (migration 0009 — prefix obsolet de când sunt multi-platform). Teste noi pentru istoric eMAG + fixture comun `testadmin_id`. 79 teste trec.
+
 - **2026-06-04 — Technical debt phases 1–3 livrate + DB cleanup.**
   - Dead code eliminat: `etl/init_forecast_tables.py`, `app/db_stock.py`, `data/stock.db`, tabel orfan `clienti_export_old`.
   - Model AI actualizat: `claude-opus-4-7` (retras) → `claude-sonnet-4-6` în `app/config.py`.
