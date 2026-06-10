@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime
 
 from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+from flask_login import current_user
 
 from automations.stocuri_emag.api_client import EmagClient
 from automations.stocuri_emag.orchestrator import preview, preview_emag_only, sync
@@ -58,9 +59,9 @@ async def api_emag_sync():
         if rows_to_save:
             with sqlite3.connect(DB_PATH) as c:
                 cur = c.execute(
-                    "INSERT INTO shopify_sync_sessions (sync_at, filename, platform)"
-                    " VALUES (datetime('now','localtime'), ?, 'emag')",
-                    (report_filename,),
+                    "INSERT INTO shopify_sync_sessions (sync_at, filename, platform, user_id)"
+                    " VALUES (datetime('now','localtime'), ?, 'emag', ?)",
+                    (report_filename, current_user.id),
                 )
                 session_id = cur.lastrowid
                 c.executemany(
@@ -101,8 +102,10 @@ def api_emag_sync_history():
         with sqlite3.connect(DB_PATH) as c:
             c.row_factory = sqlite3.Row
             rows = c.execute(
-                "SELECT id, sync_at, filename FROM shopify_sync_sessions"
-                " WHERE platform = 'emag' ORDER BY id DESC LIMIT 10"
+                "SELECT s.id, s.sync_at, s.filename, u.username"
+                " FROM shopify_sync_sessions s"
+                " LEFT JOIN users u ON u.id = s.user_id"
+                " WHERE s.platform = 'emag' ORDER BY s.id DESC LIMIT 10"
             ).fetchall()
         result = []
         for r in rows:
@@ -111,7 +114,12 @@ def api_emag_sync_history():
                 formatted = dt.strftime('%d-%m-%Y %H:%M')
             except Exception:
                 formatted = r['sync_at']
-            result.append({'id': r['id'], 'sync_at': formatted, 'filename': r['filename'] or ''})
+            result.append({
+                'id': r['id'],
+                'sync_at': formatted,
+                'filename': r['filename'] or '',
+                'username': r['username'] or '',
+            })
         return jsonify(result)
     except Exception as exc:
         logger.exception("eMAG sync history fetch failed")
