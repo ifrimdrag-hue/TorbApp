@@ -126,7 +126,7 @@ Results are stored in `data/torb.db` (tables: `forecasts`, `reorder_suggestions`
 
 Unified UI at `/stocuri` — switch between eMAG and Shopify via radio buttons.
 
-- **eMAG**: upload the stock report Excel file → preview diff → sync via eMAG Marketplace API v3
+- **eMAG**: upload the stock report Excel file → preview diff → sync via eMAG Marketplace API v4.5.1
 - **Shopify**: upload the same report → preview diff → sync via Shopify GraphQL Admin API (2025-04), OAuth client credentials grant
 
 Request logs (last 20 calls each): `logs/emag_req.json`, `logs/shopify_req.json`.
@@ -139,7 +139,7 @@ Request logs (last 20 calls each): `logs/emag_req.json`, `logs/shopify_req.json`
 pytest tests/ -v
 ```
 
-66 tests covering: Flask routes, auth, stock blueprints, ETL parsers, forecast engine, bonus calculator.
+73 tests covering: Flask routes, auth, stock blueprints, ETL parsers, forecast engine, bonus calculator.
 
 ---
 
@@ -234,14 +234,16 @@ torbapp/
 ├── tests/                      # pytest test suite
 ├── tools/                      # Windows launcher scripts
 │   └── Start-Hub.ps1
-├── context/                    # Project research and reference docs
-├── docs/                       # Strategic docs and plans
+├── context/                    # Project research, reference docs and strategic files
 │   ├── plan_strategic_5ani.md  # 5-year strategic plan 2026–2030
 │   ├── STATUS.md               # Current execution status
 │   ├── torb_background.md      # Company background research
+│   └── ...                     # Business overview, AI opportunities, risks, data file map
+├── docs/                       # Implementation plans, analysis and user manuals
 │   ├── plans/                  # Implementation plans
 │   ├── analysis/               # Analysis documents
-│   └── superpowers/            # AI-generated specs and plans
+│   ├── superpowers/            # AI-generated specs and plans
+│   └── manuals/                # End-user manuals (PDF + Typst source)
 ├── .claude/skills/             # Shared Claude Code skills (auto-loaded for all collaborators)
 │   └── bug-fix-with-coverage/  # BUG: prefix — fix + regression test workflow
 ├── migrations/                 # Versioned DB migration files (applied on startup)

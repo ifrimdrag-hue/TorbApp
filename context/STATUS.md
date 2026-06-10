@@ -1,7 +1,7 @@
 # Torb — Status Execuție Plan Strategic 2026–2030
 
 **Ultima actualizare:** 2026-06-04
-**Document referință:** `docs/plan_strategic_5ani.md` (v1.0)
+**Document referință:** `context/plan_strategic_5ani.md` (v1.0)
 **Regulă:** actualizează acest fișier la fiecare schimbare de stare (nu la fiecare discuție). Legend: `[ ]` = neînceput · `[~]` = în lucru · `[x]` = livrat · `[!]` = blocat · `[↑]` = întârziat.
 
 ---

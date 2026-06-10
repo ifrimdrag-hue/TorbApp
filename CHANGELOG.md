@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-06-10
+
+### Stock sync — history and eMAG sync
+
+- Added unified sync history for both platforms: `shopify_sync_sessions` + `shopify_sync_rows` tables (migration 0006), then `platform` column added (migration 0007) — single table pair tracks sessions for both eMAG and Shopify
+- Sync history panel on `/stocuri` shows last 10 sessions per platform (date + filename); clicking a session and pressing *Incarca date istorice* loads a read-only historical view of that sync
+- eMAG sync history endpoints: `GET /api/stocuri/emag/sync-history` and `GET /api/stocuri/emag/sync-history/<id>`
+- eMAG sync now persists session + row results identically to Shopify
+
+### Project structure
+
+- Moved `docs/plan_strategic_5ani.md`, `docs/STATUS.md`, `docs/torb_background.md` → `context/` (git history preserved via `git mv`); `docs/` now holds only implementation plans, analysis, specs, and user manuals
+- Updated all path references in `CLAUDE.md`, `README.md`, `context/STATUS.md`
+- Added `docs/manuals/` for end-user documentation (Typst source + compiled PDF); `.gitignore` updated to version only `.pdf` files from that tree
+
+### Documentation
+
+- Added `docs/manuals/stock/manual_stoc.typ` — Romanian user manual for the Sincronizare Stoc feature (eMAG + Shopify); compiled to `manual_stoc.pdf`
+
+### Fixes
+
+- `README.md`: corrected eMAG API version (v3 → v4.5.1), updated test count (66 → 73)
+
 ## [0.5.0] - 2026-06-04
 
 ### Technical Debt — Phases 1, 2, 3

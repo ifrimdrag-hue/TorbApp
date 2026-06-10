@@ -15,7 +15,7 @@ AI consulting for Torb Logistic SRL, a Romanian FMCG distributor. Goal: identify
 - The reporting dashboards are well-designed templates but **contain no data** — the core gap is a missing data pipeline from raw transactions to management reports.
 
 ## File map
-- `docs/torb_background.md` — company background research (note: incomplete on brand portfolio)
+- `context/torb_background.md` — company background research (note: incomplete on brand portfolio)
 - `docs_input/` — all Excel data files. See memory for detailed file map.
 - `docs_input/vanzari_01.03.2026.xlsx` — main sales database (Baza sheet = raw transactions)
 - `docs_input/bonusare_torb_structura_echipa.xlsx` — team structure + KPI/bonus system
@@ -49,16 +49,16 @@ wb = openpyxl.load_workbook('file.xlsx', data_only=True, read_only=True)
 ## Where to start each session
 
 **Citește obligatoriu la începutul fiecărei sesiuni:**
-1. `docs/plan_strategic_5ani.md` — planul strategic 2026–2030 (teza, piloni, roadmap, financial model). Nu reinterpreta strategia de la zero — pleacă de aici.
-2. `docs/STATUS.md` — starea curentă a execuției. Ce s-a livrat, ce e în lucru, ce e blocat, care e următorul pas. **Actualizează acest fișier la fiecare schimbare de stare**, nu la fiecare discuție.
-3. Fișierele din `context/` — findings de research (overview business, riscuri, oportunități AI, reference fișiere de date).
+1. `context/plan_strategic_5ani.md` — planul strategic 2026–2030 (teza, piloni, roadmap, financial model). Nu reinterpreta strategia de la zero — pleacă de aici.
+2. `context/STATUS.md` — starea curentă a execuției. Ce s-a livrat, ce e în lucru, ce e blocat, care e următorul pas. **Actualizează acest fișier la fiecare schimbare de stare**, nu la fiecare discuție.
+3. Restul fișierelor din `context/` — findings de research (overview business, riscuri, oportunități AI, reference fișiere de date).
 
 **Separarea responsabilităților:**
-- `docs/plan_strategic_5ani.md` = ce vrem să realizăm (stabil, revizuit trimestrial).
-- `docs/STATUS.md` = unde suntem acum (volatil, actualizat des).
+- `context/plan_strategic_5ani.md` = ce vrem să realizăm (stabil, revizuit trimestrial).
+- `context/STATUS.md` = unde suntem acum (volatil, actualizat des).
 - `context/*.md` + memorie = fapte durabile despre proiect.
 
-Actual #1 open question: bonusarea automată lunară (pasul 5 din `docs/STATUS.md`, deadline 31 mai 2026 — întârziat) și validarea forecast Basilur cu owner-ul.
+Actual #1 open question: bonusarea automată lunară (pasul 5 din `context/STATUS.md`, deadline 31 mai 2026 — întârziat) și validarea forecast Basilur cu owner-ul.
 
 ## Project Directory Structure
 
@@ -71,8 +71,8 @@ All new files must follow this layout. Never add `.py` files to root.
 | `forecast/` | Forecast CLI package (statsforecast-based) — standalone, do not mix with app/ |
 | `tools/` | Windows launcher scripts (`Start-Hub.ps1`); `Start-Hub.bat` is at project root |
 | `tests/` | pytest test files |
-| `context/` | Project research and reference markdown files |
-| `docs/` | Strategic docs: `plan_strategic_5ani.md`, `STATUS.md`, `torb_background.md`, `plans/`, `analysis/`, `superpowers/` |
+| `context/` | Project research, reference markdown files, strategic docs (`plan_strategic_5ani.md`, `STATUS.md`, `torb_background.md`) |
+| `docs/` | Implementation plans (`plans/`), analysis docs (`analysis/`), AI-generated specs (`superpowers/`), user manuals (`manuals/`) |
 | `docs_input/` | Input Excel/CSV data files (never committed, gitignored) |
 | `data/` | SQLite database and generated outputs (gitignored) |
 | Root | Config/doc files only: `requirements.txt`, `.gitignore`, `.env.example`, `CLAUDE.md`, `README.md`, `CHANGELOG.md`, `Start-Hub.bat` |
