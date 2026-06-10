@@ -10,12 +10,14 @@ def test_shopify_api_connection_test_unconfigured(client):
     assert 'ok' in data
 
 
-def _seed_session(db_path, filename='test.xlsx', sync_at='2026-06-05 14:32:00'):
+def _seed_session(db_path, filename='test.xlsx', sync_at='2026-06-05 14:32:00',
+                  user_id=None):
     """Insert one session with two rows; return session_id."""
     with _sqlite3.connect(db_path) as c:
         cur = c.execute(
-            "INSERT INTO shopify_sync_sessions (sync_at, filename) VALUES (?, ?)",
-            (sync_at, filename),
+            "INSERT INTO shopify_sync_sessions (sync_at, filename, user_id)"
+            " VALUES (?, ?, ?)",
+            (sync_at, filename, user_id),
         )
         session_id = cur.lastrowid
         c.executemany(
@@ -123,3 +125,31 @@ def test_sync_saves_history_to_db(client, db_path):
         assert rows[0]['old_stock'] == 5
         assert rows[0]['new_stock'] == 10
         assert rows[0]['status'] == 'updated'
+        assert session['user_id'] == _testadmin_id(db_path)
+
+
+def _testadmin_id(db_path):
+    with _sqlite3.connect(db_path) as c:
+        return c.execute(
+            "SELECT id FROM users WHERE username='testadmin'"
+        ).fetchone()[0]
+
+
+def test_sync_history_returns_username(client, db_path):
+    uid = _testadmin_id(db_path)
+    session_id = _seed_session(db_path, filename='cu_user.xlsx', user_id=uid)
+    resp = client.get('/api/stocuri/shopify/sync-history')
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    session = next((s for s in data if s['id'] == session_id), None)
+    assert session is not None
+    assert session['username'] == 'testadmin'
+
+
+def test_sync_history_username_empty_when_no_user(client, db_path):
+    session_id = _seed_session(db_path, filename='fara_user.xlsx')
+    resp = client.get('/api/stocuri/shopify/sync-history')
+    data = json.loads(resp.data)
+    session = next((s for s in data if s['id'] == session_id), None)
+    assert session is not None
+    assert session['username'] == ''
