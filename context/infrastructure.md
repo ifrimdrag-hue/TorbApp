@@ -1,5 +1,10 @@
 # Infrastructure — VPS Server
 
+> **Maintenance rule:** this file is the single source of truth for server facts.
+> Whenever a server question is answered (ownership, permissions, users, services,
+> ports, cron entries), record the answer here immediately — future sessions must
+> be able to answer these questions from this file without asking.
+
 ## Server
 
 | Property | Value |
@@ -10,6 +15,30 @@
 | SSH user | openclaw |
 | Domain | app.robrands.ro |
 | SSL | Let's Encrypt via Certbot (auto-renewal) |
+| VPS-level backups | Done by the hosting provider (full machine) |
+
+### Users & filesystem ownership (verified 2026-06-11)
+
+| Question | Answer |
+|---|---|
+| Deploy/SSH user (GitHub Actions + manual SSH) | `openclaw` — uid 999, groups: `openclaw`, `sudo`, `www-data`, `docker` |
+| Service user (gunicorn `torb-py` + `torb-dev`) | `www-data` — uid 33, groups: `www-data` only |
+| Owner of `/var/www/html/torb-py` | `www-data:www-data`, mode 775 (group-writable) |
+| Owner of `data/` and `torb.db` | `www-data:www-data`, mode 775 |
+| Owner of `data/backups/` | `www-data:www-data`, mode **2775** (setgid — files created by `openclaw` inherit group `www-data`) |
+| Why `openclaw` deploys can write the app tree | `openclaw` is in the `www-data` group and dirs are group-writable |
+
+Note: `data/` also contains a stray pre-engine manual backup `torb.db.bak.20260525_010848`
+(102 MB, from 2026-05-25) — can be deleted once the new backup system is verified.
+
+### Scheduled jobs (cron)
+
+| Job | User | Schedule | Command |
+|---|---|---|---|
+| Daily DB backup (prod) | `www-data` (installed 2026-06-11) | 02:30 | `cd /var/www/html/torb-py && venv/bin/python etl/backup_db.py backup --tag daily >> logs/backup.log 2>&1` |
+
+Inspect / edit: `sudo -u www-data crontab -l` / `sudo -u www-data crontab -e`.
+Job output: `/var/www/html/torb-py/logs/backup.log`.
 
 ---
 
