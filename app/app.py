@@ -20,6 +20,7 @@ def create_app(test_config=None):
     import queries
     from migrate import apply_migrations
     from blueprints.auth import admin_bp, auth_bp, csrf, login_manager
+    from blueprints import admin_db  # noqa: F401 — attaches /admin/db routes to admin_bp
     from blueprints.analytics import analytics_bp
     from blueprints.bonus import bonus_bp
     from blueprints.pricing import pricing_bp

@@ -55,6 +55,9 @@
 
 ## Livrări recente
 
+- **2026-06-11 — Backup & restore DB livrat (prod).**
+  Engine `app/backup_db.py` (SQLite online backup API, gzip, retenție 15 zile / min 3) + CLI `etl/backup_db.py` (backup/list/restore). Trigger: cron zilnic 02:30 pe VPS prod + backup automat pre-deploy în CI înainte de migrări. Pagină admin `/admin/db`: listă, backup manual, download, restaurare cu confirmare "RESTORE" (backup de siguranță automat + re-aplicare migrări). `PRAGMA busy_timeout=5000` adăugat în `app/db.py`. 101 teste trec (14 noi).
+
 - **2026-06-11 — Status conexiune (connDot) servit din cache server-side.**
   Tabel `connection_status` (migration 0010) + helper `app/connection_cache.py` cu TTL 3 min — maxim un apel API extern eMAG/Shopify per platformă per fereastră, partajat între toți utilizatorii. Rutele `connection-test` neschimbate ca URL/shape (câmpuri noi: `cached`, `checked_at`); tooltip-ul connDot afișează ora verificării. 87 teste trec.
 

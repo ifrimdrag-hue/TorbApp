@@ -13,6 +13,7 @@ from paths import DB_PATH
 # semnificativ I/O când baza e pe Google Drive (sync folder).
 _PER_CONN_PRAGMAS = (
     "PRAGMA journal_mode=WAL",
+    "PRAGMA busy_timeout=5000",     # wait up to 5s on write lock instead of failing
     "PRAGMA synchronous=NORMAL",
     "PRAGMA cache_size=-65536",     # 64 MB page cache
     "PRAGMA temp_store=MEMORY",

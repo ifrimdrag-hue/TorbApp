@@ -101,6 +101,15 @@ python etl/import_preturi.py         # pricing
 
 Database migrations run automatically on Flask startup (`app/migrate.py`).
 
+### Backups (production)
+
+The prod DB is backed up daily by cron and automatically before every deploy's migrations
+(`etl/backup_db.py`, SQLite online backup API — safe on the live database). Backups are
+gzipped into `data/backups/` with 15-day retention. Admins can list, create, download and
+restore backups from **/admin/db**; a restore takes a safety backup first, re-applies
+migrations, and is confirmed by typing `RESTORE`. See `context/infrastructure.md` for
+the cron setup.
+
 ---
 
 ## Forecasting

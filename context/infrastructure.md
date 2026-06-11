@@ -125,6 +125,32 @@ Planned jobs (not yet implemented — see memory `project-dev-env-plan`):
 
 ---
 
+## Database Backups (production only)
+
+| Property | Value |
+|---|---|
+| Location | `/var/www/html/torb-py/data/backups/` |
+| Format | `torb_YYYY-MM-DD_HHMMSS_<tag>.db.gz` (tags: daily, pre-deploy, pre-restore, manual) |
+| Retention | 15 days, always keeping the newest 3 regardless of age |
+| Daily trigger | cron (www-data), 02:30 — `python etl/backup_db.py backup --tag daily` |
+| Pre-deploy trigger | CI `deploy_prd` job, right before migrations |
+| Admin UI | `https://app.robrands.ro/admin/db` — list, manual backup, download, guarded restore |
+| Engine | SQLite online backup API (safe on a live WAL database) — `app/backup_db.py` |
+
+CLI (from `/var/www/html/torb-py`, venv active):
+```bash
+python etl/backup_db.py list
+python etl/backup_db.py backup --tag manual
+python etl/backup_db.py restore torb_2026-06-11_023000_daily.db.gz
+```
+
+Restore notes: a pre-restore safety backup of the current state is created automatically;
+migrations re-run after restore (older backups get upgraded to current schema); restart
+the service afterwards (`sudo systemctl restart torb-py`) so all gunicorn workers drop
+their in-memory caches. Dev (`torb-py-dev`) has no scheduled backups by design.
+
+---
+
 ## Useful One-Liners
 
 ```bash

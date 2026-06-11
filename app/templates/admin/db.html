@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Mentenanță DB — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0"><i class="bi bi-database-fill-gear me-2 text-primary"></i>Mentenanță bază de date</h5>
+  <div>
+    <a href="{{ url_for('admin.users') }}" class="btn btn-outline-secondary btn-sm me-1">
+      <i class="bi bi-people me-1"></i> Utilizatori
+    </a>
+    <form method="POST" action="{{ url_for('admin.db_backup_now') }}" class="d-inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-success btn-sm">
+        <i class="bi bi-cloud-arrow-down me-1"></i> Backup acum
+      </button>
+    </form>
+  </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert alert-{{ cat }} py-2">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+<div class="alert alert-warning py-2 small">
+  <i class="bi bi-exclamation-triangle me-1"></i>
+  <strong>Restaurarea înlocuiește complet baza de date curentă</strong> — inclusiv utilizatorii,
+  parolele, istoricul de sincronizări și jurnalul de audit create după data backup-ului.
+  Înainte de restaurare se creează automat un backup de siguranță al stării curente.
+  Nu porniți o restaurare în timpul unei sincronizări de stoc. După restaurare se recomandă
+  repornirea serviciului.
+</div>
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>Backup</th>
+          <th>Tip</th>
+          <th>Data</th>
+          <th>Mărime</th>
+          <th class="text-end">Acțiuni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in backups %}
+        <tr>
+          <td class="small font-monospace">{{ b.name }}</td>
+          <td>
+            {% if b.tag == 'daily' %}<span class="badge bg-primary">zilnic</span>
+            {% elif b.tag == 'pre-deploy' %}<span class="badge bg-info text-dark">pre-deploy</span>
+            {% elif b.tag == 'pre-restore' %}<span class="badge bg-warning text-dark">pre-restaurare</span>
+            {% else %}<span class="badge bg-secondary">manual</span>{% endif %}
+          </td>
+          <td class="small text-muted">{{ b.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td class="small text-muted">{{ '%.1f'|format(b.size / 1048576) }} MB</td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.db_download', name=b.name) }}"
+               class="btn btn-sm btn-outline-secondary me-1" title="Descarcă">
+              <i class="bi bi-download"></i>
+            </a>
+            <form method="POST" action="{{ url_for('admin.db_restore') }}"
+                  class="d-inline restore-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="name" value="{{ b.name }}">
+              <input type="hidden" name="confirm" value="">
+              <button class="btn btn-sm btn-outline-danger" title="Restaurează">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Restaurează
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">
+          Niciun backup încă. Folosiți „Backup acum" sau așteptați backup-ul zilnic programat.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="text-muted small mt-2">
+  Retenție: backup-urile mai vechi de 15 zile sunt șterse automat (se păstrează întotdeauna
+  cele mai recente 3). Backup zilnic programat pe server + backup automat înainte de fiecare deploy.
+</p>
+
+<script>
+document.querySelectorAll('.restore-form').forEach(function (form) {
+  form.addEventListener('submit', function (e) {
+    var name = form.querySelector('input[name="name"]').value;
+    var answer = prompt(
+      'ATENȚIE: baza de date curentă va fi înlocuită cu ' + name +
+      '\n\nTastați RESTORE pentru a confirma:'
+    );
+    if (answer === null || answer.trim() !== 'RESTORE') {
+      e.preventDefault();
+      return;
+    }
+    form.querySelector('input[name="confirm"]').value = answer.trim();
+  });
+});
+</script>
+{% endblock %}

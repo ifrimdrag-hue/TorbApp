@@ -128,15 +128,27 @@ foreach ($img in $images) {
 
 ---
 
-## Tech-debt backlog — deliberately skipped in the 2026-05-28 audit
+## Tech-debt & infrastructure backlog
 
-Known and accepted at the time; revisit when relevant:
-- `queries.py` connection-leak fixes (complex try/finally, risk to data integrity)
-- Extracting a shared `call_claude()` helper across the 5+ AI modules
-- Thread locking for JSON file storage (single-user risk accepted)
-- Merging `instagram.html` + `facebook.html` (needs UI testing)
-- Aria-labels / accessibility pass
-- eMAG CSS separation from the global stylesheet
-- `SHOPIFY_SHOP` vs `SHOPIFY_SHOP_DOMAIN` naming mismatch in `config.py` (documented in `.env.example`, not fixed)
-- `Start-Hub.ps1` launches `python app\app.py` instead of `waitress`
-- `scripts/` is gitignored but `tools/` is not — directory-rule inconsistency
+Combines the leftovers of the 2026-05-28 code audit (re-verified against code on 2026-06-11) and the infrastructure gaps found in the 2026-06-11 stack assessment. Resolved since the audit:
+- ~~`queries.py` connection leaks~~ — the `app/queries/` package now goes through `db.query()`/`get_db()`, which close transient connections in `finally` (request-scoped ones close on teardown)
+- ~~`SHOPIFY_SHOP` vs `SHOPIFY_SHOP_DOMAIN` mismatch~~ — `config.py` uses only `shopify_shop_domain`
+- ~~`scripts/` vs `tools/` directory-rule inconsistency~~ — `scripts/` no longer exists and CLAUDE.md no longer references it (a stale `scripts/` line remains in `.gitignore`; see the last backlog item)
+
+Resolved 2026-06-11 (backup engine delivery):
+- ~~No backup strategy for `data/torb.db`~~ — `app/backup_db.py` + `etl/backup_db.py` CLI: daily cron on prod, pre-deploy backup in CI, admin UI at `/admin/db` with guarded restore. 15-day retention, min 3 kept. See `context/infrastructure.md`.
+- ~~`PRAGMA busy_timeout` missing~~ — added to `_PER_CONN_PRAGMAS` in `app/db.py` (5s).
+
+Remaining, in priority order:
+1. **JSON file storage has no cross-process safety** (`app/automations/*/storage.py`, `_shared/snapshot.py`, `_shared/prices.py` — plain `write_text`, no locking). The original "single-user risk accepted" rationale no longer holds: the app is multi-user with auth and prod runs 3 gunicorn workers, so even `threading.Lock` wouldn't suffice. Concurrent writes can lose updates or truncate files. Fix: move this state into SQLite (migrations + helpers already exist) or use OS-level file locking.
+2. **No disaster-recovery runbook for the VPS** — prod, dev, nginx, and the DB share one machine at one provider. Mitigated: the hosting provider backs up the VPS itself and the DB now has its own backups. Document a "rebuild from scratch" runbook in `context/infrastructure.md` (packages, systemd units, nginx blocks, certbot, firewall).
+3. **Data ingestion is manual Excel exports** (`docs_input/`, upload-based stock sync) — the real scaling bottleneck, hit long before Flask or SQLite limits. The SmartBill/ERP → pipeline API integration (strategic plan, Pilon 5.1) should be prioritized above the Postgres migration.
+4. **No background-job mechanism** — forecasts run via PowerShell CLI, syncs are request-driven, but Pilon 5's roadmap (weekly AI sales briefs, automated bonus emails, churn flags) is all scheduled work. No Celery needed: cron on the VPS calling CLI scripts covers 2026–2027 — just design upcoming features as CLI-invocable jobs, not Flask routes.
+5. **Shared `call_claude()` helper** — 6 separate Anthropic call sites (`app/ai.py`, `forecast_agent.py`, `claude_client.py`, `post_generator.py`, `campaign_generator.py`, `ai_suggestions.py`); error handling and model config drift between them.
+6. **SQLite → Postgres migration** — trigger on symptoms ("database is locked" errors), not on the revenue milestone; with WAL + busy_timeout this likely stays dormant for a long time. The strategic plan anticipates it at ~30M RON revenue.
+7. **`Start-Hub.ps1` launches the Flask dev server** (`python app\app.py`) instead of `waitress`, which is in requirements for this purpose. Dev-only launcher, low risk, quick fix.
+8. **Merge `postari/instagram.html` + `postari/facebook.html`** (was listed under `campanii/`; templates moved). Needs UI testing.
+9. **eMAG/stock CSS still lives in the global `style.css`** — separate when next touching those styles.
+10. **Accessibility pass** — only 6 `aria-label`s across all templates.
+11. **Remove the stale `scripts/` line from `.gitignore`** — if anyone recreates that directory, its files would silently never be committed.
+12. **Off-VPS copy of DB backups** (low priority by decision 2026-06-11: the hosting provider backs up the whole VPS). If ever needed: pull `data/backups/` to a local machine via scheduled `scp` — admins can also download backups manually from `/admin/db`.
