@@ -3,7 +3,7 @@
 import json
 import time
 from contextlib import contextmanager
-from datetime import datetime
+# from datetime import datetime  # JSON request logging disabled
 from pathlib import Path
 
 _LOG_FILE = Path(__file__).resolve().parents[3] / "logs" / "emag_req.json"
@@ -41,19 +41,22 @@ def append(
     duration_ms: float | None = None,
     error: str | None = None,
 ) -> None:
-    response = _parse_body(response_text) if response_text is not None else None
-    entry = {
-        "timestamp": datetime.now().isoformat(timespec="seconds"),
-        "url": url,
-        "payload": payload,
-        "status_code": status_code,
-        "response": response,
-        "duration_ms": round(duration_ms, 1) if duration_ms is not None else None,
-        "error": error,
-    }
-    entries = _read()
-    entries.append(entry)
-    _write(entries)
+    # JSON request logging disabled — uncomment below (and the datetime import)
+    # to re-enable writing logs/emag_req.json.
+    # response = _parse_body(response_text) if response_text is not None else None
+    # entry = {
+    #     "timestamp": datetime.now().isoformat(timespec="seconds"),
+    #     "url": url,
+    #     "payload": payload,
+    #     "status_code": status_code,
+    #     "response": response,
+    #     "duration_ms": round(duration_ms, 1) if duration_ms is not None else None,
+    #     "error": error,
+    # }
+    # entries = _read()
+    # entries.append(entry)
+    # _write(entries)
+    return None
 
 
 @contextmanager
