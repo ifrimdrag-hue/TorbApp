@@ -145,3 +145,21 @@ def test_sync_history_username_empty_when_no_user(client, db_path):
     session = next((s for s in data if s['id'] == session_id), None)
     assert session is not None
     assert session['username'] == ''
+
+
+def test_shopify_connection_test_cached_on_second_call(client, db_path):
+    from unittest.mock import patch, AsyncMock
+
+    with _sqlite3.connect(db_path) as c:
+        c.execute("DELETE FROM connection_status WHERE platform='shopify'")
+
+    with patch('blueprints.stocuri_shopify.ShopifyClient') as MockClient:
+        MockClient.return_value.test_connection = AsyncMock(return_value=[{'id': 1, 'name': 'Depozit'}])
+        first = json.loads(client.get('/api/stocuri/shopify/connection-test').data)
+        second = json.loads(client.get('/api/stocuri/shopify/connection-test').data)
+        assert MockClient.call_count == 1
+
+    assert first['ok'] is True
+    assert first['locations'] == [{'id': 1, 'name': 'Depozit'}]
+    assert second['cached'] is True
+    assert second['locations'] == [{'id': 1, 'name': 'Depozit'}]

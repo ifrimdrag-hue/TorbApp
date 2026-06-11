@@ -7,6 +7,7 @@ from flask_login import current_user
 
 from automations.stocuri_emag.api_client import EmagClient
 from automations.stocuri_emag.orchestrator import preview, preview_emag_only, sync
+from connection_cache import get_status
 from paths import DB_PATH
 
 stocuri_emag_bp = Blueprint('stocuri_emag', __name__)
@@ -87,13 +88,16 @@ async def api_emag_sync():
 
 @stocuri_emag_bp.route('/api/stocuri/emag/connection-test')
 async def api_emag_connection_test():
-    try:
-        client = EmagClient()
-        await client.test_connection()
-        return jsonify({'ok': True})
-    except Exception as exc:
-        logger.exception("eMAG connection test failed")
-        return jsonify({'ok': False, 'error': str(exc)})
+    async def _check():
+        try:
+            client = EmagClient()
+            await client.test_connection()
+            return {'ok': True}
+        except Exception as exc:
+            logger.exception("eMAG connection test failed")
+            return {'ok': False, 'error': str(exc)}
+
+    return jsonify(await get_status('emag', _check))
 
 
 @stocuri_emag_bp.route('/api/stocuri/emag/sync-history')

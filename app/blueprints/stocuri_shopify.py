@@ -5,6 +5,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import current_user
 from automations.stocuri_shopify.orchestrator import preview, preview_shopify_only, sync
 from automations.stocuri_shopify.api_client import ShopifyClient
+from connection_cache import get_status
 from paths import DB_PATH
 
 stocuri_shopify_bp = Blueprint('stocuri_shopify', __name__)
@@ -82,13 +83,16 @@ async def api_shopify_sync():
 
 @stocuri_shopify_bp.route('/api/stocuri/shopify/connection-test')
 async def api_shopify_connection_test():
-    try:
-        client = ShopifyClient()
-        locations = await client.test_connection()
-        return jsonify({'ok': True, 'locations': locations})
-    except Exception as exc:
-        logger.exception("Shopify connection test failed")
-        return jsonify({'ok': False, 'error': str(exc)})
+    async def _check():
+        try:
+            client = ShopifyClient()
+            locations = await client.test_connection()
+            return {'ok': True, 'locations': locations}
+        except Exception as exc:
+            logger.exception("Shopify connection test failed")
+            return {'ok': False, 'error': str(exc)}
+
+    return jsonify(await get_status('shopify', _check))
 
 
 @stocuri_shopify_bp.route('/api/stocuri/shopify/sync-history')

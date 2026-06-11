@@ -122,3 +122,37 @@ def test_emag_sync_saves_user_to_db(client, db_path, testadmin_id):
         assert session is not None
         assert session['platform'] == 'emag'
         assert session['user_id'] == testadmin_id
+
+
+def test_emag_connection_test_cached_on_second_call(client, db_path):
+    """Second call within TTL is served from cache — upstream hit only once."""
+    with _sqlite3.connect(db_path) as c:
+        c.execute("DELETE FROM connection_status WHERE platform='emag'")
+
+    with patch('blueprints.stocuri_emag.EmagClient') as MockClient:
+        MockClient.return_value.test_connection = AsyncMock(return_value=None)
+        first = json.loads(client.get('/api/stocuri/emag/connection-test').data)
+        second = json.loads(client.get('/api/stocuri/emag/connection-test').data)
+        assert MockClient.call_count == 1
+
+    assert first['ok'] is True
+    assert first['cached'] is False
+    assert second['ok'] is True
+    assert second['cached'] is True
+    assert second['checked_at'] == first['checked_at']
+
+
+def test_emag_connection_test_failure_cached(client, db_path):
+    with _sqlite3.connect(db_path) as c:
+        c.execute("DELETE FROM connection_status WHERE platform='emag'")
+
+    with patch('blueprints.stocuri_emag.EmagClient') as MockClient:
+        MockClient.return_value.test_connection = AsyncMock(side_effect=RuntimeError('boom'))
+        first = json.loads(client.get('/api/stocuri/emag/connection-test').data)
+        second = json.loads(client.get('/api/stocuri/emag/connection-test').data)
+        assert MockClient.call_count == 1
+
+    assert first['ok'] is False
+    assert 'boom' in first['error']
+    assert second['ok'] is False
+    assert second['cached'] is True
