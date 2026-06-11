@@ -176,7 +176,7 @@ Push to `main` triggers GitHub Actions (`.github/workflows/deploy_VPS.yml`):
 
 1. **lint** — `ruff check .`
 2. **test** — `pytest tests/`
-3. **security** — `pip-audit` (non-blocking)
+3. **security** — `pip-audit` (blocking — a known vulnerability in dependencies fails the pipeline)
 4. **deploy** — SSH to VPS, `git reset --hard origin/main`, inject secrets into `.env`, restart `torb-py` systemd service
 5. **smoke-test** — curl checks against `https://app.robrands.ro`
 

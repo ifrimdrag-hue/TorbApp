@@ -48,7 +48,6 @@ jobs:
   security:
     needs: lint
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
 
@@ -121,11 +120,10 @@ jobs:
             grep -v '^EMAG_STOCK_SAFETY_THRESHOLD=' .env > .env.tmp && mv .env.tmp .env
             echo "EMAG_STOCK_SAFETY_THRESHOLD=5" >> .env
 
-            # Update dependencies (gunicorn installed separately — not in requirements.txt)
+            # Update dependencies
             source venv/bin/activate
             pip install --quiet --upgrade pip
             pip install --quiet -r requirements.txt
-            pip install --quiet gunicorn
 
             # Run migrations explicitly — failure here aborts deploy and leaves service running
             python migrations/runner.py data/torb.db
