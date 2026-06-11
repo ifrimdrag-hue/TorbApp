@@ -450,8 +450,11 @@ async function connCheck() {
   connDot.title = "Verific conexiunea...";
   try {
     const data = await fetch(p.connUrl).then((r) => r.json());
-    if (data.ok) { connDot.className = "conn-dot conn-dot--ok"; connDot.title = `Conectat la ${currentPlatform === "emag" ? "eMAG" : "Shopify"} API`; }
-    else         { connDot.className = "conn-dot conn-dot--error"; connDot.title = data.error || "Conexiune esuata"; }
+    const when = data.checked_at
+      ? ` (verificat ${new Date(data.checked_at).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })})`
+      : "";
+    if (data.ok) { connDot.className = "conn-dot conn-dot--ok"; connDot.title = `Conectat la ${currentPlatform === "emag" ? "eMAG" : "Shopify"} API${when}`; }
+    else         { connDot.className = "conn-dot conn-dot--error"; connDot.title = (data.error || "Conexiune esuata") + when; }
   } catch (e) {
     connDot.className = "conn-dot conn-dot--error"; connDot.title = "Eroare retea: " + e.message;
   }

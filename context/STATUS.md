@@ -1,6 +1,6 @@
 # Torb — Status Execuție Plan Strategic 2026–2030
 
-**Ultima actualizare:** 2026-06-04
+**Ultima actualizare:** 2026-06-11
 **Document referință:** `context/plan_strategic_5ani.md` (v1.0)
 **Regulă:** actualizează acest fișier la fiecare schimbare de stare (nu la fiecare discuție). Legend: `[ ]` = neînceput · `[~]` = în lucru · `[x]` = livrat · `[!]` = blocat · `[↑]` = întârziat.
 
@@ -54,6 +54,9 @@
 ---
 
 ## Livrări recente
+
+- **2026-06-11 — Status conexiune (connDot) servit din cache server-side.**
+  Tabel `connection_status` (migration 0010) + helper `app/connection_cache.py` cu TTL 3 min — maxim un apel API extern eMAG/Shopify per platformă per fereastră, partajat între toți utilizatorii. Rutele `connection-test` neschimbate ca URL/shape (câmpuri noi: `cached`, `checked_at`); tooltip-ul connDot afișează ora verificării. 87 teste trec.
 
 - **2026-06-10 — Audit utilizator pe sincronizările de stoc.**
   `sync_sessions.user_id` (migration 0008) înregistrează cine a rulat fiecare sync eMAG/Shopify; username afișat în istoricul din `/stocuri`. Tabelele redenumite `shopify_sync_*` → `sync_sessions`/`sync_rows` (migration 0009 — prefix obsolet de când sunt multi-platform). Teste noi pentru istoric eMAG + fixture comun `testadmin_id`. 79 teste trec.
