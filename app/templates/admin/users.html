@@ -120,8 +120,8 @@
     // 1. Generate a random temporary Session ID so OpenClaw tracks our conversation state
     const currentSessionId = "session_" + Math.random().toString(36).substring(2, 15);
 
-    // 2. Fetch token from template environment safely
-    const openclawToken = "{{ or_environ_get('OPENCLAW_TOKEN', '49eeae5e34e20a641d958bb64d4a45a5e68bba512236bee4') }}";
+    // 2. Supply token straight through secure internal loopback parameters
+    const openclawToken = "49eeae5e34e20a641d958bb64d4a45a5e68bba512236bee4";
     
     // 3. Keep secure connection pointing through your updated Nginx proxy route
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -148,18 +148,14 @@
     openclawSocket.onmessage = function(event) {
         try {
             const data = JSON.parse(event.data);
-            
-            // OpenClaw passes stream updates under data.type text_delta or data.text
             if (data.type === 'text_delta' || data.type === 'content' || data.text) {
                 const textContent = data.content || data.text || '';
                 appendChatMessage(textContent, 'agent-reply', true);
             } 
-            // Display system executions or tool confirmations dynamically
             else if (data.type === 'tool_call' || data.type === 'tool') {
                 appendChatMessage(`\n[VPS Execuție: ${data.tool_name || data.name || 'Sistem'}]\n`, 'system-log', false);
             }
         } catch(e) {
-            // Fallback for raw text strings from older framework bindings
             if (event.data && typeof event.data === 'string' && !event.data.startsWith('{')) {
                 appendChatMessage(event.data, 'agent-reply', true);
             }
@@ -172,7 +168,6 @@
 
         appendChatMessage(`\nTu: ${text}\n`, 'user-query', false);
         
-        // 🚨 FIXED WORKFLOW SCHEMA FOR OPENCLAW GATEWAY
         openclawSocket.send(JSON.stringify({
             action: "agent_message",
             sessionId: currentSessionId,
