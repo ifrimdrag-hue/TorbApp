@@ -117,86 +117,78 @@
     const sendBtn = document.getElementById('openclaw-send-btn');
     const statusBadge = document.getElementById('openclaw-status');
 
-    async function sendOpenClawPrompt() {
+    // 1. Generate a random temporary Session ID so OpenClaw tracks our conversation state
+    const currentSessionId = "session_" + Math.random().toString(36).substring(2, 15);
+
+    // 2. Fetch token from template environment safely
+    const openclawToken = "{{ or_environ_get('OPENCLAW_TOKEN', '49eeae5e34e20a641d958bb64d4a45a5e68bba512236bee4') }}";
+    
+    // 3. Keep secure connection pointing through your updated Nginx proxy route
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const openclawSocket = new WebSocket(`${wsProtocol}//${window.location.host}/admin/openclaw-ws?token=${openclawToken}`);
+
+    openclawSocket.onopen = function() {
+        statusBadge.className = "badge bg-success";
+        statusBadge.innerText = "Conectat la VPS";
+        chatBox.innerHTML = `<div class="text-success small mb-2"><strong>● Tunel securizat Nginx activ. OpenRouter pregătit.</strong></div>`;
+        userInput.disabled = false;
+        sendBtn.disabled = false;
+    };
+
+    openclawSocket.onerror = function(err) {
+        statusBadge.className = "badge bg-danger";
+        statusBadge.innerText = "Eroare Conexiune";
+    };
+
+    openclawSocket.onclose = function() {
+        statusBadge.className = "badge bg-secondary";
+        statusBadge.innerText = "Deconectat";
+    };
+
+    openclawSocket.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            // OpenClaw passes stream updates under data.type text_delta or data.text
+            if (data.type === 'text_delta' || data.type === 'content' || data.text) {
+                const textContent = data.content || data.text || '';
+                appendChatMessage(textContent, 'agent-reply', true);
+            } 
+            // Display system executions or tool confirmations dynamically
+            else if (data.type === 'tool_call' || data.type === 'tool') {
+                appendChatMessage(`\n[VPS Execuție: ${data.tool_name || data.name || 'Sistem'}]\n`, 'system-log', false);
+            }
+        } catch(e) {
+            // Fallback for raw text strings from older framework bindings
+            if (event.data && typeof event.data === 'string' && !event.data.startsWith('{')) {
+                appendChatMessage(event.data, 'agent-reply', true);
+            }
+        }
+    };
+
+    function sendOpenClawPrompt() {
         const text = userInput.value.trim();
         if (!text) return;
 
-        // Display user's text immediately
         appendChatMessage(`\nTu: ${text}\n`, 'user-query', false);
-        userInput.value = '';
         
-        // Disable input while the stream resolves
-        userInput.disabled = true;
-        sendBtn.disabled = true;
-        statusBadge.className = "badge bg-warning text-dark";
-        statusBadge.innerText = "Se procesează...";
+        // 🚨 FIXED WORKFLOW SCHEMA FOR OPENCLAW GATEWAY
+        openclawSocket.send(JSON.stringify({
+            action: "agent_message",
+            sessionId: currentSessionId,
+            message: {
+                role: "user",
+                content: text
+            },
+            stream: true,
+            thinking: "high"
+        }));
 
-        try {
-            // Post prompt directly to your secure authenticated route
-            const response = await fetch('/admin/openclaw-stream', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token() }}' 
-                },
-                body: JSON.stringify({ message: text })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Server returned HTTP ${response.status}`);
-            }
-
-            // Read the streaming chunks manually from the HTTP body
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n\n');
-                
-                // Keep the last partial line in the buffer
-                buffer = lines.pop(); 
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const rawJson = line.replace('data: ', '').trim();
-                            const data = JSON.parse(rawJson);
-                            
-                            // Live output delivery
-                            if (data.type === 'text_delta' || data.type === 'content') {
-                                appendChatMessage(data.content || data.text, 'agent-reply', true);
-                            } 
-                            // Live tool diagnostics reporting
-                            else if (data.type === 'tool_call') {
-                                appendChatMessage(`\n[VPS Execuție Unealtă: ${data.tool_name || data.name}]\n`, 'system-log', false);
-                            }
-                        } catch (e) {
-                            // Fallback rendering
-                            appendChatMessage(line, 'agent-reply', true);
-                        }
-                    }
-                }
-            }
-        } catch (err) {
-            appendChatMessage(`\n[Eroare Proxy: ${err.message}]\n`, 'system-log', false);
-        } finally {
-            // Restore input interactivity smoothly
-            userInput.disabled = false;
-            sendBtn.disabled = false;
-            statusBadge.className = "badge bg-success";
-            statusBadge.innerText = "Securizat (Proxy Backend)";
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
+        userInput.value = '';
     }
 
     function appendChatMessage(text, className, isDelta) {
         if (!text) return;
-        
         if (isDelta && chatBox.lastChild && chatBox.lastChild.className === className) {
             chatBox.lastChild.innerText += text;
         } else {
@@ -218,7 +210,6 @@
             } else {
                 msgNode.style.color = '#212529';
             }
-            
             msgNode.innerText = text;
             chatBox.appendChild(msgNode);
         }
