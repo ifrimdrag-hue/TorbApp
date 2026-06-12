@@ -20,7 +20,8 @@
   {% endfor %}
 {% endwith %}
 
-<div class="card shadow-sm">
+<!-- Added mb-4 for visual spacing from the terminal card below -->
+<div class="card shadow-sm mb-4">
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
       <thead class="table-dark">
@@ -90,4 +91,145 @@
     </table>
   </div>
 </div>
+
+<!-- 🦞 SECURE OPENCLAW PROXY CONTROLLER INTERFACE -->
+<div class="card shadow-sm border-dark">
+  <div class="card-header bg-dark text-white d-flex align-items-center justify-content-between">
+    <h6 class="mb-0"><i class="bi bi-terminal-fill me-2 text-warning"></i>OpenClaw Controller Local</h6>
+    <span id="openclaw-status" class="badge bg-success">Securizat (Proxy Backend)</span>
+  </div>
+  <div class="card-body bg-light">
+    <div id="openclaw-chat-box" class="border rounded bg-white p-3 mb-3" style="height: 300px; overflow-y: auto;">
+      <div class="text-muted small"><em>Sistem: Conexiune prin proxy Flask securizată. Introduceți o comandă mai jos.</em></div>
+    </div>
+    <div class="input-group">
+      <input type="text" id="openclaw-user-input" class="form-control" placeholder="Introduceți o comandă (ex: 'Verifică memoria RAM a serverului' sau 'Numără rândurile din baza de date SQLite')...">
+      <button class="btn btn-dark" type="button" id="openclaw-send-btn" onclick="sendOpenClawPrompt()">
+        <i class="bi bi-send-fill"></i> Trimite
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+    const chatBox = document.getElementById('openclaw-chat-box');
+    const userInput = document.getElementById('openclaw-user-input');
+    const sendBtn = document.getElementById('openclaw-send-btn');
+    const statusBadge = document.getElementById('openclaw-status');
+
+    async function sendOpenClawPrompt() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        // Display user's text immediately
+        appendChatMessage(`\nTu: ${text}\n`, 'user-query', false);
+        userInput.value = '';
+        
+        // Disable input while the stream resolves
+        userInput.disabled = true;
+        sendBtn.disabled = true;
+        statusBadge.className = "badge bg-warning text-dark";
+        statusBadge.innerText = "Se procesează...";
+
+        try {
+            // Post prompt directly to your secure authenticated route
+            const response = await fetch('/admin/openclaw-stream', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}' 
+                },
+                body: JSON.stringify({ message: text })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server returned HTTP ${response.status}`);
+            }
+
+            // Read the streaming chunks manually from the HTTP body
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n\n');
+                
+                // Keep the last partial line in the buffer
+                buffer = lines.pop(); 
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const rawJson = line.replace('data: ', '').trim();
+                            const data = JSON.parse(rawJson);
+                            
+                            // Live output delivery
+                            if (data.type === 'text_delta' || data.type === 'content') {
+                                appendChatMessage(data.content || data.text, 'agent-reply', true);
+                            } 
+                            // Live tool diagnostics reporting
+                            else if (data.type === 'tool_call') {
+                                appendChatMessage(`\n[VPS Execuție Unealtă: ${data.tool_name || data.name}]\n`, 'system-log', false);
+                            }
+                        } catch (e) {
+                            // Fallback rendering
+                            appendChatMessage(line, 'agent-reply', true);
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            appendChatMessage(`\n[Eroare Proxy: ${err.message}]\n`, 'system-log', false);
+        } finally {
+            // Restore input interactivity smoothly
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            statusBadge.className = "badge bg-success";
+            statusBadge.innerText = "Securizat (Proxy Backend)";
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
+
+    function appendChatMessage(text, className, isDelta) {
+        if (!text) return;
+        
+        if (isDelta && chatBox.lastChild && chatBox.lastChild.className === className) {
+            chatBox.lastChild.innerText += text;
+        } else {
+            const msgNode = document.createElement('pre');
+            msgNode.className = className;
+            msgNode.style.whiteSpace = 'pre-wrap';
+            msgNode.style.margin = '4px 0';
+            msgNode.style.fontFamily = 'monospace';
+            msgNode.style.fontSize = '13px';
+            
+            if (className === 'user-query') {
+                msgNode.style.color = '#0d6efd';
+                msgNode.style.fontWeight = 'bold';
+            } else if (className === 'system-log') {
+                msgNode.style.color = '#fd7e14';
+                msgNode.style.backgroundColor = '#fff3cd';
+                msgNode.style.padding = '4px';
+                msgNode.style.borderRadius = '4px';
+            } else {
+                msgNode.style.color = '#212529';
+            }
+            
+            msgNode.innerText = text;
+            chatBox.appendChild(msgNode);
+        }
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    userInput.addEventListener("keypress", function(event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            sendOpenClawPrompt();
+        }
+    });
+</script>
 {% endblock %}

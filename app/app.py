@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import datetime
 import logging
 import logging.handlers
@@ -223,7 +224,43 @@ def create_app(test_config=None):
         if request.path.startswith('/api/'):
             return jsonify({'error': 'Internal server error'}), 500
         return render_template('500.html'), 500
+    
+    # ── SECURE OPENCLAW PROXY ENDPOINT ──────────────────────────────────────
+    @app.route('/admin/openclaw-stream', methods=['POST'])
+    def openclaw_stream():
+        if not current_user.is_authenticated or getattr(current_user, 'role', '') != 'admin':
+            return jsonify({'error': 'Unauthorized'}), 403
 
+        import websocket
+        user_prompt = request.json.get('message', '')
+        if not user_prompt:
+            return jsonify({'error': 'Prompt text missing'}), 400
+
+        def generate_stream():
+            # Dynamically read values injected via your deployment pipeline
+            base_url = os.environ.get('OPENCLAW_WS_URL', 'ws://127.0.0.1:18789/ws')
+            token = os.environ.get('OPENCLAW_TOKEN', '')
+            
+            if not token:
+                yield f"data: {json.dumps({'type': 'text_delta', 'content': ' Eroare: Configurația OPENCLAW_TOKEN lipsește din mediu.'})}\n\n"
+                return
+
+            target_url = f"{base_url}?token={token}"
+            
+            try:
+                ws = websocket.create_connection(target_url, timeout=10)
+                ws.send(json.dumps({"action": "send_message", "message": user_prompt}))
+                
+                while True:
+                    result = ws.recv()
+                    if not result:
+                        break
+                    yield f"data: {result}\n\n"
+            except Exception as stream_err:
+                yield f"data: {json.dumps({'type': 'text_delta', 'content': f' Eroare conexiune: {str(stream_err)}'})}\n\n"
+
+        from flask import Response
+        return Response(generate_stream(), mimetype='text/event-stream')
     return app
 
 
