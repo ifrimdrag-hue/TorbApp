@@ -125,8 +125,7 @@
     
     // 3. Keep secure connection pointing through your updated Nginx proxy route
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const openclawSocket = new WebSocket(`${wsProtocol}//${window.location.host}/admin/openclaw-ws?token=${openclawToken}`);
-
+    const openclawSocket = new WebSocket(`${wsProtocol}//${window.location.host}/admin/openclaw-ws/?token=${openclawToken}`);
     openclawSocket.onopen = function() {
         statusBadge.className = "badge bg-success";
         statusBadge.innerText = "Conectat la VPS";
