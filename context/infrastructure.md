@@ -273,8 +273,9 @@ VPS glue — **installed & verified 2026-06-13** (the `www-data → openclaw` te
 **Remaining (optional):**
 - (a) Set the exec allowlist (`openclaw approvals allowlist`) before letting the agent run
   server commands. Chat works without it, but prompts like "check RAM / count DB rows" need it.
-- (b) Delete the two legacy nginx `location /admin/openclaw-ws` blocks (`app.robrands.ro` +
-  `default`; the `default` one is malformed `proxy_pass http://127.0.0;`). Unused now, and the
-  prod one bypasses Flask auth. `nginx -t && systemctl reload nginx` after.
+- (b) ✅ **Done 2026-06-13** — removed the two legacy nginx `location /admin/openclaw-ws`
+  blocks (`app.robrands.ro` + `default`). `/admin/openclaw-ws/` now returns 302→login (served
+  by Flask) instead of proxying to the gateway, closing the auth-bypass back-door. Backups:
+  `*.bak.<date>` in `/etc/nginx/sites-available/`.
 - (c) Add a swapfile — box is 2 vCPU / 2.8 GB / **0 swap**.
 - (d) The app route `/admin/openclaw-ask` ships on the next push (commits `5d3fcc1`, `5bc162a`).
