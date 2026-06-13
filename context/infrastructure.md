@@ -344,19 +344,48 @@ app-wide; passwords pbkdf2.
 > Recovery requires the provider console (`usermod -aG sudo openclaw`). Don't remove the sole
 > admin's sudo again.
 
-**CURRENT STATE (2026-06-13, Sat):** human admin is **locked out of root** — `openclaw` has no
-general sudo and there is no separate root account/password. **Provider ticket pending** to run
-`usermod -aG sudo openclaw` from the console (may take a while — weekend). Until then, only the
-scoped NOPASSWD commands work. **Deploys are unaffected** (the `torb-deploy` rule grants the
-`systemctl restart` per-user; the new `.env` `chgrp/chmod` step runs as the file owner) — verified
-the pipeline needs nothing that was lost. App-level recovery still available: service restarts via
-the scoped rule, the `rollback.yml` workflow, and code edits (www-data-group-writable tree).
-The `.env` perm fix (#5) can be applied now as `openclaw` without root.
+**CURRENT STATE (2026-06-13, Sat):** code/CI fixes **pushed & deployed to prod** (ProxyFix,
+security headers, `SESSION_COOKIE_SECURE=1`, `.env` 640); `.env` perms fixed on prod + dev and
+login verified on dev before prod approval. Human admin remains **locked out of root** — `openclaw`
+has no general sudo and there is no separate root account/password. **Provider ticket pending** to
+run `usermod -aG sudo openclaw` from the console (weekend — may take a while). Deploys/app are
+unaffected (verified). **Everything below is BLOCKED on that sudo restore.**
 
-**Open (need root — `openclaw` has no general sudo anymore):**
-- `PermitRootLogin yes` in `sshd_config` → set `prohibit-password` via a `99-` drop-in. Confirm
-  effective `PasswordAuthentication` with `sshd -T` (cloud-init drop-in `50-cloud-init.conf` is
-  root-only; likely already `no`). Only disable password auth after verifying key login works.
-- nginx `server_tokens` default-on (version leak) → add `server_tokens off;` in `http{}`.
-- Dev app (`:5001`) is internet-exposed (separate DB, same auth) — acceptable, noted.
-- Harmless `*.bak.2026-06-13` nginx files in `sites-available/` — cleanup whenever.
+### RESUME CHECKLIST — run after `openclaw` is back in `sudo` (verbatim)
+
+```bash
+# 1. Confirm recovery
+id openclaw                 # expect: ...,27(sudo),33(www-data)
+sudo -v                     # should succeed (no "not allowed")
+
+# 2. SSH hardening
+sshd -T | grep -Ei 'permitrootlogin|passwordauthentication|pubkeyauthentication'
+sudo tee /etc/ssh/sshd_config.d/99-torb-hardening.conf >/dev/null <<'EOF'
+PermitRootLogin prohibit-password
+# PasswordAuthentication no   # uncomment ONLY after confirming key login works for you
+EOF
+sudo sshd -t && sudo systemctl reload ssh
+
+# 3. nginx version leak — add `server_tokens off;` inside http{} of /etc/nginx/nginx.conf, then:
+sudo nginx -t && sudo systemctl reload nginx
+
+# 4. Recycle the OpenClaw gateway session (drop stale docker/sudo groups from the live process)
+sudo loginctl terminate-user openclaw    # linger restarts the gateway
+sleep 5                                   # then verify gateway is up + widget chat answers
+
+# 5. Verify the rules we couldn't read without root
+sudo ufw status verbose                   # expect only 2112/80/443/5001
+sudo fail2ban-client status sshd          # confirm maxretry/bantime
+
+# 6. Cleanup (optional)
+ls -l /var/www/html/torb-py/.env                      # confirm 640 openclaw:www-data
+sudo rm /etc/nginx/sites-available/*.bak.2026-06-13   # leftover clutter
+apt-get -s upgrade | grep -i security                  # any pending security updates
+```
+
+**Notes:** keep `PasswordAuthentication no` commented until `sshd -T` + a test key-login confirm
+you won't re-lock yourself. Dev app (`:5001`) internet-exposed (separate DB, same auth) — accepted.
+
+**Long-term (separate project, not urgent):** run the OpenClaw gateway/agent as a dedicated
+low-privilege user, separate from the `openclaw` deploy/admin account — removes the shared-identity
+root cause behind both the exec risk and this lockout.
