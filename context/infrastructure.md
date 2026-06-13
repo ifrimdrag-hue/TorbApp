@@ -313,3 +313,34 @@ code-exec as `www-data`, could prompt the agent into arbitrary commands and **es
   its user session is recycled (`sudo loginctl terminate-user openclaw`, or a reboot). Inert while
   exec is `deny` (no way to invoke docker without exec), but recycle for full hygiene.
 - **Long-term:** run the gateway/agent as a dedicated low-priv user, separate from the deploy user.
+
+---
+
+## Full security audit — 2026-06-13
+
+Read-only audit across app + host after the OpenClaw lockdown. Posture is sound; items below.
+
+**Verified solid:** fail2ban active (`[sshd]` jail on); ufw active (only 2112/80/443/5001 on
+`0.0.0.0`); gunicorn (`:5000`/`:5002`) + agent gateway (`:18789`) are **loopback-only**;
+`~/.openclaw` is `700`, agent key sqlite `600`, nothing world-readable; unattended security
+upgrades on; SQLi not exposed (bound params; dynamic `{sets}` = whitelisted columns); CSRF
+app-wide; passwords pbkdf2.
+
+**Fixed in code/CI (commit `51e6b4c`):**
+- `ProxyFix(x_for, x_proto)` in `app/app.py` — nginx sets `X-Forwarded-For`/`-Proto` but Flask
+  saw `127.0.0.1`, so the login rate limiter was effectively global and audit IPs were useless.
+- Security headers via `after_request`: `X-Content-Type-Options`, `X-Frame-Options=SAMEORIGIN`,
+  `Referrer-Policy`, HSTS. **CSP deliberately deferred** (inline scripts + CDN assets need an audit).
+- `deploy_VPS.yml` (prod+dev): inject `SESSION_COOKIE_SECURE=1`; `chgrp www-data` + `chmod 640`
+  on `.env` after every write (the `grep|mv` rewrites otherwise reset it to world-readable `664`).
+
+**Fixed on server 2026-06-13:** `.env` was `664 openclaw:openclaw` (secrets world-readable) →
+`640 openclaw:www-data` on prod + dev. *(Confirm with `ls -l .env`.)*
+
+**Open (need root — `openclaw` has no general sudo anymore):**
+- `PermitRootLogin yes` in `sshd_config` → set `prohibit-password` via a `99-` drop-in. Confirm
+  effective `PasswordAuthentication` with `sshd -T` (cloud-init drop-in `50-cloud-init.conf` is
+  root-only; likely already `no`). Only disable password auth after verifying key login works.
+- nginx `server_tokens` default-on (version leak) → add `server_tokens off;` in `http{}`.
+- Dev app (`:5001`) is internet-exposed (separate DB, same auth) — acceptable, noted.
+- Harmless `*.bak.2026-06-13` nginx files in `sites-available/` — cleanup whenever.
