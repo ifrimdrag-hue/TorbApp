@@ -95,13 +95,11 @@
 <!-- 🦞 SECURE OPENCLAW PROXY CONTROLLER INTERFACE -->
 <div class="card shadow-sm border-dark">
   <div class="card-header bg-dark text-white d-flex align-items-center justify-content-between">
-    <h6 class="mb-0"><i class="bi bi-terminal-fill me-2 text-warning"></i>OpenClaw Controller Local</h6>
+    <h6 class="mb-0"><i class="bi bi-terminal-fill me-2 text-warning"></i>OpenClaw — Conexiune prin proxy Flask securizată</h6>
     <span id="openclaw-status" class="badge bg-success">Securizat (Proxy Backend)</span>
   </div>
   <div class="card-body bg-light">
-    <div id="openclaw-chat-box" class="border rounded bg-white p-3 mb-3" style="height: 300px; overflow-y: auto;">
-      <div class="text-muted small"><em>Sistem: Conexiune prin proxy Flask securizată. Introduceți o comandă mai jos.</em></div>
-    </div>
+    <div id="openclaw-chat-box" class="border rounded bg-white p-3 mb-3" style="height: 300px; overflow-y: auto;"></div>
     <div class="input-group">
       <input type="text" id="openclaw-user-input" class="form-control" placeholder="Introduceți o comandă (ex: 'Verifică memoria RAM a serverului' sau 'Numără rândurile din baza de date SQLite')...">
       <button class="btn btn-dark" type="button" id="openclaw-send-btn" onclick="sendOpenClawPrompt()">
