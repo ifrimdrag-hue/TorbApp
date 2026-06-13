@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, request, jsonify, redirect, url_for, render_template
 from flask_login import current_user
+from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 
 _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
@@ -78,6 +79,12 @@ def create_app(test_config=None):
     )
     if test_config:
         app.config.update(test_config)
+
+    # ── Reverse-proxy awareness ──────────────────────────────────────────────
+    # nginx terminates TLS and sets X-Forwarded-For / X-Forwarded-Proto (one hop).
+    # Without this, request.remote_addr is always 127.0.0.1 (breaks the login rate
+    # limiter + audit-log IPs) and Flask can't tell the request arrived over HTTPS.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     # ── Extensions ───────────────────────────────────────────────────────────
     login_manager.init_app(app)
@@ -224,7 +231,20 @@ def create_app(test_config=None):
         if request.path.startswith('/api/'):
             return jsonify({'error': 'Internal server error'}), 500
         return render_template('500.html'), 500
-    
+
+    # ── Security headers ─────────────────────────────────────────────────────
+    # CSP is intentionally omitted for now: templates use inline scripts/styles
+    # and CDN assets, so a strict policy needs a dedicated audit pass first.
+    @app.after_request
+    def _security_headers(resp):
+        resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        resp.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+        resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+        resp.headers.setdefault(
+            'Strict-Transport-Security', 'max-age=31536000; includeSubDomains'
+        )
+        return resp
+
     # ── OPENCLAW AGENT PROXY ─────────────────────────────────────────────────
     # The browser POSTs a prompt; Flask runs the OpenClaw agent CLI as the
     # `openclaw` user (its gateway/auth/device state lives in that user's home,

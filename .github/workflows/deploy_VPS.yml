@@ -119,6 +119,12 @@ jobs:
             echo "SHOPIFY_STOCK_SAFETY_THRESHOLD=5" >> .env
             grep -v '^EMAG_STOCK_SAFETY_THRESHOLD=' .env > .env.tmp && mv .env.tmp .env
             echo "EMAG_STOCK_SAFETY_THRESHOLD=5" >> .env
+            grep -v '^SESSION_COOKIE_SECURE=' .env > .env.tmp && mv .env.tmp .env
+            echo "SESSION_COOKIE_SECURE=1" >> .env
+
+            # Lock down .env — gunicorn runs as www-data (group), never world-readable.
+            # The .env rewrites above use default umask (664); reset perms every deploy.
+            chgrp www-data .env && chmod 640 .env
 
             # Update dependencies
             source venv/bin/activate
@@ -254,6 +260,12 @@ jobs:
             echo "SHOPIFY_STOCK_SAFETY_THRESHOLD=5" >> .env
             grep -v '^EMAG_STOCK_SAFETY_THRESHOLD=' .env > .env.tmp && mv .env.tmp .env
             echo "EMAG_STOCK_SAFETY_THRESHOLD=5" >> .env
+            grep -v '^SESSION_COOKIE_SECURE=' .env > .env.tmp && mv .env.tmp .env
+            echo "SESSION_COOKIE_SECURE=1" >> .env
+
+            # Lock down .env — gunicorn runs as www-data (group), never world-readable.
+            # The .env rewrites above use default umask (664); reset perms every deploy.
+            chgrp www-data .env && chmod 640 .env
 
             # Update dependencies
             source venv/bin/activate
