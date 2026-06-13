@@ -337,6 +337,13 @@ app-wide; passwords pbkdf2.
 **Fixed on server 2026-06-13:** `.env` was `664 openclaw:openclaw` (secrets world-readable) →
 `640 openclaw:www-data` on prod + dev. *(Confirm with `ls -l .env`.)*
 
+> **⚠️ LESSON 2026-06-13:** dropping `openclaw` from the `sudo` group locked the human admin
+> out of root — `openclaw` is the *only* admin account and there is no separate root password.
+> The real escalation hole was the **`docker`** group (passwordless root); `sudo` is
+> password-gated and the non-interactive agent could never use it. **Keep `openclaw` in `sudo`.**
+> Recovery requires the provider console (`usermod -aG sudo openclaw`). Don't remove the sole
+> admin's sudo again.
+
 **Open (need root — `openclaw` has no general sudo anymore):**
 - `PermitRootLogin yes` in `sshd_config` → set `prohibit-password` via a `99-` drop-in. Confirm
   effective `PasswordAuthentication` with `sshd -T` (cloud-init drop-in `50-cloud-init.conf` is
