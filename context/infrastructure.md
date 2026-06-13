@@ -219,7 +219,7 @@ systemctl --user status|restart openclaw-gateway.service
 | ExecStart | `node ~/.local/lib/node_modules/openclaw/dist/index.js gateway --port 18789` |
 | Listens | `127.0.0.1:18789` (gateway, WS at `/ws`) + `127.0.0.1:18791` (browser control) |
 | Config | `~/.openclaw/openclaw.json` (JSON5) |
-| Auth | gateway token **+** per-device roles/scopes (see blocker below) |
+| Auth | gateway token **+** per-device roles/scopes (see notes below) |
 | Provider | OpenRouter, model `openrouter/auto` |
 
 **Fixes applied 2026-06-13 (gateway was dead before this):**
@@ -238,8 +238,10 @@ systemctl --user status|restart openclaw-gateway.service
    Set via `openclaw models auth login --provider openrouter` (OAuth). **Restart the
    gateway afterward** so it reloads the key, else turns fail "No API key found".
 
-Verified 2026-06-13: `openclaw agent --agent main --session-id … -m … --json` returns
-via the gateway in ~4s. Output shape: `{runId, status:"ok", result:{payloads:[{text}], meta}}`.
+Verified working end-to-end 2026-06-13: the full app path
+`www-data → sudo -u openclaw → wrapper → openclaw agent → gateway → OpenRouter`
+returns a real reply in ~4s. Output shape: `{runId, status:"ok", result:{payloads:[{text}], meta}}`.
+Agent `main` is **out of BOOTSTRAP** and replies normally (no identity-onboarding script).
 
 **Flask integration (CLI, not WebSocket):** route `/admin/openclaw-ask` in `app/app.py`
 shells out to `sudo -n -u openclaw <wrapper> <session_id> <prompt>`, parses
@@ -250,7 +252,7 @@ the CLI always matches the installed version. `www-data` (gunicorn) can't read
 `OPENCLAW_TOKEN` / `OPENCLAW_WS_URL` (those can be dropped from `.env`/secrets); optional
 overrides are `OPENCLAW_ASK_BIN` and `OPENCLAW_TIMEOUT`.
 
-Required VPS glue (install once):
+VPS glue — **installed & verified 2026-06-13** (the `www-data → openclaw` test returns `status: ok`):
 - Wrapper `/usr/local/bin/torb-openclaw-ask` (root-owned, mode 0755):
   ```bash
   #!/usr/bin/env bash
@@ -260,16 +262,19 @@ Required VPS glue (install once):
   export PATH="/home/openclaw/.local/bin:/usr/bin:/bin"
   exec openclaw agent --agent main --session-id "${1:?}" -m "${2:?}" --json
   ```
-- Sudoers `/etc/sudoers.d/torb-openclaw` (validate with `visudo -cf`):
+- Sudoers `/etc/sudoers.d/torb-openclaw` (mode 0440, `visudo -cf` parses OK):
   ```
   www-data ALL=(openclaw) NOPASSWD: /usr/local/bin/torb-openclaw-ask
   ```
-- **Check the service doesn't block escalation:** `sudo systemctl cat torb-py | grep -i NoNewPrivileges`.
-  If `NoNewPrivileges=true`, sudo can't setuid — remove that line and `daemon-reload` + restart.
+- `torb-py` confirmed **without** `NoNewPrivileges`, so the `sudo` setuid hop works. If a
+  future hardening pass adds `NoNewPrivileges=true`, sudo breaks — remove it, `daemon-reload`,
+  restart.
 
-**Remaining setup:** (a) take agent `main` out of BOOTSTRAP (write IDENTITY.md/USER.md,
-delete BOOTSTRAP.md in `~/.openclaw/workspace/`); (b) set the exec allowlist
-(`openclaw approvals allowlist`) before letting it run server commands; (c) delete the two
-legacy nginx `location /admin/openclaw-ws` blocks (`app.robrands.ro` + `default`; the
-`default` one is malformed `proxy_pass http://127.0.0;`); (d) add a swapfile — box is
-2 vCPU / 2.8 GB / **0 swap**.
+**Remaining (optional):**
+- (a) Set the exec allowlist (`openclaw approvals allowlist`) before letting the agent run
+  server commands. Chat works without it, but prompts like "check RAM / count DB rows" need it.
+- (b) Delete the two legacy nginx `location /admin/openclaw-ws` blocks (`app.robrands.ro` +
+  `default`; the `default` one is malformed `proxy_pass http://127.0.0;`). Unused now, and the
+  prod one bypasses Flask auth. `nginx -t && systemctl reload nginx` after.
+- (c) Add a swapfile — box is 2 vCPU / 2.8 GB / **0 swap**.
+- (d) The app route `/admin/openclaw-ask` ships on the next push (commits `5d3fcc1`, `5bc162a`).
