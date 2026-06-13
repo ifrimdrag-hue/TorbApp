@@ -279,3 +279,33 @@ VPS glue — **installed & verified 2026-06-13** (the `www-data → openclaw` te
   `*.bak.<date>` in `/etc/nginx/sites-available/`.
 - (c) Add a swapfile — box is 2 vCPU / 2.8 GB / **0 swap**.
 - (d) The app route `/admin/openclaw-ask` ships on the next push (commits `5d3fcc1`, `5bc162a`).
+
+### ⚠️ SECURITY — OPEN (assessed 2026-06-13, resume here)
+
+**Question asked:** "is everything secure, including what OpenClaw can execute on the server?"
+
+**Verdict:** Internet-facing surface is fine (admin-only + CSRF route, gateway loopback-only,
+nginx back-door removed). But **what the agent can execute is NOT secure** — verified state:
+
+- `openclaw approvals get` → `tools.exec security=full, ask=off`, allowlist **0**, defaults none
+  → the agent runs **any shell command with no approval prompt**.
+- `id openclaw` → groups `sudo, www-data, docker`. The **`docker`** group is root-equivalent
+  (`docker run -v /:/host …`).
+- **Net risk (high):** any Flask admin — or anyone with code-exec as `www-data` via some app
+  flaw — can prompt the agent into arbitrary commands and **escalate to root**. Lock down
+  before relying on the widget.
+
+**Remediation (pending — pick up here):**
+1. **Constrain exec.** Either disable it (don't need server commands) or set a deny-by-default
+   policy + tight read-only allowlist (`/usr/bin/free`, `/usr/bin/uptime`, `/usr/bin/df`, a
+   fixed sqlite query). Allowlist only bites once the default policy is no longer `security=full`
+   — set via `openclaw approvals set` (confirm JSON schema: `openclaw approvals set --help` /
+   docs.openclaw.ai/cli/approvals). `openclaw approvals allowlist add --agent main "<glob>"`.
+2. **Drop root-equivalent groups.** `sudo gpasswd -d openclaw docker` (after `docker ps` shows
+   nothing uses it). **Keep `www-data`** (deploys need it). For `sudo`: check whether
+   `deploy_VPS.yml` relies on `sudo systemctl restart torb-py` before removing.
+3. **Long-term:** run the gateway/agent as a dedicated low-priv user, separate from the deploy
+   user.
+
+**Open offers when resuming:** (a) draft the `approvals set` JSON for a read-only allowlist;
+(b) check `deploy_VPS.yml` to see if dropping `openclaw` from `sudo` is safe.
