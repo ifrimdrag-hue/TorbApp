@@ -21,7 +21,7 @@
 
 | Question | Answer |
 |---|---|
-| Deploy/SSH user (GitHub Actions + manual SSH) | `openclaw` — uid 999, groups: `openclaw`, `sudo`, `www-data`, `docker` |
+| Deploy/SSH user (GitHub Actions + manual SSH) | `openclaw` — uid 999, groups: `openclaw`, `www-data` (`sudo` + `docker` removed 2026-06-13 — see OpenClaw security section). Deploy `systemctl restart` works via scoped NOPASSWD sudoers (`torb-deploy`), **not** group membership. |
 | Service user (gunicorn `torb-py` + `torb-dev`) | `www-data` — uid 33, groups: `www-data` only |
 | Owner of `/var/www/html/torb-py` | `www-data:www-data`, mode 775 (group-writable) |
 | Owner of `data/` and `torb.db` | `www-data:www-data`, mode 775 |
@@ -271,8 +271,10 @@ VPS glue — **installed & verified 2026-06-13** (the `www-data → openclaw` te
   restart.
 
 **Remaining (optional):**
-- (a) Set the exec allowlist (`openclaw approvals allowlist`) before letting the agent run
-  server commands. Chat works without it, but prompts like "check RAM / count DB rows" need it.
+- (a) ✅ **Resolved 2026-06-13** — exec is now `deny-all` (see security section below); the agent
+  cannot run server commands at all. Chat-only by design. To later allow read-only server prompts
+  ("check RAM / count DB rows"), switch to `exec-policy preset cautious` + a tight allowlist
+  (`openclaw approvals allowlist add`) rather than reverting to `deny-all`/`full`.
 - (b) ✅ **Done 2026-06-13** — removed the two legacy nginx `location /admin/openclaw-ws`
   blocks (`app.robrands.ro` + `default`). `/admin/openclaw-ws/` now returns 302→login (served
   by Flask) instead of proxying to the gateway, closing the auth-bypass back-door. Backups:
@@ -280,32 +282,34 @@ VPS glue — **installed & verified 2026-06-13** (the `www-data → openclaw` te
 - (c) Add a swapfile — box is 2 vCPU / 2.8 GB / **0 swap**.
 - (d) The app route `/admin/openclaw-ask` ships on the next push (commits `5d3fcc1`, `5bc162a`).
 
-### ⚠️ SECURITY — OPEN (assessed 2026-06-13, resume here)
+### ✅ SECURITY — RESOLVED 2026-06-13 (locked down; was OPEN since 2026-06-13)
 
 **Question asked:** "is everything secure, including what OpenClaw can execute on the server?"
 
-**Verdict:** Internet-facing surface is fine (admin-only + CSRF route, gateway loopback-only,
-nginx back-door removed). But **what the agent can execute is NOT secure** — verified state:
+**Original verdict:** Internet-facing surface was fine (admin-only + CSRF route, gateway
+loopback-only, nginx back-door removed). But **what the agent could execute was NOT secure** —
+`tools.exec security=full, ask=off`, empty allowlist (runs any shell command, no prompt), while
+`openclaw` was in the `sudo` + `docker` (root-equivalent) groups. Any Flask admin, or anyone with
+code-exec as `www-data`, could prompt the agent into arbitrary commands and **escalate to root**.
 
-- `openclaw approvals get` → `tools.exec security=full, ask=off`, allowlist **0**, defaults none
-  → the agent runs **any shell command with no approval prompt**.
-- `id openclaw` → groups `sudo, www-data, docker`. The **`docker`** group is root-equivalent
-  (`docker run -v /:/host …`).
-- **Net risk (high):** any Flask admin — or anyone with code-exec as `www-data` via some app
-  flaw — can prompt the agent into arbitrary commands and **escalate to root**. Lock down
-  before relying on the widget.
+**Lockdown applied (all verified):**
+1. **Exec disabled.** `openclaw exec-policy preset deny-all` → host approvals
+   `~/.openclaw/exec-approvals.json` defaults now `security=deny, ask=off, askFallback=deny`.
+   Gateway restarted to load it. Effective policy confirmed `security=deny`. The agent's `exec`
+   tool is still offered in-schema but the host policy denies it at execution time. (Rollback:
+   `openclaw approvals set --file ~/.openclaw/exec-approvals.json.bak.20260613` + gateway restart.)
+2. **Root-equivalent groups dropped.** `sudo gpasswd -d openclaw docker` (zero containers, group
+   unused) + `sudo gpasswd -d openclaw sudo`. `openclaw` groups are now `openclaw, www-data` only;
+   the general `(ALL:ALL) ALL` sudo grant is gone (confirmed in a fresh login session).
+3. **Deploys still work** — the `torb-deploy` sudoers file already grants `openclaw` NOPASSWD on
+   `/bin/systemctl restart torb-py` and `/usr/bin/systemctl restart torb-dev` directly (user-based,
+   not group-based). Deploys are non-interactive and never used the password-gated `%sudo` grant.
+   Verified post-change: `sudo -n -l /bin/systemctl restart torb-py` and `…torb-dev` both permitted.
+4. **Widget chat unaffected** — `www-data → wrapper → agent` smoke test returns `status: ok` after
+   the policy change + gateway restart (~3s).
 
-**Remediation (pending — pick up here):**
-1. **Constrain exec.** Either disable it (don't need server commands) or set a deny-by-default
-   policy + tight read-only allowlist (`/usr/bin/free`, `/usr/bin/uptime`, `/usr/bin/df`, a
-   fixed sqlite query). Allowlist only bites once the default policy is no longer `security=full`
-   — set via `openclaw approvals set` (confirm JSON schema: `openclaw approvals set --help` /
-   docs.openclaw.ai/cli/approvals). `openclaw approvals allowlist add --agent main "<glob>"`.
-2. **Drop root-equivalent groups.** `sudo gpasswd -d openclaw docker` (after `docker ps` shows
-   nothing uses it). **Keep `www-data`** (deploys need it). For `sudo`: check whether
-   `deploy_VPS.yml` relies on `sudo systemctl restart torb-py` before removing.
-3. **Long-term:** run the gateway/agent as a dedicated low-priv user, separate from the deploy
-   user.
-
-**Open offers when resuming:** (a) draft the `approvals set` JSON for a read-only allowlist;
-(b) check `deploy_VPS.yml` to see if dropping `openclaw` from `sudo` is safe.
+**Residual / next maintenance window (low priority):**
+- The **running gateway process** still holds the old `docker`/`sudo` supplementary groups until
+  its user session is recycled (`sudo loginctl terminate-user openclaw`, or a reboot). Inert while
+  exec is `deny` (no way to invoke docker without exec), but recycle for full hygiene.
+- **Long-term:** run the gateway/agent as a dedicated low-priv user, separate from the deploy user.
