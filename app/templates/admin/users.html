@@ -117,70 +117,84 @@
     const sendBtn = document.getElementById('openclaw-send-btn');
     const statusBadge = document.getElementById('openclaw-status');
 
-    // 1. Generate a random temporary Session ID so OpenClaw tracks our conversation state
-    const currentSessionId = "session_" + Math.random().toString(36).substring(2, 15);
+    // Token never touches the browser — Flask holds it server-side and proxies.
+    const STREAM_URL = "{{ url_for('openclaw_stream') }}";
+    const CSRF_TOKEN = "{{ csrf_token() }}";
 
-    // 2. Supply token straight through secure internal loopback parameters
-    const openclawToken = "49eeae5e34e20a641d958bb64d4a45a5e68bba512236bee4";
-    
-    // 3. Keep secure connection pointing through your updated Nginx proxy route
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const openclawSocket = new WebSocket(`${wsProtocol}//${window.location.host}/admin/openclaw-ws/?token=${openclawToken}`);
-    openclawSocket.onopen = function() {
-        statusBadge.className = "badge bg-success";
-        statusBadge.innerText = "Conectat la VPS";
-        chatBox.innerHTML = `<div class="text-success small mb-2"><strong>● Tunel securizat Nginx activ. OpenRouter pregătit.</strong></div>`;
-        userInput.disabled = false;
-        sendBtn.disabled = false;
-    };
-
-    openclawSocket.onerror = function(err) {
-        statusBadge.className = "badge bg-danger";
-        statusBadge.innerText = "Eroare Conexiune";
-    };
-
-    openclawSocket.onclose = function() {
-        statusBadge.className = "badge bg-secondary";
-        statusBadge.innerText = "Deconectat";
-    };
-
-    openclawSocket.onmessage = function(event) {
-        try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'text_delta' || data.type === 'content' || data.text) {
-                const textContent = data.content || data.text || '';
-                appendChatMessage(textContent, 'agent-reply', true);
-            } 
-            else if (data.type === 'tool_call' || data.type === 'tool') {
-                appendChatMessage(`\n[VPS Execuție: ${data.tool_name || data.name || 'Sistem'}]\n`, 'system-log', false);
-            }
-        } catch(e) {
-            if (event.data && typeof event.data === 'string' && !event.data.startsWith('{')) {
-                appendChatMessage(event.data, 'agent-reply', true);
-            }
-        }
-    };
-
-    function sendOpenClawPrompt() {
+    async function sendOpenClawPrompt() {
         const text = userInput.value.trim();
         if (!text) return;
 
         appendChatMessage(`\nTu: ${text}\n`, 'user-query', false);
-        
-        // 🚨 COMPLIANT SESSION ROUTING STRUCTURE
-        openclawSocket.send(JSON.stringify({
-            action: "chat.send",
-            payload: {
-                sessionId: currentSessionId,
-                message: {
-                    role: "user",
-                    content: text
-                },
-                stream: true
-            }
-        }));
-
         userInput.value = '';
+        userInput.disabled = true;
+        sendBtn.disabled = true;
+        statusBadge.className = "badge bg-info";
+        statusBadge.innerText = "Procesare...";
+
+        try {
+            const resp = await fetch(STREAM_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": CSRF_TOKEN
+                },
+                body: JSON.stringify({ message: text })
+            });
+            if (!resp.ok) {
+                throw new Error("HTTP " + resp.status);
+            }
+
+            statusBadge.className = "badge bg-success";
+            statusBadge.innerText = "Conectat";
+
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                // SSE frames are separated by a blank line.
+                let sep;
+                while ((sep = buffer.indexOf("\n\n")) !== -1) {
+                    handleSseFrame(buffer.slice(0, sep));
+                    buffer = buffer.slice(sep + 2);
+                }
+            }
+        } catch (err) {
+            statusBadge.className = "badge bg-danger";
+            statusBadge.innerText = "Eroare";
+            appendChatMessage(`\n[Eroare: ${err.message}]\n`, 'system-log', false);
+        } finally {
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+        }
+    }
+
+    function handleSseFrame(frame) {
+        const raw = frame.split("\n")
+            .filter(l => l.startsWith("data:"))
+            .map(l => l.slice(5).trim())
+            .join("\n");
+        if (!raw) return;
+
+        try {
+            const data = JSON.parse(raw);
+            if (data.type === 'tool_call' || data.type === 'tool') {
+                appendChatMessage(`\n[VPS Executie: ${data.tool_name || data.name || 'Sistem'}]\n`, 'system-log', false);
+            } else if (data.type === 'error') {
+                appendChatMessage(`\n[Eroare: ${data.content || ''}]\n`, 'system-log', false);
+            } else {
+                const textContent = data.content || data.text || '';
+                if (textContent) appendChatMessage(textContent, 'agent-reply', true);
+            }
+        } catch (e) {
+            appendChatMessage(raw, 'agent-reply', true);
+        }
     }
 
     function appendChatMessage(text, className, isDelta) {

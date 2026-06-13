@@ -226,41 +226,55 @@ def create_app(test_config=None):
         return render_template('500.html'), 500
     
     # ── SECURE OPENCLAW PROXY ENDPOINT ──────────────────────────────────────
+    # The browser POSTs a prompt here; Flask holds the OpenClaw WS connection
+    # (and the token) server-side and streams replies back as SSE. The token
+    # is NEVER sent to the client. CSRF is enforced via the X-CSRFToken header.
     @app.route('/admin/openclaw-stream', methods=['POST'])
     def openclaw_stream():
         if not current_user.is_authenticated or getattr(current_user, 'role', '') != 'admin':
             return jsonify({'error': 'Unauthorized'}), 403
 
         import websocket
-        user_prompt = request.json.get('message', '')
+        user_prompt = (request.get_json(silent=True) or {}).get('message', '').strip()
         if not user_prompt:
             return jsonify({'error': 'Prompt text missing'}), 400
 
+        base_url = os.environ.get('OPENCLAW_WS_URL', 'ws://127.0.0.1:18789/ws')
+        token = os.environ.get('OPENCLAW_TOKEN', '')
+
         def generate_stream():
-            # Dynamically read values injected via your deployment pipeline
-            base_url = os.environ.get('OPENCLAW_WS_URL', 'ws://127.0.0.1:18789/ws')
-            token = os.environ.get('OPENCLAW_TOKEN', '')
-            
             if not token:
-                yield f"data: {json.dumps({'type': 'text_delta', 'content': ' Eroare: Configurația OPENCLAW_TOKEN lipsește din mediu.'})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': 'Configuratia OPENCLAW_TOKEN lipseste din mediu.'})}\n\n"
                 return
 
             target_url = f"{base_url}?token={token}"
-            
+            ws = None
             try:
                 ws = websocket.create_connection(target_url, timeout=10)
+                # NOTE: confirm this payload shape against OpenClaw's real WS
+                # protocol (see the VPS inspection commands).
                 ws.send(json.dumps({"action": "send_message", "message": user_prompt}))
-                
+
                 while True:
                     result = ws.recv()
                     if not result:
                         break
                     yield f"data: {result}\n\n"
             except Exception as stream_err:
-                yield f"data: {json.dumps({'type': 'text_delta', 'content': f' Eroare conexiune: {str(stream_err)}'})}\n\n"
+                logger.exception("OpenClaw proxy stream failed")
+                yield f"data: {json.dumps({'type': 'error', 'content': f'Eroare conexiune: {stream_err}'})}\n\n"
+            finally:
+                if ws is not None:
+                    try:
+                        ws.close()
+                    except Exception:
+                        pass
 
         from flask import Response
-        return Response(generate_stream(), mimetype='text/event-stream')
+        resp = Response(generate_stream(), mimetype='text/event-stream')
+        resp.headers['Cache-Control'] = 'no-cache'
+        resp.headers['X-Accel-Buffering'] = 'no'  # tell nginx not to buffer the SSE stream
+        return resp
     return app
 
 

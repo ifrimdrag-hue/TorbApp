@@ -199,3 +199,50 @@ sudo nginx -t
 # Reload nginx (no downtime)
 sudo systemctl reload nginx
 ```
+
+---
+
+## OpenClaw gateway (agent integration) — state as of 2026-06-13
+
+OpenClaw v2026.4.29 (Node) runs as a **user-linger** systemd service under the `openclaw`
+account — **not** system scope. Manage it as that user with the runtime dir exported:
+
+```bash
+export XDG_RUNTIME_DIR=/run/user/$(id -u)      # run as the openclaw user
+systemctl --user status|restart openclaw-gateway.service
+```
+
+| Property | Value |
+|---|---|
+| Service | `openclaw-gateway.service` (user unit, `~/.config/systemd/user/`) |
+| ExecStart | `node ~/.local/lib/node_modules/openclaw/dist/index.js gateway --port 18789` |
+| Listens | `127.0.0.1:18789` (gateway, WS at `/ws`) + `127.0.0.1:18791` (browser control) |
+| Config | `~/.openclaw/openclaw.json` (JSON5) |
+| Auth | gateway token **+** per-device roles/scopes (see blocker below) |
+| Provider | OpenRouter, model `openrouter/auto` |
+
+**Fixes applied 2026-06-13 (gateway was dead before this):**
+1. Config `openclaw.json` was truncated/corrupt (JSON5 EOF at line 56) → restored from
+   `~/.openclaw/openclaw.json.last-good`.
+2. The unit's ExecStart had `--trusted-proxy 127.0.0.1`, **unsupported in this version**
+   → removed (gateway exited 1 on every start). Not needed: Flask talks to the gateway
+   directly over loopback.
+
+**Flask integration:** route `/admin/openclaw-stream` in `app/app.py`, reads
+`OPENCLAW_WS_URL` / `OPENCLAW_TOKEN` from env. The browser hits the proxy (token never
+sent client-side). `OPENCLAW_TOKEN` is a GitHub secret but **`deploy_VPS.yml` does not
+inject it** — it survives on the server only because deploys don't rewrite unmanaged
+`.env` lines. The two nginx `location /admin/openclaw-ws` blocks (in
+`app.robrands.ro` and `default`) are legacy/unused now; the `default` one is malformed
+(`proxy_pass http://127.0.0;`) — delete both when finalizing.
+
+**BLOCKER (integration not working yet):** the single local `operator` device has only
+`operator.read` + `operator.pairing`; agent turns need `operator.write`. Scope-upgrade
+requests are **ephemeral** — they die with the requesting process, so approving by id
+races and returns `unknown requestId`; piecemeal `openclaw devices approve` never
+converges. The gateway path therefore keeps falling back to the **embedded** agent
+(~60s/turn). The agent workspace is also still in fresh **BOOTSTRAP** mode (empty
+IDENTITY.md/USER.md), so even on success it runs an identity-onboarding script rather
+than acting as a Torb assistant. Intended fix: re-pair the device as **owner** with
+persistent scopes via `openclaw configure` or approve via `openclaw dashboard`, then
+configure the workspace. Box is 2 vCPU / 2.8 GB / **0 swap** — add a swapfile.
