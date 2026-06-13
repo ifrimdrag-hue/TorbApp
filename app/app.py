@@ -225,56 +225,55 @@ def create_app(test_config=None):
             return jsonify({'error': 'Internal server error'}), 500
         return render_template('500.html'), 500
     
-    # ── SECURE OPENCLAW PROXY ENDPOINT ──────────────────────────────────────
-    # The browser POSTs a prompt here; Flask holds the OpenClaw WS connection
-    # (and the token) server-side and streams replies back as SSE. The token
-    # is NEVER sent to the client. CSRF is enforced via the X-CSRFToken header.
-    @app.route('/admin/openclaw-stream', methods=['POST'])
-    def openclaw_stream():
+    # ── OPENCLAW AGENT PROXY ─────────────────────────────────────────────────
+    # The browser POSTs a prompt; Flask runs the OpenClaw agent CLI as the
+    # `openclaw` user (its gateway/auth/device state lives in that user's home,
+    # unreadable by www-data) and returns the reply as JSON. No secret reaches
+    # the client. CSRF via the X-CSRFToken header. The wrapper script and the
+    # sudoers rule are documented in context/infrastructure.md.
+    @app.route('/admin/openclaw-ask', methods=['POST'])
+    def openclaw_ask():
         if not current_user.is_authenticated or getattr(current_user, 'role', '') != 'admin':
             return jsonify({'error': 'Unauthorized'}), 403
 
-        import websocket
+        import subprocess
         user_prompt = (request.get_json(silent=True) or {}).get('message', '').strip()
         if not user_prompt:
-            return jsonify({'error': 'Prompt text missing'}), 400
+            return jsonify({'error': 'Mesaj lipsa.'}), 400
+        if len(user_prompt) > 4000:
+            return jsonify({'error': 'Mesaj prea lung (max 4000 caractere).'}), 400
 
-        base_url = os.environ.get('OPENCLAW_WS_URL', 'ws://127.0.0.1:18789/ws')
-        token = os.environ.get('OPENCLAW_TOKEN', '')
+        # Stable per-admin session id keeps each admin's conversation separate.
+        session_id = f"torb-admin-{getattr(current_user, 'id', 'anon')}"
+        ask_bin = os.environ.get('OPENCLAW_ASK_BIN', '/usr/local/bin/torb-openclaw-ask')
+        timeout_s = int(os.environ.get('OPENCLAW_TIMEOUT', '120'))
 
-        def generate_stream():
-            if not token:
-                yield f"data: {json.dumps({'type': 'error', 'content': 'Configuratia OPENCLAW_TOKEN lipseste din mediu.'})}\n\n"
-                return
+        try:
+            proc = subprocess.run(
+                ['sudo', '-n', '-u', 'openclaw', ask_bin, session_id, user_prompt],
+                capture_output=True, text=True, timeout=timeout_s,
+            )
+        except FileNotFoundError:
+            return jsonify({'error': 'OpenClaw nu este disponibil in acest mediu.'}), 503
+        except subprocess.TimeoutExpired:
+            return jsonify({'error': f'OpenClaw a depasit timpul de raspuns ({timeout_s}s).'}), 504
 
-            target_url = f"{base_url}?token={token}"
-            ws = None
-            try:
-                ws = websocket.create_connection(target_url, timeout=10)
-                # NOTE: confirm this payload shape against OpenClaw's real WS
-                # protocol (see the VPS inspection commands).
-                ws.send(json.dumps({"action": "send_message", "message": user_prompt}))
+        if proc.returncode != 0:
+            logger.error("OpenClaw CLI failed rc=%s stderr=%s", proc.returncode, proc.stderr[:800])
+            return jsonify({'error': 'OpenClaw a returnat o eroare.'}), 502
 
-                while True:
-                    result = ws.recv()
-                    if not result:
-                        break
-                    yield f"data: {result}\n\n"
-            except Exception as stream_err:
-                logger.exception("OpenClaw proxy stream failed")
-                yield f"data: {json.dumps({'type': 'error', 'content': f'Eroare conexiune: {stream_err}'})}\n\n"
-            finally:
-                if ws is not None:
-                    try:
-                        ws.close()
-                    except Exception:
-                        pass
+        try:
+            data = json.loads(proc.stdout)
+        except (ValueError, TypeError):
+            logger.error("OpenClaw CLI non-JSON output: %s", proc.stdout[:800])
+            return jsonify({'error': 'Raspuns invalid de la OpenClaw.'}), 502
 
-        from flask import Response
-        resp = Response(generate_stream(), mimetype='text/event-stream')
-        resp.headers['Cache-Control'] = 'no-cache'
-        resp.headers['X-Accel-Buffering'] = 'no'  # tell nginx not to buffer the SSE stream
-        return resp
+        if data.get('status') != 'ok':
+            return jsonify({'error': data.get('summary') or 'OpenClaw nu a putut procesa cererea.'}), 502
+
+        payloads = (data.get('result') or {}).get('payloads') or []
+        reply = payloads[0].get('text', '') if payloads else ''
+        return jsonify({'reply': reply})
     return app
 
 

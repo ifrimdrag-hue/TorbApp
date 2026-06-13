@@ -204,8 +204,9 @@ sudo systemctl reload nginx
 
 ## OpenClaw gateway (agent integration) — state as of 2026-06-13
 
-OpenClaw v2026.4.29 (Node) runs as a **user-linger** systemd service under the `openclaw`
-account — **not** system scope. Manage it as that user with the runtime dir exported:
+OpenClaw (Node; auto-updated to **v2026.6.6** mid-setup on 2026-06-13) runs as a
+**user-linger** systemd service under the `openclaw` account — **not** system scope.
+Manage it as that user with the runtime dir exported:
 
 ```bash
 export XDG_RUNTIME_DIR=/run/user/$(id -u)      # run as the openclaw user
@@ -225,24 +226,50 @@ systemctl --user status|restart openclaw-gateway.service
 1. Config `openclaw.json` was truncated/corrupt (JSON5 EOF at line 56) → restored from
    `~/.openclaw/openclaw.json.last-good`.
 2. The unit's ExecStart had `--trusted-proxy 127.0.0.1`, **unsupported in this version**
-   → removed (gateway exited 1 on every start). Not needed: Flask talks to the gateway
-   directly over loopback.
+   → removed (gateway exited 1 on every start).
+3. Auto-updated to **2026.6.6** mid-setup (v4 control protocol + per-agent auth store).
+   Needed a gateway restart to clear a v3/v4 "protocol mismatch" in the dashboard.
+4. **Device scopes:** the old `operator` device (paired under 2026.4.29) was stuck at
+   `read`+`pairing`; agent turns need `write`, and piecemeal CLI approval races on
+   ephemeral request ids (`unknown requestId`). Fixed by approving the pending scope
+   upgrade in the **dashboard** (Nodes → Devices) once an admin-scoped device existed.
+   New local pairings under 2026.6.6 auto-get full scopes.
+5. **Provider auth is per-agent** (`~/.openclaw/agents/main/agent/openclaw-agent.sqlite`).
+   Set via `openclaw models auth login --provider openrouter` (OAuth). **Restart the
+   gateway afterward** so it reloads the key, else turns fail "No API key found".
 
-**Flask integration:** route `/admin/openclaw-stream` in `app/app.py`, reads
-`OPENCLAW_WS_URL` / `OPENCLAW_TOKEN` from env. The browser hits the proxy (token never
-sent client-side). `OPENCLAW_TOKEN` is a GitHub secret but **`deploy_VPS.yml` does not
-inject it** — it survives on the server only because deploys don't rewrite unmanaged
-`.env` lines. The two nginx `location /admin/openclaw-ws` blocks (in
-`app.robrands.ro` and `default`) are legacy/unused now; the `default` one is malformed
-(`proxy_pass http://127.0.0;`) — delete both when finalizing.
+Verified 2026-06-13: `openclaw agent --agent main --session-id … -m … --json` returns
+via the gateway in ~4s. Output shape: `{runId, status:"ok", result:{payloads:[{text}], meta}}`.
 
-**BLOCKER (integration not working yet):** the single local `operator` device has only
-`operator.read` + `operator.pairing`; agent turns need `operator.write`. Scope-upgrade
-requests are **ephemeral** — they die with the requesting process, so approving by id
-races and returns `unknown requestId`; piecemeal `openclaw devices approve` never
-converges. The gateway path therefore keeps falling back to the **embedded** agent
-(~60s/turn). The agent workspace is also still in fresh **BOOTSTRAP** mode (empty
-IDENTITY.md/USER.md), so even on success it runs an identity-onboarding script rather
-than acting as a Torb assistant. Intended fix: re-pair the device as **owner** with
-persistent scopes via `openclaw configure` or approve via `openclaw dashboard`, then
-configure the workspace. Box is 2 vCPU / 2.8 GB / **0 swap** — add a swapfile.
+**Flask integration (CLI, not WebSocket):** route `/admin/openclaw-ask` in `app/app.py`
+shells out to `sudo -n -u openclaw <wrapper> <session_id> <prompt>`, parses
+`result.payloads[0].text`, returns `{reply}`. Chosen over a raw WS because the gateway
+uses a challenge-response + device-scope handshake that's impractical to reimplement, and
+the CLI always matches the installed version. `www-data` (gunicorn) can't read
+`/home/openclaw/.openclaw`, hence the `sudo -u openclaw` hop. Flask no longer uses
+`OPENCLAW_TOKEN` / `OPENCLAW_WS_URL` (those can be dropped from `.env`/secrets); optional
+overrides are `OPENCLAW_ASK_BIN` and `OPENCLAW_TIMEOUT`.
+
+Required VPS glue (install once):
+- Wrapper `/usr/local/bin/torb-openclaw-ask` (root-owned, mode 0755):
+  ```bash
+  #!/usr/bin/env bash
+  set -euo pipefail
+  export HOME=/home/openclaw
+  export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+  export PATH="/home/openclaw/.local/bin:/usr/bin:/bin"
+  exec openclaw agent --agent main --session-id "${1:?}" -m "${2:?}" --json
+  ```
+- Sudoers `/etc/sudoers.d/torb-openclaw` (validate with `visudo -cf`):
+  ```
+  www-data ALL=(openclaw) NOPASSWD: /usr/local/bin/torb-openclaw-ask
+  ```
+- **Check the service doesn't block escalation:** `sudo systemctl cat torb-py | grep -i NoNewPrivileges`.
+  If `NoNewPrivileges=true`, sudo can't setuid — remove that line and `daemon-reload` + restart.
+
+**Remaining setup:** (a) take agent `main` out of BOOTSTRAP (write IDENTITY.md/USER.md,
+delete BOOTSTRAP.md in `~/.openclaw/workspace/`); (b) set the exec allowlist
+(`openclaw approvals allowlist`) before letting it run server commands; (c) delete the two
+legacy nginx `location /admin/openclaw-ws` blocks (`app.robrands.ro` + `default`; the
+`default` one is malformed `proxy_pass http://127.0.0;`); (d) add a swapfile — box is
+2 vCPU / 2.8 GB / **0 swap**.

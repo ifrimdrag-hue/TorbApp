@@ -16,7 +16,6 @@ statsforecast>=1.7
 waitress>=3.0
 gunicorn>=23.0 ; sys_platform == "linux"
 python-dotenv>=1.0
-websocket-client>=1.7
 pydantic-settings>=2.0
 pystray>=0.19
 pillow>=10.0
