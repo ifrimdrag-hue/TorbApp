@@ -9,13 +9,20 @@
 
 | Property | Value |
 |---|---|
-| Provider | VPS (Linux) |
+| Provider | **cyberfolks.ro** (panel login + 2FA in `docs/manuals/server/secrets.local.md`) |
+| OS | Ubuntu 24.04.4 LTS (Noble Numbat), kernel `6.8.0-117-generic`, x86_64 (verified 2026-06-15) |
+| Hardware | 2 vCPU / 2.8 GB RAM / **0 swap** / 48 GB disk (`/dev/sda1`, ~16% used) |
 | IP | 188.241.116.172 |
-| SSH port | 2112 |
+| SSH port | 2112 (sshd listens here only) |
 | SSH user | openclaw |
-| Domain | app.robrands.ro |
-| SSL | Let's Encrypt via Certbot (auto-renewal) |
+| Domain | app.robrands.ro (+ www.app.robrands.ro) |
+| SSL | Let's Encrypt via Certbot 2.9.0, **ECDSA**, expires **2026-08-23**, auto-renew 30d before (nginx authenticator, `certbot.timer`) |
 | VPS-level backups | Done by the hosting provider (full machine) |
+| Versions (2026-06-15) | Python 3.12.3 · gunicorn 26.0.0 · nginx 1.24.0 · Node v22.22.2 / npm 10.9.7 · OpenClaw 2026.6.6 |
+
+**Full reproduction manual:** `docs/manuals/server/manual_server.typ` (compiled PDF alongside) —
+verbatim systemd units, nginx vhosts, a from-scratch rebuild runbook, and the secrets inventory.
+Keep this file and the manual in sync.
 
 ### Users & filesystem ownership (verified 2026-06-11)
 
@@ -30,6 +37,19 @@
 
 Note: `data/` also contains a stray pre-engine manual backup `torb.db.bak.20260525_010848`
 (102 MB, from 2026-05-25) — can be deleted once the new backup system is verified.
+
+### SSH access & deploy keys (verified 2026-06-15)
+
+- **Human admin login:** password only on port 2112. No personal SSH key is configured for the human
+  admin, so `PasswordAuthentication` stays `yes` (see Firewall hardening note — this is why turning
+  it off is BLOCKED). The `openclaw` account password is in `docs/manuals/server/secrets.local.md`.
+- **`~/.ssh/authorized_keys` (openclaw):** a single deploy key — `github-deploy`
+  (`SHA256:EigIB4…zfaE`) = the **live `VPS_SSH_KEY`** used by GitHub Actions (logins from Azure
+  runner IPs; last seen 2026-06-13).
+- **Cleanup 2026-06-15:** removed a stray literal `paste-public-key-here` line and a **stale** rotated
+  deploy key `github-actions-deploy` (`SHA256:5DP0…f2r0`, unused since 2026-05-25). Backups:
+  `~/.ssh/authorized_keys.bak.*`. **Follow-up:** delete the orphaned `5DP0` key from GitHub repo
+  *Settings → Deploy keys* / *Secrets* if it still exists there.
 
 ### Scheduled jobs (cron)
 
@@ -115,12 +135,27 @@ Service files:
 
 ## Firewall (ufw)
 
+Active, default deny incoming. Rules after hardening (2026-06-15, IPv4+IPv6):
+
 | Port | Protocol | Purpose |
 |---|---|---|
-| 22 / 2112 | TCP | SSH |
+| 2112 | TCP | SSH (only port sshd listens on) |
 | 80 | TCP | HTTP (redirects to HTTPS) |
 | 443 | TCP | HTTPS — production |
 | 5001 | TCP | HTTPS — dev/test |
+
+> **✅ SECURITY HARDENING 2026-06-15 (RESUME CHECKLIST applied after sudo restore):**
+> - ✅ Removed stale `22/tcp` + `8888/tcp` firewall rules (sshd listens on `2112` only).
+> - ✅ Disabled Tailscale (`systemctl disable --now tailscaled`) + closed `41641/udp` (was `Logged out`).
+> - ✅ sshd `PermitRootLogin prohibit-password` via `/etc/ssh/sshd_config.d/99-torb-hardening.conf`.
+> - ✅ `.env` confirmed `640 openclaw:www-data`; no pending security updates; OpenClaw gateway recycled.
+> - ✅ fail2ban `[sshd]` active.
+> - ✅ `server_tokens off;` applied in `nginx.conf` (reloaded 2026-06-15 — version no longer leaked).
+> - ⛔ **BLOCKED:** `PasswordAuthentication no` — the human admin logs in with a **password only**
+>   (no personal SSH key; the `VPS_SSH_KEY` deploy key is for GitHub Actions, not interactive use).
+>   Disabling password auth now would lock the admin out (recovery = cyberfolks console). Prereq:
+>   generate a personal SSH keypair, install the public key in `~/.ssh/authorized_keys`, confirm
+>   key login works — *then* set `PasswordAuthentication no`.
 
 ---
 
@@ -220,7 +255,7 @@ systemctl --user status|restart openclaw-gateway.service
 | Listens | `127.0.0.1:18789` (gateway, WS at `/ws`) + `127.0.0.1:18791` (browser control) |
 | Config | `~/.openclaw/openclaw.json` (JSON5) |
 | Auth | gateway token **+** per-device roles/scopes (see notes below) |
-| Provider | OpenRouter, model `openrouter/auto` |
+| Provider | OpenRouter, model `openrouter/free` (free-only router; changed from `openrouter/auto` 2026-06-13) |
 
 **Fixes applied 2026-06-13 (gateway was dead before this):**
 1. Config `openclaw.json` was truncated/corrupt (JSON5 EOF at line 56) → restored from
@@ -242,6 +277,14 @@ Verified working end-to-end 2026-06-13: the full app path
 `www-data → sudo -u openclaw → wrapper → openclaw agent → gateway → OpenRouter`
 returns a real reply in ~4s. Output shape: `{runId, status:"ok", result:{payloads:[{text}], meta}}`.
 Agent `main` is **out of BOOTSTRAP** and replies normally (no identity-onboarding script).
+
+**Free-only models (2026-06-13):** model switched `openrouter/auto` → `openrouter/free` in
+`~/.openclaw/openclaw.json` (default + alias + configured-models entry) to cap cost at free tier.
+Verified end-to-end: agent turn returns `status:ok`, `winnerModel:openrouter/free`, tool calls
+succeed (`session_status`, 0 failures) — free router picks a tool-capable model. Trade-offs: slower
+(~15s vs ~4s) and lower output quality. Revert: restore `~/.openclaw/openclaw.json.bak.<ts>` +
+`systemctl --user restart openclaw-gateway.service`. If turns later fail on tool schemas, pin a
+specific free model (e.g. `meta-llama/llama-3.3-70b-instruct:free`).
 
 **Flask integration (CLI, not WebSocket):** route `/admin/openclaw-ask` in `app/app.py`
 shells out to `sudo -n -u openclaw <wrapper> <session_id> <prompt>`, parses
@@ -320,8 +363,8 @@ code-exec as `www-data`, could prompt the agent into arbitrary commands and **es
 
 Read-only audit across app + host after the OpenClaw lockdown. Posture is sound; items below.
 
-**Verified solid:** fail2ban active (`[sshd]` jail on); ufw active (only 2112/80/443/5001 on
-`0.0.0.0`); gunicorn (`:5000`/`:5002`) + agent gateway (`:18789`) are **loopback-only**;
+**Verified solid:** fail2ban active (`[sshd]` jail on); ufw active; gunicorn (`:5000`/`:5002`) +
+agent gateway (`:18789`) are **loopback-only**;
 `~/.openclaw` is `700`, agent key sqlite `600`, nothing world-readable; unattended security
 upgrades on; SQLi not exposed (bound params; dynamic `{sets}` = whitelisted columns); CSRF
 app-wide; passwords pbkdf2.
@@ -344,14 +387,23 @@ app-wide; passwords pbkdf2.
 > Recovery requires the provider console (`usermod -aG sudo openclaw`). Don't remove the sole
 > admin's sudo again.
 
-**CURRENT STATE (2026-06-13, Sat):** code/CI fixes **pushed & deployed to prod** (ProxyFix,
-security headers, `SESSION_COOKIE_SECURE=1`, `.env` 640); `.env` perms fixed on prod + dev and
-login verified on dev before prod approval. Human admin remains **locked out of root** — `openclaw`
-has no general sudo and there is no separate root account/password. **Provider ticket pending** to
-run `usermod -aG sudo openclaw` from the console (weekend — may take a while). Deploys/app are
-unaffected (verified). **Everything below is BLOCKED on that sudo restore.**
+**UPDATE 2026-06-15:** ✅ **sudo restored** — `openclaw` is back in the `sudo` group (provider
+ticket resolved); `sudo -v` works. The RESUME CHECKLIST below is **unblocked**. Block B was run
+and surfaced new findings (see Firewall section: un-hardened sshd, stale 22/8888 rules, dormant
+Tailscale) — these are folded into the checklist. `ANTHROPIC_API_KEY` confirmed **still in use** by
+the in-app Claude features (ai.py, post/campaign generators, ai_suggestions, auto_posts) — do **not**
+remove it; the OpenRouter switch only affects the OpenClaw gateway.
 
-### RESUME CHECKLIST — run after `openclaw` is back in `sudo` (verbatim)
+**PRIOR STATE (2026-06-13, Sat):** code/CI fixes **pushed & deployed to prod** (ProxyFix,
+security headers, `SESSION_COOKIE_SECURE=1`, `.env` 640); `.env` perms fixed on prod + dev and
+login verified on dev before prod approval. Human admin was **locked out of root** — `openclaw`
+had no general sudo and there is no separate root account/password. Provider ticket was pending to
+run `usermod -aG sudo openclaw` from the console. Deploys/app were unaffected (verified).
+
+### RESUME CHECKLIST — ✅ APPLIED 2026-06-15 (kept for reference / rebuild)
+
+> Steps 1, 3, 4, 5, 6 done; step 2 partial (root login hardened, password auth still pending).
+> Only outstanding item: `PasswordAuthentication no` — see Firewall section's hardening note above.
 
 ```bash
 # 1. Confirm recovery
@@ -373,11 +425,19 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo loginctl terminate-user openclaw    # linger restarts the gateway
 sleep 5                                   # then verify gateway is up + widget chat answers
 
-# 5. Verify the rules we couldn't read without root
-sudo ufw status verbose                   # expect only 2112/80/443/5001
+# 5. Firewall — remove stale SSH rules (sshd listens on 2112 only; 22 + 8888 are dead)
+sudo ufw status verbose
+sudo ufw delete allow 22/tcp
+sudo ufw delete allow 8888/tcp
 sudo fail2ban-client status sshd          # confirm maxretry/bantime
 
-# 6. Cleanup (optional)
+# 6. Tailscale — installed but Logged out + 41641/udp open. Pick ONE:
+#    (a) if NOT needed:
+sudo systemctl disable --now tailscaled
+sudo ufw delete allow 41641/udp
+#    (b) if needed: `sudo tailscale up`, then document the tailnet in secrets.local.md
+
+# 7. Cleanup (optional)
 ls -l /var/www/html/torb-py/.env                      # confirm 640 openclaw:www-data
 sudo rm /etc/nginx/sites-available/*.bak.2026-06-13   # leftover clutter
 apt-get -s upgrade | grep -i security                  # any pending security updates

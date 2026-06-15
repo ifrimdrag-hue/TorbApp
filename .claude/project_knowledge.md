@@ -108,6 +108,12 @@ with open('file.py', 'wb') as f:
 - the Jinja templates — exact button/link labels, form field names, `{% if %}` conditional UI
 - `app/templates/base.html` — sidebar sections, dropdowns, footer links
 
+**Compiling — set `--root` to the repo.** Manuals reference the shared logo via `../img_shared/logo.png`, which sits above the per-manual folder; Typst refuses paths outside the project root, so compile with:
+```
+typst compile --root . docs/manuals/<name>/manual_<name>.typ docs/manuals/<name>/manual_<name>.pdf
+```
+Only the compiled `*.pdf` is git-tracked (`.gitignore` ignores `docs/manuals/**` except dirs + PDFs); `.typ` sources are not versioned.
+
 **Placeholder images — generate at creation time.** Every `image("img/x.png")` reference needs a gray placeholder PNG when the `.typ` file is written, otherwise Typst fails to compile and the IDE preview shows nothing. Size to the expected aspect ratio, label with the filename. PowerShell pattern:
 ```powershell
 Add-Type -AssemblyName System.Drawing

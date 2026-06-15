@@ -37,6 +37,9 @@ docs/manuals/**
 .env.local
 .env.*.local
 
+# Server manual — plaintext secrets companion (NEVER commit, even if manuals rule changes)
+docs/manuals/server/secrets.local.md
+
 # macOS
 .DS_Store
 
