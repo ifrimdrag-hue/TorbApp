@@ -40,12 +40,15 @@ Note: `data/` also contains a stray pre-engine manual backup `torb.db.bak.202605
 
 ### SSH access & deploy keys (verified 2026-06-15)
 
-- **Human admin login:** password only on port 2112. No personal SSH key is configured for the human
-  admin, so `PasswordAuthentication` stays `yes` (see Firewall hardening note — this is why turning
-  it off is BLOCKED). The `openclaw` account password is in `docs/manuals/server/secrets.local.md`.
-- **`~/.ssh/authorized_keys` (openclaw):** a single deploy key — `github-deploy`
-  (`SHA256:EigIB4…zfaE`) = the **live `VPS_SSH_KEY`** used by GitHub Actions (logins from Azure
-  runner IPs; last seen 2026-06-13).
+- **Human admin login:** **key-only** on port 2112 since 2026-06-15 (`PasswordAuthentication no`). A
+  personal admin SSH key was added to `~/.ssh/authorized_keys`; the `openclaw` account password is now
+  used **only** for the cyberfolks emergency console (not SSH) — stored in
+  `docs/manuals/server/secrets.local.md`.
+- **`~/.ssh/authorized_keys` (openclaw)** — two authorized keys (verified 2026-06-15):
+  1. `github-deploy` — `SHA256:EigIB4gJEujSSi0Hko7rZSCwmpcJmmxo6ctouxqzfaE` = the **live `VPS_SSH_KEY`**
+     (GitHub Actions; last seen 2026-06-13).
+  2. `vladr-laptop` — `SHA256:rFRS0osjmEEO+xmifuXLbDzYcbR2gOi5Nnojj9/2Ie0` = the **personal admin key**
+     added 2026-06-15; this is what enables key-only login now that password auth is off.
 - **Cleanup 2026-06-15:** removed a stray literal `paste-public-key-here` line and a **stale** rotated
   deploy key `github-actions-deploy` (`SHA256:5DP0…f2r0`, unused since 2026-05-25). Backups:
   `~/.ssh/authorized_keys.bak.*`. **Follow-up:** delete the orphaned `5DP0` key from GitHub repo
@@ -151,11 +154,9 @@ Active, default deny incoming. Rules after hardening (2026-06-15, IPv4+IPv6):
 > - ✅ `.env` confirmed `640 openclaw:www-data`; no pending security updates; OpenClaw gateway recycled.
 > - ✅ fail2ban `[sshd]` active.
 > - ✅ `server_tokens off;` applied in `nginx.conf` (reloaded 2026-06-15 — version no longer leaked).
-> - ⛔ **BLOCKED:** `PasswordAuthentication no` — the human admin logs in with a **password only**
->   (no personal SSH key; the `VPS_SSH_KEY` deploy key is for GitHub Actions, not interactive use).
->   Disabling password auth now would lock the admin out (recovery = cyberfolks console). Prereq:
->   generate a personal SSH keypair, install the public key in `~/.ssh/authorized_keys`, confirm
->   key login works — *then* set `PasswordAuthentication no`.
+> - ✅ `PasswordAuthentication no` (2026-06-15) — a personal admin SSH key was configured, then
+>   password auth disabled; SSH is now **key-only**. Recovery if the key is lost: cyberfolks console
+>   (password login still works there — it's a local console, not SSH).
 
 ---
 
@@ -214,6 +215,46 @@ the service afterwards (`sudo systemctl restart torb-py`) so all gunicorn worker
 their in-memory caches. Dev (`torb-py-dev`) has no scheduled backups by design.
 
 ---
+
+## Email / SMTP (password-reset)
+
+Password-reset emails are sent via SMTP — Python `smtplib` + STARTTLS, sender `_smtp_send` in
+`app/blueprints/auth.py`. Configured **only** by env vars in `.env`:
+
+| Var | Purpose |
+|---|---|
+| `SMTP_HOST` | SMTP server host. If unset, email is disabled and reset **degrades gracefully** (UI shows "reset by email not configured"). |
+| `SMTP_PORT` | default `587` (STARTTLS) |
+| `SMTP_USER` / `SMTP_PASSWORD` | auth (login skipped if empty) |
+| `SMTP_FROM` | From header (defaults to `SMTP_USER`) |
+
+> **CI-managed since 2026-06-15:** `SMTP_USER` + `SMTP_PASSWORD` are now injected by the deploy
+> workflow from GitHub Actions Secrets (both `deploy_dev` and `deploy_prd`). The non-secret
+> `SMTP_HOST`/`SMTP_PORT`/`SMTP_FROM` live in `.env.example`; the deploy does **not** rewrite them, so
+> they must remain present in the server `.env` (they are). **⚠️ The GitHub repo must have `SMTP_USER`
+> and `SMTP_PASSWORD` secrets set** — otherwise the next deploy writes empty values and email breaks.
+
+Current config (2026-06-15): **Gmail** — `smtp.gmail.com:587` STARTTLS, auth user
+`vlad.rosioru@gmail.com` with a **Gmail App Password** (not the account password), From
+`Torb Logistic <office@tobra.ro>`. App password stored in `docs/manuals/server/secrets.local.md` (§8).
+Note: tied to a personal Gmail — consider a dedicated mailbox / transactional provider long-term.
+
+## Pending maintenance & open items
+
+- **🔁 Reboot pending (schedule a brief maintenance window).** Login banner shows
+  `*** System restart required ***` (kernel update `6.8.0-117` applied) plus ~17 updates available
+  (4 ESM security). A reboot also: applies the new kernel, and **fully recycles the OpenClaw gateway
+  user session** — closing the long-standing "stale `docker`/`sudo` supplementary groups on the live
+  process" residual item. Plan: announce downtime, `sudo apt update && sudo apt full-upgrade`, then
+  `sudo reboot`; afterwards verify both apps (`/healthz` on prod + dev) and the OpenClaw widget.
+- **GitHub deploy-key cleanup.** Delete the orphaned `github-actions-deploy` (`SHA256:5DP0…f2r0`) from
+  repo *Settings → Deploy keys* / *Secrets* (already removed from server `authorized_keys` 2026-06-15).
+- **SMTP secrets.** Ensure `SMTP_USER` + `SMTP_PASSWORD` exist in GitHub Actions Secrets (the deploy
+  now injects them — empty secrets would break password-reset email).
+- **Add swap** — box has 0 swap (2 vCPU / 2.8 GB). See manual ch. "Stare curentă".
+- **Encrypt the secrets companion** (`secrets.local.md` is plaintext) or move to a password vault.
+- **CSP header** still deferred (audit inline scripts + CDN assets first).
+- **OpenClaw under a dedicated low-priv user** (long-term) — currently shares the `openclaw` deploy/admin account.
 
 ## Useful One-Liners
 
@@ -400,10 +441,10 @@ login verified on dev before prod approval. Human admin was **locked out of root
 had no general sudo and there is no separate root account/password. Provider ticket was pending to
 run `usermod -aG sudo openclaw` from the console. Deploys/app were unaffected (verified).
 
-### RESUME CHECKLIST — ✅ APPLIED 2026-06-15 (kept for reference / rebuild)
+### RESUME CHECKLIST — ✅ FULLY APPLIED 2026-06-15 (kept for reference / rebuild)
 
-> Steps 1, 3, 4, 5, 6 done; step 2 partial (root login hardened, password auth still pending).
-> Only outstanding item: `PasswordAuthentication no` — see Firewall section's hardening note above.
+> All steps done. Step 2 completed in full: a personal admin SSH key was configured and
+> `PasswordAuthentication no` applied — SSH is now key-only (see SSH access & Firewall sections above).
 
 ```bash
 # 1. Confirm recovery

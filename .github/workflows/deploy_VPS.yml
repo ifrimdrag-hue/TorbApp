@@ -77,13 +77,15 @@ jobs:
           EMAG_WAREHOUSE_ID: ${{ secrets.EMAG_WAREHOUSE_ID }}
           SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
           SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 2112
-          envs: FLASK_SECRET_KEY,ANTHROPIC_API_KEY,EMAG_USERNAME,EMAG_PASSWORD,EMAG_WAREHOUSE_ID,SHOPIFY_CLIENT_ID,SHOPIFY_CLIENT_SECRET
+          envs: FLASK_SECRET_KEY,ANTHROPIC_API_KEY,EMAG_USERNAME,EMAG_PASSWORD,EMAG_WAREHOUSE_ID,SHOPIFY_CLIENT_ID,SHOPIFY_CLIENT_SECRET,SMTP_USER,SMTP_PASSWORD
           script: |
             set -e
             git config --global --add safe.directory /var/www/html/torb-py-dev
@@ -109,6 +111,10 @@ jobs:
             echo "SHOPIFY_CLIENT_ID=${SHOPIFY_CLIENT_ID}" >> .env
             grep -v '^SHOPIFY_CLIENT_SECRET=' .env > .env.tmp && mv .env.tmp .env
             echo "SHOPIFY_CLIENT_SECRET=${SHOPIFY_CLIENT_SECRET}" >> .env
+            grep -v '^SMTP_USER=' .env > .env.tmp && mv .env.tmp .env
+            echo "SMTP_USER=${SMTP_USER}" >> .env
+            grep -v '^SMTP_PASSWORD=' .env > .env.tmp && mv .env.tmp .env
+            echo "SMTP_PASSWORD=${SMTP_PASSWORD}" >> .env
 
             # Non-sensitive config — hardcoded directly (no secrets needed)
             grep -v '^SHOPIFY_SHOP_DOMAIN=' .env > .env.tmp && mv .env.tmp .env
@@ -212,13 +218,15 @@ jobs:
           EMAG_WAREHOUSE_ID: ${{ secrets.EMAG_WAREHOUSE_ID }}
           SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
           SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 2112
-          envs: FLASK_SECRET_KEY,ANTHROPIC_API_KEY,EMAG_USERNAME,EMAG_PASSWORD,EMAG_WAREHOUSE_ID,SHOPIFY_CLIENT_ID,SHOPIFY_CLIENT_SECRET
+          envs: FLASK_SECRET_KEY,ANTHROPIC_API_KEY,EMAG_USERNAME,EMAG_PASSWORD,EMAG_WAREHOUSE_ID,SHOPIFY_CLIENT_ID,SHOPIFY_CLIENT_SECRET,SMTP_USER,SMTP_PASSWORD
           script: |
             set -e
             git config --global --add safe.directory /var/www/html/torb-py
@@ -250,6 +258,10 @@ jobs:
             echo "SHOPIFY_CLIENT_ID=${SHOPIFY_CLIENT_ID}" >> .env
             grep -v '^SHOPIFY_CLIENT_SECRET=' .env > .env.tmp && mv .env.tmp .env
             echo "SHOPIFY_CLIENT_SECRET=${SHOPIFY_CLIENT_SECRET}" >> .env
+            grep -v '^SMTP_USER=' .env > .env.tmp && mv .env.tmp .env
+            echo "SMTP_USER=${SMTP_USER}" >> .env
+            grep -v '^SMTP_PASSWORD=' .env > .env.tmp && mv .env.tmp .env
+            echo "SMTP_PASSWORD=${SMTP_PASSWORD}" >> .env
 
             # Non-sensitive config — hardcoded directly (no secrets needed)
             grep -v '^SHOPIFY_SHOP_DOMAIN=' .env > .env.tmp && mv .env.tmp .env
