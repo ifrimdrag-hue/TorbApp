@@ -86,9 +86,10 @@ STRATEGIC_WEIGHTS_DEFAULT = {
 }
 
 
-def payout_multiplier(score: float) -> float:
-    result = PAYOUT_GRID[0][1]
-    for threshold, multiplier in PAYOUT_GRID:
+def payout_multiplier(score: float, grid: list | None = None) -> float:
+    g = grid if grid is not None else PAYOUT_GRID
+    result = g[0][1]
+    for threshold, multiplier in g:
         if score >= threshold:
             result = multiplier
         else:
