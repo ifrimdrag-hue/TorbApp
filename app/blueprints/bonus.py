@@ -18,6 +18,14 @@ bonus_bp = Blueprint('bonus', __name__)
 
 logger = logging.getLogger(__name__)
 
+# Cele 5 game pre-încărcate implicit la creare obiective noi
+DEFAULT_GAME = [
+    ("Basilur", 0.30), ("Toras", 0.25), ("Leonex", 0.20),
+    ("Celmar", 0.15), ("Delaviuda", 0.10),
+]
+ALL_GAME = ['Basilur', 'Toras', 'Celmar', 'Leonex', 'Delaviuda',
+            'KingsLeaf', 'Solvex', 'Tipson', 'Cosmetice']
+
 
 def _actual_for_kpi(kpi, db_agent, an, luna, istoric_manual, auto=None):
     """Completează 'actual' pentru un rând KPI: auto din tranzactii sau manual.
@@ -331,6 +339,57 @@ def bonus_export():
         sheets[name[:31]] = month_rows
     sheets = {'Centralizare': summary_rows, **sheets}
     return send_excel(sheets, timestamped_filename('bonus_echipa'))
+
+
+def _proposed_kpis(db_agent, an, luna, growth=0.20):
+    """Propune rândurile implicite cu target = PY same-month * (1+growth)."""
+    py = queries.py_baseline(db_agent, an, luna)
+    g = 1.0 + growth
+    kpis = [
+        {"tip": "vanzari", "referinta": None, "py": py["vanzari"],
+         "target": round(py["vanzari"] * g), "unitate": "ron", "pondere": 0.0},
+        {"tip": "marja", "referinta": None, "py": py["marja"],
+         "target": round(py["marja"] * g), "unitate": "ron", "pondere": 0.0},
+    ]
+    for gama, pond in DEFAULT_GAME:
+        base = py["brand"].get(gama, 0)
+        kpis.append({"tip": "brand", "referinta": gama, "py": base,
+                     "target": round(base * g), "unitate": "ron", "pondere": pond})
+    return kpis
+
+
+@bonus_bp.route('/bonus/obiective')
+def obiective():
+    an   = int(request.args.get('an', datetime.date.today().year))
+    luna = request.args.get('luna', type=int) or datetime.date.today().month
+    agents = []
+    for a in queries.bonus_agents(activ_only=True):
+        existing = queries.obiective(an, luna, a['agent_key'])
+        cfg = queries.lunar_config(an, luna, a['agent_key'])
+        total_pond = sum((r['pondere'] or 0) for r in existing)
+        agents.append({
+            "agent_key": a['agent_key'], "db_agent": a['db_agent'],
+            "has_obiective": bool(existing), "n_kpi": len(existing),
+            "monthly_bonus": (cfg or {}).get('monthly_bonus'),
+            "total_pondere": round(total_pond * 100),
+            "kpis": existing or _proposed_kpis(a['db_agent'], an, luna),
+        })
+    return render_template('bonus/obiective.html', agents=agents, an=an, luna=luna,
+                           all_game=ALL_GAME, months_ro=BONUS_MONTHS_RO)
+
+
+@bonus_bp.route('/bonus/obiective/save', methods=['POST'])
+def obiective_save():
+    d = request.get_json(silent=True) or {}
+    try:
+        queries.save_obiective(
+            int(d['an']), int(d['luna']), d['agent_key'],
+            float(d['monthly_bonus']), float(d.get('growth_pct', 0.20)),
+            d.get('kpis', []))
+        return jsonify({'ok': True})
+    except Exception as exc:
+        logger.exception("obiective_save failed")
+        return jsonify({'ok': False, 'error': str(exc)}), 400
 
 
 @bonus_bp.route('/bonus/simulator/export', methods=['POST'])

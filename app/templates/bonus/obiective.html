@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Setare Obiective — Torb Logistic{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-bullseye text-primary me-2"></i>Setare Obiective Lunare</h4>
+  <a href="{{ url_for('bonus.bonus') }}?an={{ an }}&luna={{ luna }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Tracker</a>
+</div>
+{% include '_period_selector.html' %}
+
+<div class="d-flex gap-2 flex-wrap mb-3">
+  {% for a in agents %}
+  <div class="card border {{ 'border-primary' if loop.first else '' }}" style="cursor:pointer;min-width:150px"
+       onclick="selectAgent('{{ a.agent_key }}')" id="card-{{ a.agent_key }}">
+    <div class="card-body p-2">
+      <div class="fw-bold">{{ a.agent_key }}</div>
+      {% if a.has_obiective %}
+        <div class="small {{ 'text-success' if a.total_pondere == 100 else 'text-danger' }}">
+          ✓ {{ a.n_kpi }} KPI · {{ a.total_pondere }}%</div>
+      {% else %}
+        <div class="small text-warning">⚠ lipsă obiective</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% for a in agents %}
+<div class="card border-0 shadow-sm agent-form" id="form-{{ a.agent_key }}"
+     style="{{ '' if loop.first else 'display:none' }}">
+  <div class="card-body">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <strong>{{ a.agent_key }} — {{ months_ro[luna-1] }} {{ an }}</strong>
+      <span class="text-muted ms-2">Bonus lunar:</span>
+      <input type="number" class="form-control form-control-sm" style="width:90px"
+             id="mb-{{ a.agent_key }}" value="{{ a.monthly_bonus or 0 }}">
+      <span class="text-muted ms-2">Creștere %:</span>
+      <input type="number" class="form-control form-control-sm" style="width:70px"
+             id="g-{{ a.agent_key }}" value="20">
+    </div>
+    <table class="table table-sm align-middle" id="tbl-{{ a.agent_key }}">
+      <thead class="table-light"><tr>
+        <th>Criteriu</th><th>Referință</th><th class="text-end">PY</th>
+        <th class="text-end">Target</th><th class="text-end">Pondere %</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for k in a.kpis %}
+        <tr data-tip="{{ k.tip }}">
+          <td>{{ k.tip }}</td>
+          <td>
+            {% if k.tip in ('brand','clienti_noi_gama') %}
+              <select class="form-select form-select-sm ref">
+                {% for g in all_game %}<option {{ 'selected' if g == k.referinta else '' }}>{{ g }}</option>{% endfor %}
+              </select>
+            {% elif k.tip == 'scriptic' %}
+              <input class="form-control form-control-sm ref" value="{{ k.referinta or '' }}">
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-end text-muted small">{{ k.py | int if k.py is defined and k.py else '—' }}</td>
+          <td class="text-end"><input type="number" class="form-control form-control-sm target text-end" value="{{ k.target | int }}"></td>
+          <td class="text-end"><input type="number" class="form-control form-control-sm pond text-end" style="width:70px" value="{{ (k.pondere * 100) | round(0) | int }}"></td>
+          <td><button class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove();recalcPond('{{ a.agent_key }}')">×</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <button class="btn btn-sm btn-outline-primary" onclick="addRow('{{ a.agent_key }}','brand')">+ Gamă</button>
+      <button class="btn btn-sm btn-outline-primary" onclick="addRow('{{ a.agent_key }}','clienti_noi_gama')">+ Clienți noi/gamă</button>
+      <button class="btn btn-sm btn-outline-primary" onclick="addRow('{{ a.agent_key }}','clienti')">+ Nr clienți</button>
+      <button class="btn btn-sm btn-outline-primary" onclick="addRow('{{ a.agent_key }}','incasari')">+ Încasări</button>
+      <button class="btn btn-sm btn-outline-primary" onclick="addRow('{{ a.agent_key }}','scriptic')">+ Scriptic</button>
+      <span class="ms-auto fw-bold" id="pondtot-{{ a.agent_key }}"></span>
+      <button class="btn btn-sm btn-success" onclick="saveAgent('{{ a.agent_key }}')">💾 Salvează</button>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const AN = {{ an }}, LUNA = {{ luna }};
+const ALL_GAME = {{ all_game | tojson }};
+function selectAgent(k){
+  document.querySelectorAll('.agent-form').forEach(f=>f.style.display='none');
+  document.getElementById('form-'+k).style.display='';
+  document.querySelectorAll('[id^=card-]').forEach(c=>c.classList.remove('border-primary'));
+  document.getElementById('card-'+k).classList.add('border-primary');
+}
+function recalcPond(k){
+  let t=0; document.querySelectorAll('#tbl-'+k+' .pond').forEach(i=>t+=parseFloat(i.value||0));
+  const el=document.getElementById('pondtot-'+k);
+  el.textContent='Total pondere: '+t+'%';
+  el.className='ms-auto fw-bold '+(t==100?'text-success':'text-danger');
+}
+function addRow(k,tip){
+  const tb=document.querySelector('#tbl-'+k+' tbody');
+  const refCell = (tip==='brand'||tip==='clienti_noi_gama')
+    ? '<select class="form-select form-select-sm ref">'+ALL_GAME.map(g=>'<option>'+g+'</option>').join('')+'</select>'
+    : (tip==='scriptic' ? '<input class="form-control form-control-sm ref">' : '—');
+  const tr=document.createElement('tr'); tr.dataset.tip=tip;
+  tr.innerHTML='<td>'+tip+'</td><td>'+refCell+'</td><td class="text-end text-muted">—</td>'+
+    '<td class="text-end"><input type="number" class="form-control form-control-sm target text-end" value="0"></td>'+
+    '<td class="text-end"><input type="number" class="form-control form-control-sm pond text-end" style="width:70px" value="0"></td>'+
+    '<td><button class="btn btn-sm btn-outline-danger" onclick="this.closest(\'tr\').remove();recalcPond(\''+k+'\')">×</button></td>';
+  tb.appendChild(tr);
+  tr.querySelector('.pond').addEventListener('input',()=>recalcPond(k));
+  recalcPond(k);
+}
+function saveAgent(k){
+  const kpis=[...document.querySelectorAll('#tbl-'+k+' tbody tr')].map(tr=>({
+    tip:tr.dataset.tip,
+    referinta: tr.querySelector('.ref') ? (tr.querySelector('.ref').value||null) : null,
+    target: parseFloat(tr.querySelector('.target').value||0),
+    unitate: tr.dataset.tip==='scriptic' ? 'pct' : (tr.dataset.tip==='clienti'||tr.dataset.tip==='clienti_noi_gama' ? 'nr':'ron'),
+    pondere: parseFloat(tr.querySelector('.pond').value||0)/100,
+  }));
+  fetch('{{ url_for("bonus.obiective_save") }}',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({an:AN,luna:LUNA,agent_key:k,
+      monthly_bonus:parseFloat(document.getElementById('mb-'+k).value||0),
+      growth_pct:parseFloat(document.getElementById('g-'+k).value||20)/100,kpis})})
+   .then(r=>r.json()).then(d=>{ if(d.ok){location.reload();} else {alert('Eroare: '+d.error);} });
+}
+document.querySelectorAll('[id^=tbl-] .pond').forEach(i=>i.addEventListener('input',e=>recalcPond(e.target.closest('table').id.replace('tbl-',''))));
+{% for a in agents %}recalcPond('{{ a.agent_key }}');{% endfor %}
+</script>
+{% endblock %}

@@ -10,7 +10,9 @@ import paths
 def app_client():
     from app import app
     app.config['TESTING'] = True
+    app.config['WTF_CSRF_ENABLED'] = False
     with app.test_client() as c:
+        c.post('/auth/login', data={'username': 'testadmin', 'password': 'testpass'})
         yield c
 
 
@@ -30,6 +32,25 @@ def seed_bogdan():
     conn.execute("DELETE FROM bonus_obiective_strategice WHERE agent_key='Bogdan' AND an=2026 AND luna=6")
     conn.commit()
     conn.close()
+
+
+def test_obiective_page_renders(app_client):
+    resp = app_client.get('/bonus/obiective?an=2026&luna=7')
+    assert resp.status_code == 200
+    assert b'Bogdan' in resp.data
+
+
+def test_obiective_save_roundtrip(app_client):
+    payload = {
+        "an": 2026, "luna": 9, "agent_key": "Ionut",
+        "monthly_bonus": 2000, "growth_pct": 0.20,
+        "kpis": [{"tip": "vanzari", "referinta": None, "target": 50000,
+                  "unitate": "ron", "pondere": 1.0}],
+    }
+    resp = app_client.post('/bonus/obiective/save', json=payload)
+    assert resp.status_code == 200 and resp.get_json()['ok'] is True
+    from queries.bonus import obiective
+    assert len(obiective(2026, 9, 'Ionut')) == 1
 
 
 def test_build_agent_month_auto_actual(seed_bogdan):
