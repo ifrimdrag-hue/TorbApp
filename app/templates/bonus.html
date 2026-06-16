@@ -37,6 +37,40 @@
   80% → 0.5× · 95% → 0.8× · 100% → 1× · 110% → 1.2× · ≥120% → 1.5× (× pondere × bonus lunar).
 </div>
 
+{# ── Total pe echipă ── #}
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm bg-primary bg-gradient text-white h-100">
+      <div class="card-body py-3 d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-uppercase fw-semibold opacity-75" style="font-size:.7rem;letter-spacing:.04em">
+            <i class="bi bi-cash-coin me-1"></i>Total bonus echipă · {{ months_ro[luna-1] }} {{ an }}</div>
+          <div class="fs-3 fw-bold lh-1 mt-1">{{ team.bonus | int }} <span class="fs-6 fw-normal opacity-75">/ {{ team.target | int }} RON</span></div>
+        </div>
+        <div class="text-end">
+          <div class="fs-4 fw-bold">{{ (team.bonus / team.target * 100) | round(0) | int if team.target else 0 }}%</div>
+          <small class="opacity-75">din pool lună</small>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm bg-dark bg-gradient text-white h-100">
+      <div class="card-body py-3 d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-uppercase fw-semibold opacity-75" style="font-size:.7rem;letter-spacing:.04em">
+            <i class="bi bi-graph-up me-1"></i>Total bonus echipă · YTD ({{ months_ro[0] }}–{{ months_ro[luna-1] }})</div>
+          <div class="fs-3 fw-bold lh-1 mt-1">{{ team.ytd_bonus | int }} <span class="fs-6 fw-normal opacity-75">/ {{ team.ytd_target | int }} RON</span></div>
+        </div>
+        <div class="text-end">
+          <div class="fs-4 fw-bold">{{ (team.ytd_bonus / team.ytd_target * 100) | round(0) | int if team.ytd_target else 0 }}%</div>
+          <small class="opacity-75">din pool YTD</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="row row-cols-1 row-cols-xl-2 g-3">
   {% for a in agents %}
   {% set month_pct = (a.scor * 100) if a.scor else 0 %}
@@ -126,6 +160,16 @@
                 <a href="{{ url_for('bonus.obiective', an=an, luna=luna) }}">Setează acum</a></td></tr>
               {% endfor %}
             </tbody>
+            {% if a.kpis %}
+            <tfoot class="border-top">
+              <tr class="fw-bold">
+                <td colspan="5" class="text-end text-uppercase text-muted" style="font-size:.7rem;letter-spacing:.03em">Total bonus lună</td>
+                <td class="text-end small text-muted">{{ ((a.kpis | sum(attribute='pondere')) * 100) | round(0) | int }}%</td>
+                <td class="text-end {{ 'text-success' if a.total_bonus > 0 else 'text-muted' }}">{{ a.total_bonus | int }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+            {% endif %}
           </table>
         </div>
       </div>

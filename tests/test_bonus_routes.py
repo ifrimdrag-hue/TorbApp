@@ -149,5 +149,7 @@ def test_bonus_tracker_renders(app_client, seed_bogdan):
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
     assert 'Bogdan' in html
-    assert 'YTD' in html                 # bloc YTD per agent
-    assert 'progress-bar' in html        # elemente vizuale de status
+    assert 'YTD' in html                       # bloc YTD per agent
+    assert 'progress-bar' in html              # elemente vizuale de status
+    assert 'Total bonus echip' in html         # total pe echipă (lună + YTD)
+    assert 'Total bonus lun' in html           # footer total per agent

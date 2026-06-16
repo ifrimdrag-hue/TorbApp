@@ -113,8 +113,15 @@ def bonus():
         sales = next((k for k in out['kpis'] if k['tip'] == 'vanzari'), None)
         out['sales_pct'] = round((sales['realizare'] or 0) * 100, 1) if sales else 0
         agents.append(out)
+    # Totaluri pe echipă (lună + YTD)
+    team = {
+        'bonus':      round(sum(a['total_bonus'] for a in agents)),
+        'target':     round(sum(a['monthly_bonus'] or 0 for a in agents)),
+        'ytd_bonus':  round(sum(a['ytd']['bonus'] for a in agents)),
+        'ytd_target': round(sum(a['ytd']['target'] for a in agents)),
+    }
     return render_template('bonus.html', agents=agents, an=an, luna=luna,
-                           months_ro=BONUS_MONTHS_RO)
+                           team=team, months_ro=BONUS_MONTHS_RO)
 
 
 @bonus_bp.route('/bonus/export')
