@@ -107,3 +107,39 @@ def py_baseline(db_agent, an, luna):
         f"WHERE {frag} AND an=:an AND luna=:luna GROUP BY furnizor", params)
     base["brand"] = {r["furnizor"]: r["vn"] for r in brand_rows}
     return base
+
+
+_NOI_GAMA_CTE = """
+WITH luna_clienti AS (
+  SELECT DISTINCT cod_client, client FROM tranzactii
+  WHERE {frag} AND furnizor=:gama AND an=:an AND luna=:luna
+)
+SELECT {select}
+FROM luna_clienti lc
+WHERE NOT EXISTS (
+  SELECT 1 FROM tranzactii t2
+  WHERE t2.cod_client = lc.cod_client AND t2.furnizor = :gama
+    AND t2.data_dl >= date(:month_start, '-24 months')
+    AND t2.data_dl <  :month_start
+)
+"""
+
+
+def _noi_gama_params(db_agent, gama, an, luna):
+    frag, params = _agent_in(db_agent)
+    params.update({"gama": gama, "an": an, "luna": luna,
+                   "month_start": f"{an}-{luna:02d}-01"})
+    return frag, params
+
+
+def clienti_noi_gama_count(db_agent, gama, an, luna):
+    frag, params = _noi_gama_params(db_agent, gama, an, luna)
+    sql = _NOI_GAMA_CTE.format(frag=frag, select="COUNT(*) AS n")
+    return query(sql, params)[0]["n"]
+
+
+def clienti_noi_gama_list(db_agent, gama, an, luna):
+    frag, params = _noi_gama_params(db_agent, gama, an, luna)
+    sql = _NOI_GAMA_CTE.format(frag=frag, select="lc.cod_client, lc.client")
+    sql += " ORDER BY lc.client"
+    return query(sql, params)

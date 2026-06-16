@@ -79,3 +79,32 @@ def test_py_baseline_same_month(seed_tx):
     b = py_baseline('TESTAGENT', 2026, 6)
     assert b['vanzari'] == 1500.0
     assert b['brand']['Basilur'] == 1000.0
+
+
+@pytest.fixture
+def seed_tx_noi():
+    """Client D fără istoric Basilur în 24 luni; Client A cu istoric → nu e nou."""
+    conn = sqlite3.connect(paths.DB_PATH)
+    rows = [
+        (2025, 1,  '2025-01-15', 'NAGENT', 'Basilur', 'Client A', 'NA', 500.0, 100.0),
+        (2026, 6,  '2026-06-10', 'NAGENT', 'Basilur', 'Client A', 'NA', 600.0, 150.0),
+        (2026, 6,  '2026-06-11', 'NAGENT', 'Basilur', 'Client D', 'ND', 700.0, 200.0),
+    ]
+    conn.executemany(
+        "INSERT INTO tranzactii (an, luna, data_dl, agent, furnizor, client, "
+        "cod_client, val_neta, marja_bruta) VALUES (?,?,?,?,?,?,?,?,?)", rows)
+    conn.commit(); conn.close()
+    yield
+    conn = sqlite3.connect(paths.DB_PATH)
+    conn.execute("DELETE FROM tranzactii WHERE agent='NAGENT'")
+    conn.commit(); conn.close()
+
+
+def test_clienti_noi_gama_count(seed_tx_noi):
+    from queries.bonus import clienti_noi_gama_count
+    assert clienti_noi_gama_count('NAGENT', 'Basilur', 2026, 6) == 1
+
+def test_clienti_noi_gama_list(seed_tx_noi):
+    from queries.bonus import clienti_noi_gama_list
+    rows = clienti_noi_gama_list('NAGENT', 'Basilur', 2026, 6)
+    assert [r['cod_client'] for r in rows] == ['ND']

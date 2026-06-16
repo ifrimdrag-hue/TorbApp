@@ -117,6 +117,8 @@ from queries.bonus import (
     realizat_auto as realizat_auto,
     realizat_brand as realizat_brand,
     py_baseline as py_baseline,
+    clienti_noi_gama_count as clienti_noi_gama_count,
+    clienti_noi_gama_list as clienti_noi_gama_list,
 )
 from queries.export import (
     get_export_hu_codes as get_export_hu_codes,
