@@ -12,10 +12,59 @@ from bonus_calc import (
     simulate,
 )
 from exports.excel_export import send_excel, timestamped_filename
+import bonus_calc
 
 bonus_bp = Blueprint('bonus', __name__)
 
 logger = logging.getLogger(__name__)
+
+
+def _actual_for_kpi(kpi, db_agent, an, luna, istoric_manual):
+    """Completează 'actual' pentru un rând KPI: auto din tranzactii sau manual."""
+    tip = kpi["tip"]
+    if tip == "vanzari":
+        return queries.realizat_auto(db_agent, an, luna)["vanzari"]
+    if tip == "marja":
+        return queries.realizat_auto(db_agent, an, luna)["marja"]
+    if tip == "clienti":
+        return queries.realizat_auto(db_agent, an, luna)["clienti"]
+    if tip == "brand":
+        return queries.realizat_brand(db_agent, kpi["referinta"], an, luna)
+    if tip == "clienti_noi_gama":
+        return queries.clienti_noi_gama_count(db_agent, kpi["referinta"], an, luna)
+    # incasari / scriptic → manual (din istoric înghețat sau realizat_manual)
+    return istoric_manual.get(str(kpi.get("id")), kpi.get("realizat_manual") or 0.0)
+
+
+def build_agent_month(agent_key, db_agent, an, luna):
+    """Agregă obiectivele + realizatul + grila → rezultat per agent/lună."""
+    cfg = queries.lunar_config(an, luna, agent_key) or {"monthly_bonus": 0, "growth_pct": 0.20}
+    rows = queries.obiective(an, luna, agent_key)
+    grid = queries.payout_grid(agent_key)
+    rec = queries.istoric_get(an, luna, agent_key)
+
+    # Dacă luna e închisă, citește snapshot înghețat
+    if rec and rec.get("stare") == "inchis" and rec.get("lunar_data"):
+        return json.loads(rec["lunar_data"])
+
+    istoric_manual = {}  # live: manualele neînchise vin din realizat_manual pe rând
+    penalty = (rec or {}).get("penalty_pct") or 0.0
+    kpis = []
+    for r in rows:
+        actual = _actual_for_kpi(r, db_agent, an, luna, istoric_manual)
+        kpis.append({
+            "tip": r["tip"], "referinta": r["referinta"],
+            "target": r["target"] or 0.0, "unitate": r["unitate"],
+            "pondere": r["pondere"] or 0.0, "actual": actual,
+            "id": r["id"],
+        })
+    out = bonus_calc.calc_agent_month(cfg["monthly_bonus"], penalty, kpis, grid)
+    out["agent_key"] = agent_key
+    out["monthly_bonus"] = cfg["monthly_bonus"]
+    out["an"] = an
+    out["luna"] = luna
+    out["inchis"] = bool(rec and rec.get("stare") == "inchis")
+    return out
 
 
 def _build_agent_months_data(db_agent, preset):
