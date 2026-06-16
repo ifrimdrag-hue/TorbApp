@@ -61,12 +61,10 @@
           <td class="text-end">{{ a.clienti_activi or '—' }}</td>
           <td class="text-muted small">{{ a.ultima_livrare or '—' }}</td>
           <td>
-            {% if is_human %}
             <a href="{{ url_for('analytics.agent_detail', name=a.agent, an=an) }}"
                class="btn btn-sm btn-outline-primary">
               <i class="bi bi-arrow-right"></i>
             </a>
-            {% endif %}
           </td>
         </tr>
         {% else %}

@@ -10,8 +10,17 @@
 </nav>
 
 <div class="d-flex justify-content-between align-items-center mb-2">
+  {% set is_digital = agent in ('EMAG', 'SITE', 'TRENDYOL', 'ALTEX') %}
   <h4 class="mb-0 fw-bold">
-    <i class="bi bi-person-circle text-primary me-1"></i>{{ agent }}
+    {% if is_digital %}
+    <i class="bi bi-globe2 text-primary me-1"></i>
+    {% else %}
+    <i class="bi bi-person-circle text-primary me-1"></i>
+    {% endif %}
+    {{ agent }}
+    {% if is_digital %}
+    <span class="badge bg-secondary-subtle text-secondary ms-2" style="font-size:.65rem">canal digital</span>
+    {% endif %}
   </h4>
   <div class="d-flex gap-2 align-items-center">
     <a href="{{ url_for('reports.export_excel', report='agent', name=agent, an=an) }}"
