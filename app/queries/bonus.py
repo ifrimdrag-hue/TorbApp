@@ -143,3 +143,82 @@ def clienti_noi_gama_list(db_agent, gama, an, luna):
     sql = _NOI_GAMA_CTE.format(frag=frag, select="lc.cod_client, lc.client")
     sql += " ORDER BY lc.client"
     return query(sql, params)
+
+
+def save_obiective(an, luna, agent_key, monthly_bonus, growth_pct, kpis):
+    """Upsert config lunar + înlocuiește toate rândurile KPI pentru (an,luna,agent).
+
+    Folosește o singură conexiune pentru a face delete+insert tranzacțional.
+    """
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO bonus_lunar_config (an, luna, agent_key, monthly_bonus, growth_pct) "
+            "VALUES (:an,:luna,:k,:mb,:g) "
+            "ON CONFLICT(an,luna,agent_key) DO UPDATE SET "
+            "  monthly_bonus=excluded.monthly_bonus, growth_pct=excluded.growth_pct",
+            {"an": an, "luna": luna, "k": agent_key, "mb": monthly_bonus, "g": growth_pct})
+        db.execute(
+            "DELETE FROM bonus_obiective_strategice "
+            "WHERE an=:an AND luna=:luna AND agent_key=:k",
+            {"an": an, "luna": luna, "k": agent_key})
+        for kpi in kpis:
+            db.execute(
+                "INSERT INTO bonus_obiective_strategice "
+                "(an, luna, agent_key, tip, referinta, target_valoare, target_unitate, "
+                " pondere, realizat_manual) "
+                "VALUES (:an,:luna,:k,:tip,:ref,:tv,:un,:pond,:rm)",
+                {"an": an, "luna": luna, "k": agent_key,
+                 "tip": kpi["tip"], "ref": kpi.get("referinta"),
+                 "tv": kpi.get("target"), "un": kpi.get("unitate", "ron"),
+                 "pond": kpi.get("pondere", 0), "rm": kpi.get("realizat_manual")})
+        db.commit()
+    finally:
+        db.close()
+
+
+def istoric_get(an, luna, agent_key):
+    rows = query(
+        "SELECT lunar_data, penalty_pct, grad_incasare, stare, inchis_la, note "
+        "FROM bonus_istoric WHERE an=:an AND luna=:luna AND agent_key=:k",
+        {"an": an, "luna": luna, "k": agent_key})
+    return rows[0] if rows else None
+
+
+def istoric_lock(an, luna, agent_key, lunar_data, penalty, grad_incasare, note):
+    _write(
+        "INSERT INTO bonus_istoric "
+        "(an, luna, agent_key, lunar_data, penalty_pct, grad_incasare, stare, "
+        " inchis_la, note) "
+        "VALUES (:an,:luna,:k,:ld,:p,:gi,'inchis',datetime('now','localtime'),:n) "
+        "ON CONFLICT(an,luna,agent_key) DO UPDATE SET "
+        "  lunar_data=excluded.lunar_data, penalty_pct=excluded.penalty_pct, "
+        "  grad_incasare=excluded.grad_incasare, stare='inchis', "
+        "  inchis_la=excluded.inchis_la, note=excluded.note",
+        {"an": an, "luna": luna, "k": agent_key, "ld": lunar_data,
+         "p": penalty, "gi": grad_incasare, "n": note})
+
+
+def add_agent(agent_key, db_agent, tip_agent="field"):
+    _write(
+        "INSERT INTO bonus_config (agent_key, db_agent, tip_agent, activ) "
+        "VALUES (:k,:d,:t,1) "
+        "ON CONFLICT(agent_key) DO UPDATE SET db_agent=excluded.db_agent, "
+        "  tip_agent=excluded.tip_agent, activ=1",
+        {"k": agent_key, "d": db_agent, "t": tip_agent})
+
+
+def set_agent_active(agent_key, activ):
+    _write("UPDATE bonus_config SET activ=:a WHERE agent_key=:k",
+           {"a": int(activ), "k": agent_key})
+
+
+def field_agents_in_tranzactii():
+    """Agenți de teren prezenți în tranzactii dar nu încă în bonus_config."""
+    return query("""
+        SELECT DISTINCT t.agent FROM tranzactii t
+        WHERE t.agent NOT IN ('EMAG','SITE','TRENDYOL','ALTEX')
+          AND LOWER(t.agent) NOT IN (
+              SELECT LOWER(db_agent) FROM bonus_config WHERE db_agent IS NOT NULL)
+        ORDER BY t.agent
+    """)
