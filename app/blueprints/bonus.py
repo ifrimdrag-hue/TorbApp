@@ -3,14 +3,7 @@ import json
 import logging
 from flask import Blueprint, render_template, request, jsonify
 import queries
-from bonus_calc import (
-    PRESETS,
-    SIM_MONTHS,
-    MONTHS_RO as BONUS_MONTHS_RO,
-    STRATEGIC_BRANDS,
-    STRATEGIC_WEIGHTS_DEFAULT,
-    simulate,
-)
+from bonus_calc import MONTHS_RO as BONUS_MONTHS_RO
 from exports.excel_export import send_excel, timestamped_filename
 import bonus_calc
 
@@ -79,59 +72,6 @@ def build_agent_month(agent_key, db_agent, an, luna):
     return out
 
 
-def _build_agent_months_data(db_agent, preset):
-    """Build months_data list for simulate() from DB actuals."""
-    py = queries.prior_year()
-    cy = queries.current_year()
-    all_rows = queries.agent_monthly_all_years(db_agent)
-    months_py, months_cy = {}, {}
-    for r in all_rows:
-        d = {'val_neta': r['val_neta'], 'marja_bruta': r['marja_bruta']}
-        if r['an'] == py:
-            months_py[int(r['luna'])] = d
-        elif r['an'] == cy:
-            months_cy[int(r['luna'])] = d
-
-    def _brand_monthly(an):
-        result = {}
-        for r in queries.agent_brand_monthly(db_agent, an):
-            m = int(r['luna'])
-            result.setdefault(m, {})[r['furnizor']] = r['val_neta']
-        return result
-
-    brands_py = _brand_monthly(py)
-    brands_cy = _brand_monthly(cy)
-    growth = preset['growth_pct']
-
-    months_data = []
-    for m in SIM_MONTHS:
-        base   = months_py.get(m, {})
-        actual = months_cy.get(m, {})
-        b25    = brands_py.get(m, {})
-        b26    = brands_cy.get(m, {})
-
-        weighted_att, total_w = 0.0, 0.0
-        for b in STRATEGIC_BRANDS:
-            base_b   = b25.get(b, 0) or 0
-            actual_b = b26.get(b, 0) or 0
-            target_b = base_b * (1 + growth)
-            att_b    = (actual_b / target_b) if target_b > 0 else 0.0
-            w = STRATEGIC_WEIGHTS_DEFAULT[b]
-            weighted_att += att_b * w
-            total_w      += w
-        strategic_att = (weighted_att / total_w) if total_w > 0 else 0.0
-
-        months_data.append({
-            'base_sales':      base.get('val_neta', 0) or 0,
-            'actual_sales':    actual.get('val_neta', 0) or 0,
-            'base_margin':     base.get('marja_bruta', 0) or 0,
-            'actual_margin':   actual.get('marja_bruta', 0) or 0,
-            'strategic_att':   strategic_att,
-            'collection_factor': 1.0,
-        })
-    return months_data
-
-
 @bonus_bp.route('/bonus')
 def bonus():
     an   = int(request.args.get('an', datetime.date.today().year))
@@ -143,89 +83,6 @@ def bonus():
         agents.append(out)
     return render_template('bonus.html', agents=agents, an=an, luna=luna,
                            months_ro=BONUS_MONTHS_RO)
-
-
-@bonus_bp.route('/bonus/simulator')
-def bonus_simulator():
-    presets_json = json.dumps({
-        name: {k: v for k, v in p.items() if k != 'db_agent'}
-        for name, p in PRESETS.items()
-    })
-    sim_months = [{'num': m, 'label': BONUS_MONTHS_RO[m - 1]} for m in SIM_MONTHS]
-    strat_brands = [
-        {'name': b, 'weight': STRATEGIC_WEIGHTS_DEFAULT[b]}
-        for b in STRATEGIC_BRANDS
-    ]
-    return render_template(
-        'bonus_simulator.html',
-        presets=PRESETS,
-        presets_json=presets_json,
-        sim_months=sim_months,
-        strat_brands=strat_brands,
-        strat_brands_json=json.dumps(STRATEGIC_BRANDS),
-        strat_weights_json=json.dumps(STRATEGIC_WEIGHTS_DEFAULT),
-    )
-
-
-@bonus_bp.route('/api/bonus/agent-data/<name>')
-def api_bonus_agent_data(name):
-    if name not in PRESETS:
-        return jsonify({'error': 'Preset necunoscut'}), 404
-    py = queries.prior_year()
-    cy = queries.current_year()
-    db_agent = PRESETS[name].get('db_agent')
-    if not db_agent:
-        return jsonify({'py': py, 'cy': cy,
-                        'months_py': {}, 'months_cy': {},
-                        'brands_py': {}, 'brands_cy': {}})
-
-    # Monthly sales+margin for both years
-    all_rows = queries.agent_monthly_all_years(db_agent)
-    months_py, months_cy = {}, {}
-    for r in all_rows:
-        d = {'val_neta': r['val_neta'], 'marja_bruta': r['marja_bruta']}
-        if r['an'] == py:
-            months_py[int(r['luna'])] = d
-        elif r['an'] == cy:
-            months_cy[int(r['luna'])] = d
-
-    # Monthly brand strategic data — {month: {brand: val}}
-    def _brand_monthly(an):
-        result = {}
-        for r in queries.agent_brand_monthly(db_agent, an):
-            m = int(r['luna'])
-            result.setdefault(m, {})[r['furnizor']] = r['val_neta']
-        return result
-
-    return jsonify({
-        'py': py, 'cy': cy,
-        'months_py': months_py,
-        'months_cy': months_cy,
-        'brands_py': _brand_monthly(py),
-        'brands_cy': _brand_monthly(cy),
-    })
-
-
-@bonus_bp.route('/api/bonus/simulate', methods=['POST'])
-def api_bonus_simulate():
-    data = request.get_json(silent=True) or {}
-    try:
-        params = {
-            'monthly_bonus': float(data.get('monthly_bonus', 0)),
-            'growth_pct':    float(data.get('growth_pct', 0.20)),
-            'w_sales':       float(data.get('w_sales', 0.45)),
-            'w_margin':      float(data.get('w_margin', 0.25)),
-            'w_strategic':   float(data.get('w_strategic', 0.30)),
-            'gate_sales':    float(data.get('gate_sales', 0.85)),
-            'gate_margin':   float(data.get('gate_margin', 0.85)),
-            'penalty':       float(data.get('penalty', 0.0)),
-        }
-        months_data = data.get('months', [])
-        result = simulate(params, months_data)
-        return jsonify(result)
-    except Exception as exc:
-        logger.exception("bonus simulate failed")
-        return jsonify({'error': str(exc)}), 400
 
 
 @bonus_bp.route('/bonus/export')
@@ -388,34 +245,3 @@ def config_set_active(agent_key):
     return jsonify({'ok': True})
 
 
-@bonus_bp.route('/bonus/simulator/export', methods=['POST'])
-def bonus_simulator_export():
-    data   = request.get_json(silent=True) or {}
-    agent  = data.get('agent', 'Manual')
-    months = data.get('months', [])
-    headers = [
-        'Luna', 'Baza Vanzari', 'Target Vanzari', 'Actual Vanzari', 'Realizare Vanzari %',
-        'Baza Marja', 'Target Marja', 'Actual Marja', 'Realizare Marja %',
-        'Strategic %', 'Gate OK', 'Bonus Vanzari', 'Bonus Marja', 'Bonus Strategic', 'Total Bonus',
-    ]
-    rows = [{
-        'Luna':                  m.get('luna', ''),
-        'Baza Vanzari':          m.get('baza_vanzari', 0),
-        'Target Vanzari':        m.get('target_vanzari', 0),
-        'Actual Vanzari':        m.get('actual_vanzari', 0),
-        'Realizare Vanzari %':   m.get('realizare_vanzari_pct', 0),
-        'Baza Marja':            m.get('baza_marja', 0),
-        'Target Marja':          m.get('target_marja', 0),
-        'Actual Marja':          m.get('actual_marja', 0),
-        'Realizare Marja %':     m.get('realizare_marja_pct', 0),
-        'Strategic %':           m.get('strategic_pct', 0),
-        'Gate OK':               'Da' if m.get('gate_ok') else 'Nu',
-        'Bonus Vanzari':         m.get('bonus_vanzari', 0),
-        'Bonus Marja':           m.get('bonus_marja', 0),
-        'Bonus Strategic':       m.get('bonus_strategic', 0),
-        'Total Bonus':           m.get('total_bonus', 0),
-    } for m in months]
-    return send_excel(
-        {'Simulator ' + agent: {'rows': rows, 'headers': headers}},
-        timestamped_filename(f'bonus_{agent}'),
-    )
