@@ -16,6 +16,12 @@
 </div>
 {% include '_period_selector.html' %}
 
+<div class="alert alert-light border small mb-3 py-2">
+  <i class="bi bi-info-circle text-primary me-1"></i>
+  Bonus în trepte după realizare: <span class="text-danger">&lt;80% → 0 lei</span> ·
+  80% → 0.5× · 95% → 0.8× · 100% → 1× · 110% → 1.2× · ≥120% → 1.5× (× pondere × bonus lunar).
+</div>
+
 <div class="row row-cols-1 row-cols-xl-2 g-3">
   {% for a in agents %}
   <div class="col">

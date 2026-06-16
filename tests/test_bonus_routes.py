@@ -40,6 +40,10 @@ def test_obiective_page_renders(app_client):
     resp = app_client.get('/bonus/obiective?an=2026&luna=7')
     assert resp.status_code == 200
     assert b'Bogdan' in resp.data
+    html = resp.get_data(as_text=True)
+    assert 'bonus-cell' in html              # coloana "Bonus la țintă"
+    assert 'data-py=' in html                # baseline pt. recalc target din creștere
+    assert 'Reguli de comisionare' in html   # legenda grilă + prag 80%
 
 
 def test_obiective_save_roundtrip(app_client):

@@ -8,6 +8,15 @@
 </div>
 {% include '_period_selector.html' %}
 
+<div class="alert alert-light border small mb-3">
+  <i class="bi bi-info-circle text-primary me-1"></i>
+  <strong>Reguli de comisionare:</strong> bonusul per criteriu se acordă în trepte după gradul de realizare —
+  <span class="text-danger">&lt;80% → 0×</span> ·
+  80% → 0.5× · 95% → 0.8× · 100% → 1× · 102% → 1.1× · 110% → 1.2× · ≥120% → 1.5×.
+  Sub <strong>80% realizat pe un criteriu, bonusul acelui criteriu este 0</strong>.
+  „Bonus la țintă" = suma la 100% realizare (bonus lunar × pondere).
+</div>
+
 <div class="d-flex gap-2 flex-wrap mb-3">
   {% for a in agents %}
   <div class="card border {{ 'border-primary' if loop.first else '' }}" style="cursor:pointer;min-width:150px"
@@ -41,7 +50,8 @@
     <table class="table table-sm align-middle" id="tbl-{{ a.agent_key }}">
       <thead class="table-light"><tr>
         <th>Criteriu</th><th>Referință</th><th class="text-end">PY</th>
-        <th class="text-end">Target</th><th class="text-end">Pondere %</th><th></th>
+        <th class="text-end">Target</th><th class="text-end">Pondere %</th>
+        <th class="text-end">Bonus la țintă</th><th></th>
       </tr></thead>
       <tbody>
         {% for k in a.kpis %}
@@ -57,9 +67,11 @@
             {% else %}—{% endif %}
           </td>
           <td class="text-end text-muted small">{{ k.py | int if k.py is defined and k.py else '—' }}</td>
-          <td class="text-end"><input type="number" class="form-control form-control-sm target text-end" value="{{ k.target | int }}"></td>
+          <td class="text-end"><input type="number" class="form-control form-control-sm target text-end"
+                 data-py="{{ k.py if (k.py is defined and k.py is not none) else '' }}" value="{{ k.target | int }}"></td>
           <td class="text-end"><input type="number" class="form-control form-control-sm pond text-end" style="width:70px" value="{{ ((k.pondere or 0) * 100) | round(0) | int }}"></td>
-          <td><button class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove();recalcPond('{{ a.agent_key }}')">×</button></td>
+          <td class="text-end small fw-semibold bonus-cell">—</td>
+          <td><button class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove();recalcAgent('{{ a.agent_key }}')">×</button></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -94,6 +106,23 @@ function recalcPond(k){
   el.textContent='Total pondere: '+t+'%';
   el.className='ms-auto fw-bold '+(t==100?'text-success':'text-danger');
 }
+// Recalculează target = PY × (1 + creștere%) pentru rândurile care au baseline PY.
+function recalcTargets(k){
+  const g=parseFloat(document.getElementById('g-'+k).value||0)/100;
+  document.querySelectorAll('#tbl-'+k+' .target').forEach(inp=>{
+    const py=parseFloat(inp.dataset.py);
+    if(!isNaN(py)) inp.value=Math.round(py*(1+g));
+  });
+}
+// Coloana „Bonus la țintă" = bonus lunar × pondere (suma la 100% realizare).
+function recalcBonus(k){
+  const mb=parseFloat(document.getElementById('mb-'+k).value||0);
+  document.querySelectorAll('#tbl-'+k+' tbody tr').forEach(tr=>{
+    const pond=parseFloat(tr.querySelector('.pond').value||0)/100;
+    tr.querySelector('.bonus-cell').textContent=Math.round(mb*pond).toLocaleString('ro-RO')+' lei';
+  });
+}
+function recalcAgent(k){ recalcPond(k); recalcBonus(k); }
 function addRow(k,tip){
   const tb=document.querySelector('#tbl-'+k+' tbody');
   const refCell = (tip==='brand'||tip==='clienti_noi_gama')
@@ -101,12 +130,13 @@ function addRow(k,tip){
     : (tip==='scriptic' ? '<input class="form-control form-control-sm ref">' : '—');
   const tr=document.createElement('tr'); tr.dataset.tip=tip;
   tr.innerHTML='<td>'+tip+'</td><td>'+refCell+'</td><td class="text-end text-muted">—</td>'+
-    '<td class="text-end"><input type="number" class="form-control form-control-sm target text-end" value="0"></td>'+
+    '<td class="text-end"><input type="number" class="form-control form-control-sm target text-end" data-py="" value="0"></td>'+
     '<td class="text-end"><input type="number" class="form-control form-control-sm pond text-end" style="width:70px" value="0"></td>'+
-    '<td><button class="btn btn-sm btn-outline-danger" onclick="this.closest(\'tr\').remove();recalcPond(\''+k+'\')">×</button></td>';
+    '<td class="text-end small fw-semibold bonus-cell">—</td>'+
+    '<td><button class="btn btn-sm btn-outline-danger" onclick="this.closest(\'tr\').remove();recalcAgent(\''+k+'\')">×</button></td>';
   tb.appendChild(tr);
-  tr.querySelector('.pond').addEventListener('input',()=>recalcPond(k));
-  recalcPond(k);
+  tr.querySelector('.pond').addEventListener('input',()=>recalcAgent(k));
+  recalcAgent(k);
 }
 function saveAgent(k){
   const kpis=[...document.querySelectorAll('#tbl-'+k+' tbody tr')].map(tr=>({
@@ -122,7 +152,12 @@ function saveAgent(k){
       growth_pct:parseFloat(document.getElementById('g-'+k).value||20)/100,kpis})})
    .then(r=>r.json()).then(d=>{ if(d.ok){location.reload();} else {alert('Eroare: '+d.error);} });
 }
-document.querySelectorAll('[id^=tbl-] .pond').forEach(i=>i.addEventListener('input',e=>recalcPond(e.target.closest('table').id.replace('tbl-',''))));
-{% for a in agents %}recalcPond('{{ a.agent_key }}');{% endfor %}
+document.querySelectorAll('[id^=tbl-] .pond').forEach(i=>i.addEventListener('input',e=>recalcAgent(e.target.closest('table').id.replace('tbl-',''))));
+// Creșterea % → recalculează target-urile; bonus lunar → recalculează coloana bonus.
+{% for a in agents %}
+document.getElementById('g-{{ a.agent_key }}').addEventListener('input',()=>recalcTargets('{{ a.agent_key }}'));
+document.getElementById('mb-{{ a.agent_key }}').addEventListener('input',()=>recalcBonus('{{ a.agent_key }}'));
+recalcAgent('{{ a.agent_key }}');
+{% endfor %}
 </script>
 {% endblock %}

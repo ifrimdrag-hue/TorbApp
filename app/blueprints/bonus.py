@@ -112,6 +112,20 @@ def bonus_export():
     return send_excel(sheets, timestamped_filename('bonus_echipa'))
 
 
+def _py_for_row(row, py):
+    """Valoarea PY same-month potrivită tipului unui rând KPI salvat."""
+    tip = row["tip"]
+    if tip == "vanzari":
+        return py["vanzari"]
+    if tip == "marja":
+        return py["marja"]
+    if tip == "clienti":
+        return py["clienti"]
+    if tip == "brand":
+        return py["brand"].get(row["referinta"], 0)
+    return None  # clienti_noi_gama / incasari / scriptic — fără baseline PY
+
+
 def _proposed_kpis(db_agent, an, luna, growth=0.20):
     """Propune rândurile implicite cu target = PY same-month * (1+growth)."""
     py = queries.py_baseline(db_agent, an, luna)
@@ -139,6 +153,11 @@ def obiective():
         cfg = queries.lunar_config(an, luna, a['agent_key'])
         # Creșterea efectivă: override lunar → config agent → 20% implicit
         growth = (cfg or {}).get('growth_pct') or a.get('growth_pct') or 0.20
+        # Atașează baseline-ul PY și pe rândurile salvate (pt. recalc target în UI)
+        if existing:
+            py = queries.py_baseline(a['db_agent'], an, luna)
+            for r in existing:
+                r['py'] = _py_for_row(r, py)
         total_pond = sum((r['pondere'] or 0) for r in existing)
         agents.append({
             "agent_key": a['agent_key'], "db_agent": a['db_agent'],
