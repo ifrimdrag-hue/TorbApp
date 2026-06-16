@@ -110,6 +110,13 @@ from queries.forecast import (
 )
 from queries.bonus import (
     bonus_team as bonus_team,
+    bonus_agents as bonus_agents,
+    lunar_config as lunar_config,
+    obiective as obiective,
+    payout_grid as payout_grid,
+    realizat_auto as realizat_auto,
+    realizat_brand as realizat_brand,
+    py_baseline as py_baseline,
 )
 from queries.export import (
     get_export_hu_codes as get_export_hu_codes,

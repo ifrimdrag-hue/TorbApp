@@ -23,3 +23,16 @@ def test_default_payout_grid_seeded():
                  "WHERE agent_key='_default' ORDER BY threshold")
     assert (rows[0]['threshold'], rows[0]['multiplier']) == (0.0, 0.0)
     assert (rows[-1]['threshold'], rows[-1]['multiplier']) == (1.2, 1.5)
+
+
+def test_bonus_agents_returns_field_agents():
+    from queries.bonus import bonus_agents
+    keys = {a['agent_key'] for a in bonus_agents()}
+    assert {'Bogdan', 'Claudiu', 'Oana', 'Ionut'} <= keys
+    assert 'Teo' not in keys
+
+def test_payout_grid_falls_back_to_default():
+    from queries.bonus import payout_grid
+    g = payout_grid('AgentInexistent')
+    assert g[0] == (0.0, 0.0)
+    assert g[-1] == (1.2, 1.5)
