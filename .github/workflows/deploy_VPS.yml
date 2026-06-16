@@ -140,6 +140,9 @@ jobs:
             # Run migrations explicitly — failure here aborts deploy and leaves service running
             python migrations/runner.py data/torb.db
 
+            # Exceptie business: Profi Rom Food -> Mega Image (idempotent, no-op daca deja migrat)
+            python etl/merge_client_profi_mega.py || echo "WARN: merge Profi->Mega esuat"
+
             # Backfill istoric bonus (idempotent — sare peste lunile deja setate/inchise).
             # Non-critic: o eroare aici nu trebuie sa abandoneze deploy-ul.
             python etl/backfill_bonus_obiective.py --an 2025 --luni 1-12 --close || echo "WARN: backfill bonus 2025 esuat"
@@ -295,6 +298,9 @@ jobs:
 
             # Run migrations explicitly — failure here aborts deploy and leaves service running
             python migrations/runner.py data/torb.db
+
+            # Exceptie business: Profi Rom Food -> Mega Image (idempotent, no-op daca deja migrat)
+            python etl/merge_client_profi_mega.py || echo "WARN: merge Profi->Mega esuat"
 
             # Backfill istoric bonus (idempotent — sare peste lunile deja setate/inchise).
             # Non-critic: o eroare aici nu trebuie sa abandoneze deploy-ul.
