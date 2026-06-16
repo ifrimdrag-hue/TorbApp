@@ -1,6 +1,6 @@
 # Torb — Status Execuție Plan Strategic 2026–2030
 
-**Ultima actualizare:** 2026-06-11
+**Ultima actualizare:** 2026-06-16
 **Document referință:** `context/plan_strategic_5ani.md` (v1.0)
 **Regulă:** actualizează acest fișier la fiecare schimbare de stare (nu la fiecare discuție). Legend: `[ ]` = neînceput · `[~]` = în lucru · `[x]` = livrat · `[!]` = blocat · `[↑]` = întârziat.
 
@@ -30,7 +30,7 @@
 ### Zilele 1–30 — Pornește motorul
 
 - `[x]` **4.** Pipeline date Baza → Dashboard managerial · *livrat: webapp Flask + 131,898 tranzacții SQLite + auth + blueprint refactor*
-- `[↑]` **5.** Bonusare automată lunară · *deadline: 31 mai 2026 — ÎNTÂRZIAT (4 zile). Următor pas imediat.*
+- `[x]` **5.** Bonusare automată lunară · *livrat 2026-06-16 (branch `feat/bonus-redesign`): modul bonus reconstruit config-driven — obiective lunare per agent (vânzări, marjă, 9 game individuale, nr. clienți, clienți noi/gamă, încasări, scriptic), ponderi + valoare bonus configurabile, grilă payout cu praguri (gate 80%), default creștere +20% vs anul trecut aceeași lună, flux de închidere lună cu snapshot înghețat, management agenți din UI. Tabele: `bonus_config`, `bonus_lunar_config`, `bonus_obiective_strategice`, `bonus_payout_grid`, `bonus_istoric` (migrația 0011). Pagini: `/bonus`, `/bonus/obiective`, `/bonus/inchidere`, `/bonus/config`, `/bonus/clienti-noi-gama`.*
 - `[ ]` **6.** Brief intern pentru audit Celmar + Leonex (scope, buget, timeline)
 - `[ ]` **7.** Conversație confidențială de retenție cu Bogdan Dragnea · *deadline: 30 iunie 2026*
 - `[~]` **4b.** Forecast engine MVP (Faza 1) · *modul `forecast/` + pagina `/forecast` + export Excel livrate; validare owner pe Basilur înainte de rollout complet (Faza 2)*

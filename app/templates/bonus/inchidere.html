@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Închidere Lună — Torb Logistic{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-lock-fill text-dark me-2"></i>Închidere Lună</h4>
+  <a href="{{ url_for('bonus.bonus') }}?an={{ an }}&luna={{ luna }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Tracker</a>
+</div>
+{% include '_period_selector.html' %}
+
+{% for a in agents %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-white d-flex justify-content-between">
+    <span class="fw-bold">{{ a.agent_key }}
+      {% if a.stare == 'inchis' %}<span class="badge bg-dark ms-1">închis</span>{% endif %}</span>
+    <span class="text-muted">Bonus provizoriu: <strong>{{ a.total_bonus | int }}</strong> RON</span>
+  </div>
+  <div class="card-body">
+    {% if a.manual %}
+    <p class="small text-muted mb-2">Introdu realizatul manual pentru criteriile fără date automate:</p>
+    {% for k in a.manual %}
+    <div class="row g-2 align-items-center mb-2">
+      <div class="col-auto"><span class="badge bg-warning text-dark">{{ k.tip }}</span> {{ k.referinta or '' }}</div>
+      <div class="col-auto text-muted small">target {{ k.target | int }}{{ '%' if k.tip == 'scriptic' else ' RON' }}</div>
+      <div class="col-auto">
+        <input type="number" class="form-control form-control-sm manual-input"
+               data-agent="{{ a.agent_key }}" data-id="{{ k.id }}" style="width:120px"
+               placeholder="realizat" {{ 'disabled' if a.stare == 'inchis' else '' }}>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="small text-muted mb-2">Toate criteriile sunt automate. Confirmă închiderea.</p>
+    {% endif %}
+    <div class="row g-2 align-items-center mt-2">
+      <div class="col-auto text-muted small">Penalizare %:</div>
+      <div class="col-auto"><input type="number" class="form-control form-control-sm" id="pen-{{ a.agent_key }}" value="0" style="width:80px" {{ 'disabled' if a.stare == 'inchis' else '' }}></div>
+      <div class="col-auto text-muted small">Notă:</div>
+      <div class="col"><input class="form-control form-control-sm" id="note-{{ a.agent_key }}" {{ 'disabled' if a.stare == 'inchis' else '' }}></div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-dark" onclick="lockAgent('{{ a.agent_key }}')"
+                {{ 'disabled' if a.stare == 'inchis' else '' }}>
+          <i class="bi bi-lock-fill me-1"></i>Închide & îngheată</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const AN={{ an }}, LUNA={{ luna }};
+function lockAgent(k){
+  const manual={};
+  document.querySelectorAll('.manual-input[data-agent="'+k+'"]').forEach(i=>{
+    manual[i.dataset.id]=parseFloat(i.value||0);
+  });
+  fetch('{{ url_for("bonus.inchidere_lock") }}',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({an:AN,luna:LUNA,agent_key:k,
+      penalty:parseFloat(document.getElementById('pen-'+k).value||0)/100,
+      grad_incasare:1.0,note:document.getElementById('note-'+k).value,manual})})
+   .then(r=>r.json()).then(d=>{ if(d.ok){location.reload();} else {alert('Eroare: '+d.error);} });
+}
+</script>
+{% endblock %}

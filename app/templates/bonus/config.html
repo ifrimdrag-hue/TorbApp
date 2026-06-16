@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Configurare Agenți Bonus — Torb Logistic{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-gear-fill text-secondary me-2"></i>Configurare Agenți Bonus</h4>
+  <a href="{{ url_for('bonus.bonus') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Tracker</a>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-header bg-white fw-semibold">Agenți configurați</div>
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead class="table-light"><tr><th>Cheie</th><th>Agent DB</th><th>Tip</th><th>Activ</th></tr></thead>
+      <tbody>
+        {% for a in agents %}
+        <tr>
+          <td class="fw-semibold">{{ a.agent_key }}</td>
+          <td class="small text-muted">{{ a.db_agent }}</td>
+          <td>{{ a.tip_agent }}</td>
+          <td>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" {{ 'checked' if a.activ else '' }}
+                     onchange="setActive({{ a.agent_key | tojson }}, this.checked)">
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if candidati %}
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white fw-semibold">Agenți noi în baza de date (neconfigurați)</div>
+  <ul class="list-group list-group-flush">
+    {% for c in candidati %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      <span>{{ c.agent }}</span>
+      <button class="btn btn-sm btn-outline-primary"
+              onclick="addAgent({{ c.agent | tojson }})">+ Adaugă la bonus</button>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setActive(k, on){
+  fetch('/bonus/config/agent/'+encodeURIComponent(k)+'/active',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({activ:on?1:0})})
+   .then(r=>{ if(!r.ok) throw new Error(r.status); })
+   .catch(e=>{ alert('Eroare la salvare: '+e.message); location.reload(); });
+}
+function addAgent(dbAgent){
+  const key = prompt('Cheie scurtă pentru agent (ex. prenume):', dbAgent.split(' ')[0]);
+  if(!key) return;
+  fetch('{{ url_for("bonus.config_add_agent") }}',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({agent_key:key,db_agent:dbAgent,tip_agent:'field'})})
+   .then(r=>r.json()).then(d=>{ if(d.ok) location.reload(); else alert('Eroare: '+d.error); });
+}
+</script>
+{% endblock %}

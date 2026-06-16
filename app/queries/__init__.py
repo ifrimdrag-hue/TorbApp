@@ -110,6 +110,21 @@ from queries.forecast import (
 )
 from queries.bonus import (
     bonus_team as bonus_team,
+    bonus_agents as bonus_agents,
+    lunar_config as lunar_config,
+    obiective as obiective,
+    payout_grid as payout_grid,
+    realizat_auto as realizat_auto,
+    realizat_brand as realizat_brand,
+    py_baseline as py_baseline,
+    clienti_noi_gama_count as clienti_noi_gama_count,
+    clienti_noi_gama_list as clienti_noi_gama_list,
+    save_obiective as save_obiective,
+    istoric_get as istoric_get,
+    istoric_lock as istoric_lock,
+    add_agent as add_agent,
+    set_agent_active as set_agent_active,
+    field_agents_in_tranzactii as field_agents_in_tranzactii,
 )
 from queries.export import (
     get_export_hu_codes as get_export_hu_codes,
