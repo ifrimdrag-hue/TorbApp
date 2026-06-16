@@ -50,7 +50,7 @@
                 {{ k.bonus | int if (k.bonus or 0) > 0 else '—' }}</td>
               <td>
                 {% if k.tip == 'clienti_noi_gama' %}
-                <a class="small" href="{{ url_for('bonus.clienti_noi_gama') }}?agent={{ a.db_agent }}&gama={{ k.referinta }}&an={{ an }}&luna={{ luna }}">
+                <a class="small" href="{{ url_for('bonus.clienti_noi_gama', agent=a.db_agent, gama=k.referinta, an=an, luna=luna) }}">
                   <i class="bi bi-people"></i></a>
                 {% endif %}
               </td>
