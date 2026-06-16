@@ -12,7 +12,8 @@ def app_client():
     app.config['TESTING'] = True
     app.config['WTF_CSRF_ENABLED'] = False
     with app.test_client() as c:
-        c.post('/auth/login', data={'username': 'testadmin', 'password': 'testpass'})
+        rv = c.post('/auth/login', data={'username': 'testadmin', 'password': 'testpass'})
+        assert rv.status_code == 302  # login reușit → redirect
         yield c
 
 
