@@ -453,6 +453,31 @@ def inchidere_lock():
         return jsonify({'ok': False, 'error': str(exc)}), 400
 
 
+@bonus_bp.route('/bonus/config')
+def config():
+    agents = queries.bonus_agents(activ_only=False)
+    candidati = queries.field_agents_in_tranzactii()
+    return render_template('bonus/config.html', agents=agents, candidati=candidati)
+
+
+@bonus_bp.route('/bonus/config/agent', methods=['POST'])
+def config_add_agent():
+    d = request.get_json(silent=True) or {}
+    try:
+        queries.add_agent(d['agent_key'], d.get('db_agent'), d.get('tip_agent', 'field'))
+        return jsonify({'ok': True})
+    except Exception as exc:
+        logger.exception("config_add_agent failed")
+        return jsonify({'ok': False, 'error': str(exc)}), 400
+
+
+@bonus_bp.route('/bonus/config/agent/<agent_key>/active', methods=['POST'])
+def config_set_active(agent_key):
+    d = request.get_json(silent=True) or {}
+    queries.set_agent_active(agent_key, int(d.get('activ', 1)))
+    return jsonify({'ok': True})
+
+
 @bonus_bp.route('/bonus/simulator/export', methods=['POST'])
 def bonus_simulator_export():
     data   = request.get_json(silent=True) or {}

@@ -95,3 +95,17 @@ def test_inchidere_lock_freezes(app_client, seed_bogdan):
     # re-lock pe o lună deja închisă → respins cu 409
     resp2 = app_client.post('/bonus/inchidere/lock', json=payload)
     assert resp2.status_code == 409
+
+
+def test_config_page_renders(app_client):
+    resp = app_client.get('/bonus/config')
+    assert resp.status_code == 200
+    assert b'Bogdan' in resp.data
+
+
+def test_config_add_agent(app_client):
+    resp = app_client.post('/bonus/config/agent',
+                           json={"agent_key": "TestX", "db_agent": "TEST X", "tip_agent": "field"})
+    assert resp.status_code == 200 and resp.get_json()['ok'] is True
+    from queries.bonus import bonus_agents
+    assert 'TestX' in {a['agent_key'] for a in bonus_agents(activ_only=False)}
