@@ -36,7 +36,7 @@
              id="mb-{{ a.agent_key }}" value="{{ a.monthly_bonus or 0 }}">
       <span class="text-muted ms-2">Creștere %:</span>
       <input type="number" class="form-control form-control-sm" style="width:70px"
-             id="g-{{ a.agent_key }}" value="20">
+             id="g-{{ a.agent_key }}" value="{{ ((a.growth_pct or 0.20) * 100) | round(0) | int }}">
     </div>
     <table class="table table-sm align-middle" id="tbl-{{ a.agent_key }}">
       <thead class="table-light"><tr>

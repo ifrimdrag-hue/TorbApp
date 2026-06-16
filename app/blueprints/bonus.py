@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+import re
 from flask import Blueprint, render_template, request, jsonify
 import queries
 from bonus_calc import MONTHS_RO as BONUS_MONTHS_RO
@@ -46,9 +47,12 @@ def build_agent_month(agent_key, db_agent, an, luna):
     grid = queries.payout_grid(agent_key)
     rec = queries.istoric_get(an, luna, agent_key)
 
-    # Dacă luna e închisă, citește snapshot înghețat
+    # Dacă luna e închisă, citește snapshot înghețat (doar dacă e valid;
+    # un snapshot gol/corupt nu trebuie să strice pagina — recalculăm live).
     if rec and rec.get("stare") == "inchis" and rec.get("lunar_data"):
-        return json.loads(rec["lunar_data"])
+        snap = json.loads(rec["lunar_data"])
+        if isinstance(snap, dict) and "total_bonus" in snap:
+            return snap
 
     istoric_manual = {}  # live: manualele neînchise vin din realizat_manual pe rând
     penalty = (rec or {}).get("penalty_pct") or 0.0
@@ -133,13 +137,16 @@ def obiective():
     for a in queries.bonus_agents(activ_only=True):
         existing = queries.obiective(an, luna, a['agent_key'])
         cfg = queries.lunar_config(an, luna, a['agent_key'])
+        # Creșterea efectivă: override lunar → config agent → 20% implicit
+        growth = (cfg or {}).get('growth_pct') or a.get('growth_pct') or 0.20
         total_pond = sum((r['pondere'] or 0) for r in existing)
         agents.append({
             "agent_key": a['agent_key'], "db_agent": a['db_agent'],
             "has_obiective": bool(existing), "n_kpi": len(existing),
             "monthly_bonus": (cfg or {}).get('monthly_bonus'),
+            "growth_pct": growth,
             "total_pondere": round(total_pond * 100),
-            "kpis": existing or _proposed_kpis(a['db_agent'], an, luna),
+            "kpis": existing or _proposed_kpis(a['db_agent'], an, luna, growth),
         })
     return render_template('bonus/obiective.html', agents=agents, an=an, luna=luna,
                            all_game=ALL_GAME, months_ro=BONUS_MONTHS_RO)
@@ -149,8 +156,15 @@ def obiective():
 def obiective_save():
     d = request.get_json(silent=True) or {}
     try:
+        an = int(d['an'])
+        luna = int(d['luna'])
+        key = d['agent_key']
+        rec = queries.istoric_get(an, luna, key)
+        if rec and rec.get('stare') == 'inchis':
+            return jsonify({'ok': False,
+                            'error': 'Luna este închisă — obiectivele nu mai pot fi modificate.'}), 409
         queries.save_obiective(
-            int(d['an']), int(d['luna']), d['agent_key'],
+            an, luna, key,
             float(d['monthly_bonus']), float(d.get('growth_pct', 0.20)),
             d.get('kpis', []))
         return jsonify({'ok': True})
@@ -231,7 +245,14 @@ def config():
 def config_add_agent():
     d = request.get_json(silent=True) or {}
     try:
-        queries.add_agent(d['agent_key'], d.get('db_agent'), d.get('tip_agent', 'field'))
+        agent_key = (d.get('agent_key') or '').strip()
+        # Cheia e folosită în id-uri HTML și handlere JS inline — o restrângem la
+        # caractere sigure (fără spații/ghilimele/diacritice) ca să evităm orice
+        # breakout JS și să garantăm id-uri DOM valide.
+        if not re.fullmatch(r'[A-Za-z0-9_]+', agent_key):
+            return jsonify({'ok': False, 'error':
+                            'Cheia agentului poate conține doar litere, cifre și _.'}), 400
+        queries.add_agent(agent_key, d.get('db_agent'), d.get('tip_agent', 'field'))
         return jsonify({'ok': True})
     except Exception as exc:
         logger.exception("config_add_agent failed")

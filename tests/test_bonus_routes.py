@@ -31,6 +31,7 @@ def seed_bogdan():
     conn.execute("DELETE FROM tranzactii WHERE cod_client='C1'")
     conn.execute("DELETE FROM bonus_lunar_config WHERE agent_key='Bogdan' AND an=2026 AND luna=6")
     conn.execute("DELETE FROM bonus_obiective_strategice WHERE agent_key='Bogdan' AND an=2026 AND luna=6")
+    conn.execute("DELETE FROM bonus_istoric WHERE agent_key='Bogdan' AND an=2026 AND luna=6")
     conn.commit()
     conn.close()
 
@@ -109,6 +110,25 @@ def test_config_add_agent(app_client):
     assert resp.status_code == 200 and resp.get_json()['ok'] is True
     from queries.bonus import bonus_agents
     assert 'TestX' in {a['agent_key'] for a in bonus_agents(activ_only=False)}
+
+
+def test_config_add_agent_rejects_unsafe_key(app_client):
+    resp = app_client.post('/bonus/config/agent',
+                           json={"agent_key": "O'Brien'); alert(1)", "db_agent": "X"})
+    assert resp.status_code == 400 and resp.get_json()['ok'] is False
+    from queries.bonus import bonus_agents
+    assert "O'Brien'); alert(1)" not in {a['agent_key'] for a in bonus_agents(activ_only=False)}
+
+
+def test_obiective_save_blocked_when_month_closed(app_client, seed_bogdan):
+    from queries.bonus import save_obiective, istoric_lock
+    save_obiective(2026, 6, 'Bogdan', 4000.0, 0.20,
+                   [{"tip": "vanzari", "referinta": None, "target": 5000.0, "unitate": "ron", "pondere": 1.0}])
+    istoric_lock(2026, 6, 'Bogdan', '{}', 0.0, 1.0, 'test')
+    resp = app_client.post('/bonus/obiective/save', json={
+        "an": 2026, "luna": 6, "agent_key": "Bogdan", "monthly_bonus": 9999,
+        "growth_pct": 0.20, "kpis": []})
+    assert resp.status_code == 409
 
 
 def test_bonus_export_ok(app_client):
