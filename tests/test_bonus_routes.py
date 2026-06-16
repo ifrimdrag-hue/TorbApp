@@ -115,3 +115,12 @@ def test_bonus_export_ok(app_client):
     resp = app_client.get('/bonus/export?an=2026&luna=6')
     assert resp.status_code == 200
     assert 'spreadsheet' in resp.headers.get('Content-Type', '')
+
+
+def test_bonus_tracker_renders(app_client, seed_bogdan):
+    from queries.bonus import save_obiective
+    save_obiective(2026, 6, 'Bogdan', 4000.0, 0.20,
+                   [{"tip": "vanzari", "referinta": None, "target": 5000.0, "unitate": "ron", "pondere": 1.0}])
+    resp = app_client.get('/bonus?an=2026&luna=6')
+    assert resp.status_code == 200
+    assert b'Bogdan' in resp.data

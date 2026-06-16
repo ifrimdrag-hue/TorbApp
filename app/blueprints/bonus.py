@@ -134,85 +134,15 @@ def _build_agent_months_data(db_agent, preset):
 
 @bonus_bp.route('/bonus')
 def bonus():
-    an      = int(request.args.get('an', datetime.date.today().year))
-    luna    = request.args.get('luna', type=int)
-    py_yr   = an - 1
-    cy_yr   = an
-    max_luna = None if luna else queries.max_luna_for_year(cy_yr)
-
-    def _in_period(m):
-        return int(m) == luna if luna else (max_luna is None or int(m) <= max_luna)
-
-    agents_data = []
-    for name, preset in PRESETS.items():
-        db_agent = preset.get('db_agent')
-        params = {k: v for k, v in preset.items() if k != 'db_agent'}
-        if db_agent:
-            months_data = _build_agent_months_data(db_agent, preset)
-        else:
-            months_data = [{'base_sales': 0, 'actual_sales': 0, 'base_margin': 0,
-                            'actual_margin': 0, 'strategic_att': 0, 'collection_factor': 1.0}
-                           for _ in SIM_MONTHS]
-        result = simulate(params, months_data)
-
-        # Per-brand strategic data filtered by selected period
-        brand_py, brand_cy = {}, {}
-        if db_agent:
-            for r in queries.agent_brand_monthly(db_agent, py_yr):
-                if _in_period(r['luna']):
-                    brand_py[r['furnizor']] = brand_py.get(r['furnizor'], 0) + (r['val_neta'] or 0)
-            for r in queries.agent_brand_monthly(db_agent, cy_yr):
-                if _in_period(r['luna']):
-                    brand_cy[r['furnizor']] = brand_cy.get(r['furnizor'], 0) + (r['val_neta'] or 0)
-
-        growth = preset['growth_pct']
-        strategic_period = []
-        w_att, total_w = 0.0, 0.0
-        for b in STRATEGIC_BRANDS:
-            base   = brand_py.get(b, 0) or 0
-            actual = brand_cy.get(b, 0) or 0
-            target = round(base * (1 + growth))
-            att    = (actual / target) if target > 0 else 0.0
-            w      = STRATEGIC_WEIGHTS_DEFAULT[b]
-            w_att += att * w
-            total_w += w
-            strategic_period.append({
-                'brand': b, 'weight': int(w * 100),
-                'base': round(base), 'target': target,
-                'actual': round(actual), 'att': round(att * 100, 1),
-            })
-        period_strategic = round((w_att / total_w * 100) if total_w else 0, 1)
-
-        # Period KPIs from monthly simulation results
-        period_months = [m for m in result['months']
-                         if (luna and m['month'] == luna) or
-                            (not luna and (max_luna is None or m['month'] <= max_luna))]
-        p_target_s = sum(m['target_sales'] for m in period_months)
-        p_actual_s = sum(m['sales_att'] * m['target_sales'] for m in period_months)
-        p_target_m = sum(m['target_margin'] for m in period_months)
-        p_actual_m = sum(m['margin_att'] * m['target_margin'] for m in period_months)
-        period_bonus  = round(sum(m['total_bonus'] for m in period_months), 0)
-        months_w_data = len([m for m in period_months if m['target_sales'] > 0 or m['target_margin'] > 0])
-        period_target = preset['monthly_bonus'] * months_w_data
-        period_pct    = round(period_bonus / period_target * 100, 1) if period_target else 0
-
-        agents_data.append({
-            'name':             name,
-            'db_agent':         db_agent or '—',
-            'preset':           preset,
-            'result':           result,
-            'months':           result['months'],
-            'strategic_period': strategic_period,
-            'period_strategic': period_strategic,
-            'period_sales_att': round(p_actual_s / p_target_s * 100, 1) if p_target_s else 0,
-            'period_margin_att':round(p_actual_m / p_target_m * 100, 1) if p_target_m else 0,
-            'period_bonus':     period_bonus,
-            'period_target':    period_target,
-            'period_pct':       period_pct,
-            'period_active':    months_w_data,
-        })
-    return render_template('bonus.html', agents=agents_data, months_ro=BONUS_MONTHS_RO,
-                           an=an, luna=luna, max_luna=max_luna)
+    an   = int(request.args.get('an', datetime.date.today().year))
+    luna = request.args.get('luna', type=int) or datetime.date.today().month
+    agents = []
+    for a in queries.bonus_agents(activ_only=True):
+        out = build_agent_month(a['agent_key'], a['db_agent'], an, luna)
+        out['db_agent'] = a['db_agent']
+        agents.append(out)
+    return render_template('bonus.html', agents=agents, an=an, luna=luna,
+                           months_ro=BONUS_MONTHS_RO)
 
 
 @bonus_bp.route('/bonus/simulator')
