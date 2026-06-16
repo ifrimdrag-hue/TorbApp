@@ -4,13 +4,13 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0 fw-bold"><i class="bi bi-trophy-fill text-warning me-2"></i>Tracker Bonus Echipă</h4>
   <div class="d-flex gap-2 flex-wrap">
-    <a href="{{ url_for('bonus.obiective') }}?an={{ an }}&luna={{ luna }}" class="btn btn-sm btn-primary">
+    <a href="{{ url_for('bonus.obiective', an=an, luna=luna) }}" class="btn btn-sm btn-primary">
       <i class="bi bi-bullseye me-1"></i> Setare Obiective</a>
-    <a href="{{ url_for('bonus.inchidere') }}?an={{ an }}&luna={{ luna }}" class="btn btn-sm btn-outline-dark">
+    <a href="{{ url_for('bonus.inchidere', an=an, luna=luna) }}" class="btn btn-sm btn-outline-dark">
       <i class="bi bi-lock-fill me-1"></i> Închidere Lună</a>
     <a href="{{ url_for('bonus.config') }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-gear me-1"></i> Agenți</a>
-    <a href="{{ url_for('bonus.bonus_export') }}?an={{ an }}&luna={{ luna }}" class="btn btn-sm btn-success">
+    <a href="{{ url_for('bonus.bonus_export', an=an, luna=luna) }}" class="btn btn-sm btn-success">
       <i class="bi bi-file-earmark-excel me-1"></i> Export</a>
   </div>
 </div>
@@ -57,7 +57,7 @@
             </tr>
             {% else %}
             <tr><td colspan="8" class="text-center text-muted py-3">
-              Niciun obiectiv setat. <a href="{{ url_for('bonus.obiective') }}?an={{ an }}&luna={{ luna }}">Setează acum</a></td></tr>
+              Niciun obiectiv setat. <a href="{{ url_for('bonus.obiective', an=an, luna=luna) }}">Setează acum</a></td></tr>
             {% endfor %}
           </tbody>
         </table>
