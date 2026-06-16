@@ -426,15 +426,20 @@ def inchidere_lock():
         an = int(d['an'])
         luna = int(d['luna'])
         key = d['agent_key']
+        rec = queries.istoric_get(an, luna, key)
+        if rec and rec.get('stare') == 'inchis':
+            return jsonify({'ok': False, 'error': 'Luna este deja închisă.'}), 409
         agent_cfg = next((a for a in queries.bonus_agents(activ_only=False)
                           if a['agent_key'] == key), None)
         db_agent = agent_cfg['db_agent'] if agent_cfg else key
         out = build_agent_month(key, db_agent, an, luna)
+        # Realizatul manual e cheiat pe id-ul KPI (unic), nu pe tip — astfel
+        # două obiective scriptice/încasări nu se suprascriu reciproc.
         manual = d.get('manual', {})
         grid = queries.payout_grid(key)
         for k in out['kpis']:
             if k['tip'] in ('incasari', 'scriptic'):
-                k['actual'] = float(manual.get(k['tip'], k.get('actual') or 0))
+                k['actual'] = float(manual.get(str(k['id']), k.get('actual') or 0))
         recalced = bonus_calc.calc_agent_month(
             out['monthly_bonus'], float(d.get('penalty', 0.0)), out['kpis'], grid)
         recalced.update({'agent_key': key, 'monthly_bonus': out['monthly_bonus'],

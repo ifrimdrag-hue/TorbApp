@@ -76,13 +76,22 @@ def test_inchidere_page_renders(app_client):
 
 
 def test_inchidere_lock_freezes(app_client, seed_bogdan):
-    from queries.bonus import save_obiective, istoric_get
+    import json
+    from queries.bonus import save_obiective, obiective, istoric_get
     save_obiective(2026, 6, 'Bogdan', 4000.0, 0.20,
                    [{"tip": "incasari", "referinta": None, "target": 1000.0, "unitate": "ron", "pondere": 1.0}])
+    kpi_id = obiective(2026, 6, 'Bogdan')[0]['id']
     payload = {"an": 2026, "luna": 6, "agent_key": "Bogdan", "penalty": 0.0,
                "grad_incasare": 1.0, "note": "ok",
-               "manual": {"incasari": 1000.0}}
+               "manual": {str(kpi_id): 1000.0}}  # cheiat pe id, nu pe tip
     resp = app_client.post('/bonus/inchidere/lock', json=payload)
     assert resp.status_code == 200 and resp.get_json()['ok'] is True
     rec = istoric_get(2026, 6, 'Bogdan')
     assert rec['stare'] == 'inchis'
+    # snapshot înghețat: încasări 1000/1000 → realizare 1.0 → bonus integral
+    snap = json.loads(rec['lunar_data'])
+    assert snap['kpis'][0]['actual'] == 1000.0
+    assert snap['total_bonus'] == 4000.0
+    # re-lock pe o lună deja închisă → respins cu 409
+    resp2 = app_client.post('/bonus/inchidere/lock', json=payload)
+    assert resp2.status_code == 409

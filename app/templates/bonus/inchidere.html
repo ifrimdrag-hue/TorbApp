@@ -24,7 +24,7 @@
       <div class="col-auto text-muted small">target {{ k.target | int }}{{ '%' if k.tip == 'scriptic' else ' RON' }}</div>
       <div class="col-auto">
         <input type="number" class="form-control form-control-sm manual-input"
-               data-agent="{{ a.agent_key }}" data-tip="{{ k.tip }}" style="width:120px"
+               data-agent="{{ a.agent_key }}" data-id="{{ k.id }}" style="width:120px"
                placeholder="realizat" {{ 'disabled' if a.stare == 'inchis' else '' }}>
       </div>
     </div>
@@ -54,7 +54,7 @@ const AN={{ an }}, LUNA={{ luna }};
 function lockAgent(k){
   const manual={};
   document.querySelectorAll('.manual-input[data-agent="'+k+'"]').forEach(i=>{
-    manual[i.dataset.tip]=parseFloat(i.value||0);
+    manual[i.dataset.id]=parseFloat(i.value||0);
   });
   fetch('{{ url_for("bonus.inchidere_lock") }}',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({an:AN,luna:LUNA,agent_key:k,
