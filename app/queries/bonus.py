@@ -177,6 +177,22 @@ def save_obiective(an, luna, agent_key, monthly_bonus, growth_pct, kpis):
         db.close()
 
 
+def upsert_lunar_bonus(an, luna, agent_key, monthly_bonus, growth_pct):
+    """Setează doar valoarea bonusului lunar (+ creșterea), fără a atinge obiectivele."""
+    _write(
+        "INSERT INTO bonus_lunar_config (an, luna, agent_key, monthly_bonus, growth_pct) "
+        "VALUES (:an,:luna,:k,:mb,:g) "
+        "ON CONFLICT(an,luna,agent_key) DO UPDATE SET "
+        "  monthly_bonus=excluded.monthly_bonus, growth_pct=excluded.growth_pct",
+        {"an": an, "luna": luna, "k": agent_key, "mb": monthly_bonus, "g": growth_pct})
+
+
+def istoric_delete(an, luna, agent_key):
+    """Șterge snapshot-ul de istoric (pt. regenerarea unui backfill)."""
+    _write("DELETE FROM bonus_istoric WHERE an=:an AND luna=:luna AND agent_key=:k",
+           {"an": an, "luna": luna, "k": agent_key})
+
+
 def istoric_get(an, luna, agent_key):
     rows = query(
         "SELECT lunar_data, penalty_pct, grad_incasare, stare, inchis_la, note "

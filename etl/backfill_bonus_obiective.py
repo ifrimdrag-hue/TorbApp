@@ -41,15 +41,21 @@ STRATEGIC_WEIGHTS = {
     "Delaviuda": 0.10,
 }
 
+# Valori canonice ale bonusului lunar (din PRESETS-ul original) — folosite când
+# seed-ul 2025 lipsește (ex. pe producție), ca să nu rezulte monthly_bonus=0.
+DEFAULT_BONUS = {"Claudiu": 4000.0, "Bogdan": 4000.0, "Oana": 3000.0, "Ionut": 2000.0}
+
 
 def _monthly_bonus(agent_key):
-    """Valoarea bonusului lunar din seed-ul 2025 (fallback 0 dacă lipsește)."""
+    """Bonus lunar: seed-ul 2025 (dacă >0), altfel valoarea canonică implicită."""
     rows = query(
         "SELECT monthly_bonus FROM bonus_lunar_config "
-        "WHERE agent_key=:k AND an=2025 ORDER BY luna LIMIT 1",
+        "WHERE agent_key=:k AND an=2025 AND monthly_bonus>0 ORDER BY luna LIMIT 1",
         {"k": agent_key},
     )
-    return rows[0]["monthly_bonus"] if rows else 0.0
+    if rows and rows[0]["monthly_bonus"]:
+        return rows[0]["monthly_bonus"]
+    return DEFAULT_BONUS.get(agent_key, 0.0)
 
 
 def _build_kpis(cfg, db_agent, an, luna):
@@ -96,7 +102,12 @@ def _close_month(agent_key, db_agent, an, luna):
 
     rec = queries.istoric_get(an, luna, agent_key)
     if rec and rec.get("stare") == "inchis":
-        return "deja-inchis"
+        # Nu atinge închiderile manuale ale directorului.
+        if rec.get("note") != "backfill istoric":
+            return "manual-skip"
+        # Snapshot de backfill — îl ștergem ca să-l regenerăm din config curent
+        # (altfel build_agent_month ar întoarce snapshot-ul vechi, posibil cu bonus 0).
+        queries.istoric_delete(an, luna, agent_key)
     out = build_agent_month(agent_key, db_agent, an, luna)
     if not out.get("kpis"):
         return "fara-obiective"
@@ -136,8 +147,16 @@ def main():
             # ad-hoc avea doar rânduri de brand cu target NULL — îl tratăm ca lipsă
             # și îl rescriem (save_obiective șterge+inserează, deci înlocuiește junk-ul).
             has_proper = any(r["tip"] == "vanzari" for r in existing)
+            growth = cfg.get("growth_pct") or 0.20
             if has_proper:
-                action = "exists"
+                # Obiective ok — dar repară monthly_bonus dacă lipsește/0
+                # (ex. pe prod unde seed-ul 2025 lipsea → backfill salvase 0).
+                lc = queries.lunar_config(args.an, luna, a["agent_key"])
+                if not args.dry_run and (not lc or not lc.get("monthly_bonus")):
+                    queries.upsert_lunar_bonus(args.an, luna, a["agent_key"], mb, growth)
+                    action = "fix-bonus"
+                else:
+                    action = "exists"
             else:
                 kpis = _build_kpis(cfg, a["db_agent"], args.an, luna)
                 if args.dry_run:
@@ -148,7 +167,7 @@ def main():
                           f"{' +close' if args.close else ''}")
                     continue
                 queries.save_obiective(args.an, luna, a["agent_key"],
-                                       mb, cfg.get("growth_pct") or 0.20, kpis)
+                                       mb, growth, kpis)
                 action = "saved"
 
             if args.close and not args.dry_run:

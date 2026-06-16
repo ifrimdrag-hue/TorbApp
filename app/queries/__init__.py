@@ -120,6 +120,8 @@ from queries.bonus import (
     clienti_noi_gama_count as clienti_noi_gama_count,
     clienti_noi_gama_list as clienti_noi_gama_list,
     save_obiective as save_obiective,
+    upsert_lunar_bonus as upsert_lunar_bonus,
+    istoric_delete as istoric_delete,
     istoric_get as istoric_get,
     istoric_lock as istoric_lock,
     add_agent as add_agent,
