@@ -19,15 +19,17 @@ bonus_bp = Blueprint('bonus', __name__)
 logger = logging.getLogger(__name__)
 
 
-def _actual_for_kpi(kpi, db_agent, an, luna, istoric_manual):
-    """Completează 'actual' pentru un rând KPI: auto din tranzactii sau manual."""
+def _actual_for_kpi(kpi, db_agent, an, luna, istoric_manual, auto=None):
+    """Completează 'actual' pentru un rând KPI: auto din tranzactii sau manual.
+
+    `auto` = rezultatul cache-uit al queries.realizat_auto(...) pentru a evita
+    apeluri repetate când mai multe KPI auto (vanzari/marja/clienti) sunt în listă.
+    """
     tip = kpi["tip"]
-    if tip == "vanzari":
-        return queries.realizat_auto(db_agent, an, luna)["vanzari"]
-    if tip == "marja":
-        return queries.realizat_auto(db_agent, an, luna)["marja"]
-    if tip == "clienti":
-        return queries.realizat_auto(db_agent, an, luna)["clienti"]
+    if tip in ("vanzari", "marja", "clienti"):
+        if auto is None:
+            auto = queries.realizat_auto(db_agent, an, luna)
+        return auto[tip]
     if tip == "brand":
         return queries.realizat_brand(db_agent, kpi["referinta"], an, luna)
     if tip == "clienti_noi_gama":
@@ -49,9 +51,11 @@ def build_agent_month(agent_key, db_agent, an, luna):
 
     istoric_manual = {}  # live: manualele neînchise vin din realizat_manual pe rând
     penalty = (rec or {}).get("penalty_pct") or 0.0
+    # Cache realizatul auto (vanzari/marja/clienti) — o singură interogare per agent
+    auto = queries.realizat_auto(db_agent, an, luna)
     kpis = []
     for r in rows:
-        actual = _actual_for_kpi(r, db_agent, an, luna, istoric_manual)
+        actual = _actual_for_kpi(r, db_agent, an, luna, istoric_manual, auto)
         kpis.append({
             "tip": r["tip"], "referinta": r["referinta"],
             "target": r["target"] or 0.0, "unitate": r["unitate"],
