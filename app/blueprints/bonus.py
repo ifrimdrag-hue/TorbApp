@@ -404,6 +404,50 @@ def clienti_noi_gama():
                            months_ro=BONUS_MONTHS_RO)
 
 
+@bonus_bp.route('/bonus/inchidere')
+def inchidere():
+    an   = int(request.args.get('an', datetime.date.today().year))
+    luna = request.args.get('luna', type=int) or datetime.date.today().month
+    agents = []
+    for a in queries.bonus_agents(activ_only=True):
+        out = build_agent_month(a['agent_key'], a['db_agent'], an, luna)
+        manual = [k for k in out['kpis'] if k['tip'] in ('incasari', 'scriptic')]
+        rec = queries.istoric_get(an, luna, a['agent_key'])
+        agents.append({**out, 'db_agent': a['db_agent'],
+                       'manual': manual, 'stare': (rec or {}).get('stare', 'deschis')})
+    return render_template('bonus/inchidere.html', agents=agents, an=an, luna=luna,
+                           months_ro=BONUS_MONTHS_RO)
+
+
+@bonus_bp.route('/bonus/inchidere/lock', methods=['POST'])
+def inchidere_lock():
+    d = request.get_json(silent=True) or {}
+    try:
+        an = int(d['an'])
+        luna = int(d['luna'])
+        key = d['agent_key']
+        agent_cfg = next((a for a in queries.bonus_agents(activ_only=False)
+                          if a['agent_key'] == key), None)
+        db_agent = agent_cfg['db_agent'] if agent_cfg else key
+        out = build_agent_month(key, db_agent, an, luna)
+        manual = d.get('manual', {})
+        grid = queries.payout_grid(key)
+        for k in out['kpis']:
+            if k['tip'] in ('incasari', 'scriptic'):
+                k['actual'] = float(manual.get(k['tip'], k.get('actual') or 0))
+        recalced = bonus_calc.calc_agent_month(
+            out['monthly_bonus'], float(d.get('penalty', 0.0)), out['kpis'], grid)
+        recalced.update({'agent_key': key, 'monthly_bonus': out['monthly_bonus'],
+                         'an': an, 'luna': luna, 'inchis': True})
+        queries.istoric_lock(an, luna, key, json.dumps(recalced),
+                             float(d.get('penalty', 0.0)),
+                             float(d.get('grad_incasare', 1.0)), d.get('note', ''))
+        return jsonify({'ok': True})
+    except Exception as exc:
+        logger.exception("inchidere_lock failed")
+        return jsonify({'ok': False, 'error': str(exc)}), 400
+
+
 @bonus_bp.route('/bonus/simulator/export', methods=['POST'])
 def bonus_simulator_export():
     data   = request.get_json(silent=True) or {}

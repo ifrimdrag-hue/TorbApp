@@ -68,3 +68,21 @@ def test_build_agent_month_auto_actual(seed_bogdan):
     assert out['kpis'][0]['actual'] == 5000.0
     assert out['kpis'][0]['realizare'] == 1.0
     assert out['total_bonus'] == 4000.0
+
+
+def test_inchidere_page_renders(app_client):
+    resp = app_client.get('/bonus/inchidere?an=2026&luna=6')
+    assert resp.status_code == 200
+
+
+def test_inchidere_lock_freezes(app_client, seed_bogdan):
+    from queries.bonus import save_obiective, istoric_get
+    save_obiective(2026, 6, 'Bogdan', 4000.0, 0.20,
+                   [{"tip": "incasari", "referinta": None, "target": 1000.0, "unitate": "ron", "pondere": 1.0}])
+    payload = {"an": 2026, "luna": 6, "agent_key": "Bogdan", "penalty": 0.0,
+               "grad_incasare": 1.0, "note": "ok",
+               "manual": {"incasari": 1000.0}}
+    resp = app_client.post('/bonus/inchidere/lock', json=payload)
+    assert resp.status_code == 200 and resp.get_json()['ok'] is True
+    rec = istoric_get(2026, 6, 'Bogdan')
+    assert rec['stare'] == 'inchis'
