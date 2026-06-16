@@ -97,6 +97,48 @@ def payout_multiplier(score: float, grid: list | None = None) -> float:
     return result
 
 
+def calc_kpi(kpi: dict, grid: list | None = None) -> dict:
+    """Calculează realizarea și multiplicatorul pentru un singur rând KPI.
+
+    kpi: {tip, target, actual, pondere}
+    Returnează kpi-ul augmentat cu realizare, multiplier, weighted.
+    """
+    target = kpi.get("target") or 0.0
+    actual = kpi.get("actual") or 0.0
+    pondere = kpi.get("pondere") or 0.0
+    realizare = (actual / target) if target else 0.0
+    multiplier = payout_multiplier(realizare, grid)
+    weighted = pondere * multiplier
+    return {
+        **kpi,
+        "realizare": round(realizare, 4),
+        "multiplier": multiplier,
+        "weighted": round(weighted, 4),
+    }
+
+
+def calc_agent_month(monthly_bonus: float, penalty: float,
+                     kpis: list, grid: list | None = None) -> dict:
+    """Calculează bonusul lunar al unui agent din lista de rânduri KPI.
+
+    bonus = monthly_bonus * Σ(pondere_i * multiplier_i) * (1 - penalty)
+    """
+    factor = 1.0 - (penalty or 0.0)
+    calc_rows = []
+    scor = 0.0
+    for k in kpis:
+        r = calc_kpi(k, grid)
+        r["bonus"] = round((monthly_bonus or 0.0) * r["weighted"] * factor, 2)
+        scor += r["weighted"]
+        calc_rows.append(r)
+    return {
+        "kpis": calc_rows,
+        "scor": round(scor, 4),
+        "total_pondere": round(sum((k.get("pondere") or 0.0) for k in kpis), 4),
+        "total_bonus": round((monthly_bonus or 0.0) * scor * factor, 2),
+    }
+
+
 def calc_month(params: dict, month_data: dict) -> dict:
     """Calculate bonus for a single month.
 
