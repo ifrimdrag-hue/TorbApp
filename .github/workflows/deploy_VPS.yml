@@ -140,6 +140,12 @@ jobs:
             # Run migrations explicitly — failure here aborts deploy and leaves service running
             python migrations/runner.py data/torb.db
 
+            # Backfill istoric bonus (idempotent — sare peste lunile deja setate/inchise).
+            # Non-critic: o eroare aici nu trebuie sa abandoneze deploy-ul.
+            python etl/backfill_bonus_obiective.py --an 2025 --luni 1-12 --close || echo "WARN: backfill bonus 2025 esuat"
+            python etl/backfill_bonus_obiective.py --an 2026 --luni 1-5 --close || echo "WARN: backfill bonus 2026 esuat"
+            python etl/backfill_bonus_obiective.py --an 2026 --luni 6 || echo "WARN: backfill bonus iunie esuat"
+
             # Restart dev app
             sudo systemctl restart torb-dev
 
@@ -289,6 +295,12 @@ jobs:
 
             # Run migrations explicitly — failure here aborts deploy and leaves service running
             python migrations/runner.py data/torb.db
+
+            # Backfill istoric bonus (idempotent — sare peste lunile deja setate/inchise).
+            # Non-critic: o eroare aici nu trebuie sa abandoneze deploy-ul.
+            python etl/backfill_bonus_obiective.py --an 2025 --luni 1-12 --close || echo "WARN: backfill bonus 2025 esuat"
+            python etl/backfill_bonus_obiective.py --an 2026 --luni 1-5 --close || echo "WARN: backfill bonus 2026 esuat"
+            python etl/backfill_bonus_obiective.py --an 2026 --luni 6 || echo "WARN: backfill bonus iunie esuat"
 
             # Restart app
             sudo systemctl restart torb-py

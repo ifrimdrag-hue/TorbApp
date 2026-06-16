@@ -85,10 +85,32 @@ def _parse_luni(spec):
     return [int(x) for x in spec.split(",")]
 
 
+def _close_month(agent_key, db_agent, an, luna):
+    """Îngheață luna: snapshot cu realizatul calculat în bonus_istoric (stare='inchis').
+
+    Import lazy al orchestratorului din blueprint (depinde de Flask) — necesar doar
+    când se cere închiderea; backfill-ul simplu rămâne fără dependență de Flask.
+    """
+    import json
+    from blueprints.bonus import build_agent_month
+
+    rec = queries.istoric_get(an, luna, agent_key)
+    if rec and rec.get("stare") == "inchis":
+        return "deja-inchis"
+    out = build_agent_month(agent_key, db_agent, an, luna)
+    if not out.get("kpis"):
+        return "fara-obiective"
+    queries.istoric_lock(an, luna, agent_key, json.dumps(out),
+                         0.0, 1.0, "backfill istoric")
+    return "inchis"
+
+
 def main():
     ap = argparse.ArgumentParser(description="Backfill obiective bonus istorice")
     ap.add_argument("--an", type=int, default=2026)
     ap.add_argument("--luni", default="1-6", help="ex: 1-6 sau 1,2,3")
+    ap.add_argument("--close", action="store_true",
+                    help="închide lunile (snapshot înghețat cu realizat)")
     ap.add_argument("--dry-run", action="store_true", help="afișează fără a scrie")
     args = ap.parse_args()
 
@@ -97,7 +119,8 @@ def main():
     agents = [a for a in queries.bonus_agents(activ_only=True)
               if a["db_agent"] and "|" not in a["db_agent"]]
 
-    print(f"Backfill an={args.an} luni={luni} agenți={[a['agent_key'] for a in agents]}"
+    print(f"Backfill an={args.an} luni={luni} close={args.close} "
+          f"agenți={[a['agent_key'] for a in agents]}"
           f"{' (DRY-RUN)' if args.dry_run else ''}\n")
 
     for a in agents:
@@ -109,22 +132,30 @@ def main():
 
         for luna in luni:
             existing = queries.obiective(args.an, luna, a["agent_key"])
-            if existing:
-                print(f"  [skip] {a['agent_key']:<8} {args.an}-{luna:02d}: "
-                      f"{len(existing)} obiective deja există")
-                continue
-            kpis = _build_kpis(cfg, a["db_agent"], args.an, luna)
-            total_pond = round(sum(k["pondere"] for k in kpis) * 100)
-            if args.dry_run:
-                print(f"  [dry ] {a['agent_key']:<8} {args.an}-{luna:02d}: "
-                      f"bonus={mb:.0f} pond={total_pond}% "
-                      f"vânz_target={kpis[0]['target']:,} ({len(kpis)} KPI)")
+            # „Proper" = structura nouă (conține un rând vânzări). Seed-ul vechi
+            # ad-hoc avea doar rânduri de brand cu target NULL — îl tratăm ca lipsă
+            # și îl rescriem (save_obiective șterge+inserează, deci înlocuiește junk-ul).
+            has_proper = any(r["tip"] == "vanzari" for r in existing)
+            if has_proper:
+                action = "exists"
             else:
+                kpis = _build_kpis(cfg, a["db_agent"], args.an, luna)
+                if args.dry_run:
+                    pond = round(sum(k["pondere"] for k in kpis) * 100)
+                    print(f"  [dry ] {a['agent_key']:<8} {args.an}-{luna:02d}: "
+                          f"bonus={mb:.0f} pond={pond}% "
+                          f"vânz_target={kpis[0]['target']:,} ({len(kpis)} KPI)"
+                          f"{' +close' if args.close else ''}")
+                    continue
                 queries.save_obiective(args.an, luna, a["agent_key"],
                                        mb, cfg.get("growth_pct") or 0.20, kpis)
-                print(f"  [ok  ] {a['agent_key']:<8} {args.an}-{luna:02d}: "
-                      f"bonus={mb:.0f} pond={total_pond}% "
-                      f"vânz_target={kpis[0]['target']:,} ({len(kpis)} KPI)")
+                action = "saved"
+
+            if args.close and not args.dry_run:
+                cstatus = _close_month(a["agent_key"], a["db_agent"], args.an, luna)
+                print(f"  [{action}/{cstatus}] {a['agent_key']:<8} {args.an}-{luna:02d}")
+            elif not args.dry_run:
+                print(f"  [{action}] {a['agent_key']:<8} {args.an}-{luna:02d}")
 
     print("\nGata.")
 
