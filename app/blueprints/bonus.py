@@ -300,44 +300,24 @@ def api_bonus_simulate():
 
 @bonus_bp.route('/bonus/export')
 def bonus_export():
-    summary_rows = []
-    sheets = {}
-    for name, preset in PRESETS.items():
-        db_agent = preset.get('db_agent')
-        params   = {k: v for k, v in preset.items() if k != 'db_agent'}
-        months_data = _build_agent_months_data(db_agent, preset) if db_agent else [
-            {'base_sales': 0, 'actual_sales': 0, 'base_margin': 0,
-             'actual_margin': 0, 'strategic_att': 0, 'collection_factor': 1.0}
-            for _ in SIM_MONTHS
-        ]
-        result = simulate(params, months_data)
-        active = sum(1 for m in result['months'] if m['total_bonus'] > 0)
-        summary_rows.append({
-            'Agent':              name,
-            'DB Agent':           db_agent or '—',
-            'Bonus Lunar Target': preset['monthly_bonus'],
-            'Bonus Anual Target': result['annual_target'],
-            'Bonus Realizat YTD': round(result['annual_bonus'], 0),
-            'Realizare %':        result['payout_pct'],
-            'Luni cu bonus':      active,
+    an   = int(request.args.get('an', datetime.date.today().year))
+    luna = request.args.get('luna', type=int) or datetime.date.today().month
+    summary, sheets = [], {}
+    for a in queries.bonus_agents(activ_only=True):
+        out = build_agent_month(a['agent_key'], a['db_agent'], an, luna)
+        summary.append({
+            'Agent': a['agent_key'], 'Bonus Lunar': out['monthly_bonus'],
+            'Scor': round(out['scor'], 2), 'Bonus Realizat': round(out['total_bonus']),
+            'Închis': 'Da' if out.get('inchis') else 'Nu',
         })
-        month_rows = []
-        for m in result['months']:
-            month_rows.append({
-                'Luna':               BONUS_MONTHS_RO[m['month'] - 1],
-                'Target Vanzari':     m['target_sales'],
-                'Target Marja':       m['target_margin'],
-                'Realizare Vanzari %': round(m['sales_att'] * 100, 1),
-                'Realizare Marja %':   round(m['margin_att'] * 100, 1),
-                'Strategic %':         round(m['strategic_att'] * 100, 1),
-                'Gate Strategic':      'Da' if m['gate_strategic_ok'] else 'Nu',
-                'Bonus Vanzari':       m['sales_bonus'],
-                'Bonus Marja':         m['margin_bonus'],
-                'Bonus Strategic':     m['strategic_bonus'],
-                'Total Bonus':         m['total_bonus'],
-            })
-        sheets[name[:31]] = month_rows
-    sheets = {'Centralizare': summary_rows, **sheets}
+        sheets[a['agent_key'][:31]] = [{
+            'KPI': k['tip'], 'Referință': k['referinta'] or '',
+            'Target': k['target'], 'Realizat': k['actual'],
+            'Realizare %': round(k['realizare'] * 100, 1),
+            'Pondere %': round(k['pondere'] * 100),
+            'Multiplicator': k['multiplier'], 'Bonus': round(k['bonus']),
+        } for k in out['kpis']]
+    sheets = {'Centralizare': summary, **sheets}
     return send_excel(sheets, timestamped_filename('bonus_echipa'))
 
 

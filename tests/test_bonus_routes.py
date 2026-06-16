@@ -109,3 +109,9 @@ def test_config_add_agent(app_client):
     assert resp.status_code == 200 and resp.get_json()['ok'] is True
     from queries.bonus import bonus_agents
     assert 'TestX' in {a['agent_key'] for a in bonus_agents(activ_only=False)}
+
+
+def test_bonus_export_ok(app_client):
+    resp = app_client.get('/bonus/export?an=2026&luna=6')
+    assert resp.status_code == 200
+    assert 'spreadsheet' in resp.headers.get('Content-Type', '')
