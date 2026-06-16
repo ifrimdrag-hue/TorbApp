@@ -131,11 +131,12 @@ def calc_agent_month(monthly_bonus: float, penalty: float,
         r["bonus"] = round((monthly_bonus or 0.0) * r["weighted"] * factor, 2)
         scor += r["weighted"]
         calc_rows.append(r)
+    scor_rounded = round(scor, 4)
     return {
         "kpis": calc_rows,
-        "scor": round(scor, 4),
+        "scor": scor_rounded,
         "total_pondere": round(sum((k.get("pondere") or 0.0) for k in kpis), 4),
-        "total_bonus": round((monthly_bonus or 0.0) * scor * factor, 2),
+        "total_bonus": round((monthly_bonus or 0.0) * scor_rounded * factor, 2),
     }
 
 
