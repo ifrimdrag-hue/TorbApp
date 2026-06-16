@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Clienți noi {{ gama }} — Torb Logistic{% endblock %}
+{% block content %}
+<nav class="mb-3"><a href="{{ url_for('bonus.bonus') }}?an={{ an }}&luna={{ luna }}" class="text-decoration-none">
+  <i class="bi bi-arrow-left"></i> Tracker Bonus</a></nav>
+<h4 class="fw-bold mb-3">
+  <i class="bi bi-people-fill text-primary me-2"></i>
+  Clienți noi pe gama <strong>{{ gama }}</strong> — {{ agent }} · {{ months_ro[luna-1] }} {{ an }}
+</h4>
+<p class="text-muted">Clienți facturați cu gama {{ gama }} în {{ months_ro[luna-1] }} {{ an }},
+  care nu au mai fost facturați cu această gamă în ultimele 24 de luni.</p>
+<div class="card shadow-sm border-0">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-dark"><tr><th>#</th><th>Cod client</th><th>Client</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr><td>{{ loop.index }}</td><td>{{ r.cod_client }}</td>
+          <td><a href="{{ url_for('analytics.client_detail', cod_client=r.cod_client, an=an) }}"
+                 class="text-decoration-none">{{ r.client }}</a></td></tr>
+        {% else %}
+        <tr><td colspan="3" class="text-center text-muted py-4">Niciun client nou pe această gamă.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

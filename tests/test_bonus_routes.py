@@ -54,6 +54,11 @@ def test_obiective_save_roundtrip(app_client):
     assert len(obiective(2026, 9, 'Ionut')) == 1
 
 
+def test_clienti_noi_gama_page(app_client, seed_bogdan):
+    resp = app_client.get('/bonus/clienti-noi-gama?agent=DRAGNEA BOGDAN&gama=Basilur&an=2026&luna=6')
+    assert resp.status_code == 200
+
+
 def test_build_agent_month_auto_actual(seed_bogdan):
     from queries.bonus import save_obiective
     from blueprints.bonus import build_agent_month

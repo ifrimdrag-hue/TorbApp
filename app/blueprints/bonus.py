@@ -392,6 +392,18 @@ def obiective_save():
         return jsonify({'ok': False, 'error': str(exc)}), 400
 
 
+@bonus_bp.route('/bonus/clienti-noi-gama')
+def clienti_noi_gama():
+    agent = request.args.get('agent', '')
+    gama  = request.args.get('gama', '')
+    an    = int(request.args.get('an', datetime.date.today().year))
+    luna  = int(request.args.get('luna', datetime.date.today().month))
+    rows = queries.clienti_noi_gama_list(agent, gama, an, luna)
+    return render_template('bonus/clienti_noi_gama.html',
+                           rows=rows, agent=agent, gama=gama, an=an, luna=luna,
+                           months_ro=BONUS_MONTHS_RO)
+
+
 @bonus_bp.route('/bonus/simulator/export', methods=['POST'])
 def bonus_simulator_export():
     data   = request.get_json(silent=True) or {}
