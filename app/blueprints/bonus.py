@@ -76,6 +76,30 @@ def build_agent_month(agent_key, db_agent, an, luna):
     return out
 
 
+def build_agent_ytd(agent_key, db_agent, an, up_to_luna):
+    """Agregă realizatul YTD (lunile 1..up_to_luna) pentru un agent."""
+    ytd_bonus = ytd_target = sales_real = sales_target = 0.0
+    luni_active = 0
+    for luna in range(1, up_to_luna + 1):
+        out = build_agent_month(agent_key, db_agent, an, luna)
+        if not out.get('kpis'):
+            continue
+        luni_active += 1
+        ytd_bonus += out['total_bonus']
+        ytd_target += out['monthly_bonus'] or 0
+        for k in out['kpis']:
+            if k['tip'] == 'vanzari':
+                sales_real += k['actual'] or 0
+                sales_target += k['target'] or 0
+    return {
+        'bonus': round(ytd_bonus), 'target': round(ytd_target),
+        'pct': round(ytd_bonus / ytd_target * 100, 1) if ytd_target else 0,
+        'luni_active': luni_active,
+        'sales_real': round(sales_real), 'sales_target': round(sales_target),
+        'sales_pct': round(sales_real / sales_target * 100, 1) if sales_target else 0,
+    }
+
+
 @bonus_bp.route('/bonus')
 def bonus():
     an   = int(request.args.get('an', datetime.date.today().year))
@@ -84,6 +108,10 @@ def bonus():
     for a in queries.bonus_agents(activ_only=True):
         out = build_agent_month(a['agent_key'], a['db_agent'], an, luna)
         out['db_agent'] = a['db_agent']
+        out['ytd'] = build_agent_ytd(a['agent_key'], a['db_agent'], an, luna)
+        # realizare lunară pe vânzări (pt. status vizual)
+        sales = next((k for k in out['kpis'] if k['tip'] == 'vanzari'), None)
+        out['sales_pct'] = round((sales['realizare'] or 0) * 100, 1) if sales else 0
         agents.append(out)
     return render_template('bonus.html', agents=agents, an=an, luna=luna,
                            months_ro=BONUS_MONTHS_RO)

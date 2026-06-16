@@ -147,4 +147,7 @@ def test_bonus_tracker_renders(app_client, seed_bogdan):
                    [{"tip": "vanzari", "referinta": None, "target": 5000.0, "unitate": "ron", "pondere": 1.0}])
     resp = app_client.get('/bonus?an=2026&luna=6')
     assert resp.status_code == 200
-    assert b'Bogdan' in resp.data
+    html = resp.get_data(as_text=True)
+    assert 'Bogdan' in html
+    assert 'YTD' in html                 # bloc YTD per agent
+    assert 'progress-bar' in html        # elemente vizuale de status

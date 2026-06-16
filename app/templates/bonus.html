@@ -1,5 +1,20 @@
 {% extends 'base.html' %}
 {% block title %}Tracker Bonus — Torb Logistic{% endblock %}
+
+{# ── Macro: badge de status după realizare % ─────────────────────────── #}
+{% macro status_badge(pct) %}
+  {% if pct >= 100 %}<span class="badge rounded-pill bg-success"><i class="bi bi-trophy-fill me-1"></i>Excelent</span>
+  {% elif pct >= 80 %}<span class="badge rounded-pill bg-warning text-dark"><i class="bi bi-bullseye me-1"></i>Pe țintă</span>
+  {% else %}<span class="badge rounded-pill bg-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>Sub țintă</span>{% endif %}
+{% endmacro %}
+
+{% macro bar(pct, klass) %}
+  <div class="progress" style="height:8px;border-radius:6px">
+    <div class="progress-bar {{ klass }}" role="progressbar"
+         style="width:{{ [pct, 100] | min }}%"></div>
+  </div>
+{% endmacro %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0 fw-bold"><i class="bi bi-trophy-fill text-warning me-2"></i>Tracker Bonus Echipă</h4>
@@ -24,49 +39,95 @@
 
 <div class="row row-cols-1 row-cols-xl-2 g-3">
   {% for a in agents %}
+  {% set month_pct = (a.scor * 100) if a.scor else 0 %}
   <div class="col">
     <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <span class="fw-bold">{{ a.agent_key }}
-          {% if a.inchis %}<span class="badge bg-dark ms-1">închis</span>{% endif %}
-        </span>
-        <span class="fw-bold {{ 'text-success' if a.total_bonus > 0 else 'text-muted' }}">
-          {{ a.total_bonus | int }} / {{ a.monthly_bonus | int }} RON</span>
+
+      {# ── Header: nume + status + badge închis ── #}
+      <div class="card-header bg-white border-0 pb-0">
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-2">
+            <span class="rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center fw-bold"
+                  style="width:38px;height:38px">{{ a.agent_key[:2] | upper }}</span>
+            <div>
+              <div class="fw-bold lh-1">{{ a.agent_key }}</div>
+              <small class="text-muted">{{ months_ro[luna-1] }} {{ an }}
+                {% if a.inchis %}· <span class="text-dark"><i class="bi bi-lock-fill"></i> închis</span>{% endif %}</small>
+            </div>
+          </div>
+          {{ status_badge(a.sales_pct) }}
+        </div>
       </div>
-      <div class="table-responsive">
-        <table class="table table-sm mb-0" style="font-size:.8rem">
-          <thead class="table-light">
-            <tr><th>KPI</th><th>Referință</th><th class="text-end">Target</th>
-                <th class="text-end">Realizat</th><th class="text-center">%</th>
-                <th class="text-end">Pond.</th><th class="text-end">Bonus</th><th></th></tr>
-          </thead>
-          <tbody>
-            {% for k in a.kpis %}
-            {% set rp = (k.realizare or 0) * 100 %}
-            <tr>
-              <td>{{ k.tip }}</td>
-              <td class="small">{{ k.referinta or '—' }}</td>
-              <td class="text-end">{{ k.target | int }}</td>
-              <td class="text-end">{{ k.actual | int }}</td>
-              <td class="text-center fw-semibold
-                {% if rp >= 100 %}text-success{% elif rp >= 80 %}text-warning{% else %}text-danger{% endif %}">
-                {{ rp | round(0) | int }}%</td>
-              <td class="text-end small text-muted">{{ ((k.pondere or 0) * 100) | round(0) | int }}%</td>
-              <td class="text-end {{ 'text-success' if (k.bonus or 0) > 0 else 'text-muted' }}">
-                {{ k.bonus | int if (k.bonus or 0) > 0 else '—' }}</td>
-              <td>
-                {% if k.tip == 'clienti_noi_gama' %}
-                <a class="small" href="{{ url_for('bonus.clienti_noi_gama', agent=a.db_agent, gama=k.referinta, an=an, luna=luna) }}">
-                  <i class="bi bi-people"></i></a>
-                {% endif %}
-              </td>
-            </tr>
-            {% else %}
-            <tr><td colspan="8" class="text-center text-muted py-3">
-              Niciun obiectiv setat. <a href="{{ url_for('bonus.obiective', an=an, luna=luna) }}">Setează acum</a></td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+
+      <div class="card-body pt-3">
+        {# ── Sumar lună + YTD ── #}
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <div class="d-flex justify-content-between align-items-end mb-1">
+              <small class="text-muted text-uppercase fw-semibold" style="font-size:.65rem;letter-spacing:.03em">Bonus lună</small>
+              <small class="fw-bold">{{ a.total_bonus | int }} <span class="text-muted fw-normal">/ {{ a.monthly_bonus | int }}</span></small>
+            </div>
+            {{ bar(month_pct, 'bg-success' if month_pct >= 100 else 'bg-warning' if month_pct >= 80 else 'bg-danger') }}
+            <small class="text-muted">vânzări {{ a.sales_pct | round(0) | int }}%</small>
+          </div>
+          <div class="col-6 border-start">
+            <div class="d-flex justify-content-between align-items-end mb-1">
+              <small class="text-muted text-uppercase fw-semibold" style="font-size:.65rem;letter-spacing:.03em">YTD ({{ months_ro[0] }}–{{ months_ro[luna-1] }})</small>
+              <small class="fw-bold">{{ a.ytd.bonus | int }} <span class="text-muted fw-normal">/ {{ a.ytd.target | int }}</span></small>
+            </div>
+            {{ bar(a.ytd.pct, 'bg-success' if a.ytd.pct >= 100 else 'bg-warning' if a.ytd.pct >= 80 else 'bg-danger') }}
+            <small class="text-muted">{{ a.ytd.luni_active }} luni · vânzări YTD {{ a.ytd.sales_pct | round(0) | int }}%</small>
+          </div>
+        </div>
+
+        {# ── Tabel KPI ── #}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0" style="font-size:.78rem">
+            <thead>
+              <tr class="text-muted" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.03em">
+                <th class="border-0">KPI</th><th class="border-0">Referință</th>
+                <th class="border-0 text-end">Target</th><th class="border-0 text-end">Realizat</th>
+                <th class="border-0" style="width:90px">Realizare</th>
+                <th class="border-0 text-end">Pond.</th><th class="border-0 text-end">Bonus</th><th class="border-0"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for k in a.kpis %}
+              {% set rp = (k.realizare or 0) * 100 %}
+              {% set rcls = 'success' if rp >= 100 else 'warning' if rp >= 80 else 'danger' %}
+              <tr>
+                <td class="fw-semibold text-capitalize">{{ k.tip | replace('_', ' ') }}</td>
+                <td class="small text-muted">{{ k.referinta or '—' }}</td>
+                <td class="text-end">{{ k.target | int }}</td>
+                <td class="text-end">{{ k.actual | int }}</td>
+                <td>
+                  <div class="d-flex align-items-center gap-1">
+                    <div class="progress flex-grow-1" style="height:5px;border-radius:4px">
+                      <div class="progress-bar bg-{{ rcls }}" style="width:{{ [rp, 100] | min }}%"></div>
+                    </div>
+                    <small class="text-{{ rcls }} fw-semibold" style="min-width:30px;text-align:right">{{ rp | round(0) | int }}%</small>
+                  </div>
+                </td>
+                <td class="text-end small text-muted">{{ ((k.pondere or 0) * 100) | round(0) | int }}%</td>
+                <td class="text-end fw-semibold {{ 'text-success' if (k.bonus or 0) > 0 else 'text-muted' }}">
+                  {{ k.bonus | int if (k.bonus or 0) > 0 else '—' }}</td>
+                <td class="text-end">
+                  {% if k.tip == 'clienti_noi_gama' %}
+                  <a class="text-decoration-none" title="Vezi clienții noi"
+                     href="{{ url_for('bonus.clienti_noi_gama', agent=a.db_agent, gama=k.referinta, an=an, luna=luna) }}">
+                    <i class="bi bi-box-arrow-up-right"></i></a>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8" class="text-center text-muted py-4">
+                <i class="bi bi-clipboard-x fs-4 d-block mb-2 opacity-50"></i>
+                Niciun obiectiv setat.
+                <a href="{{ url_for('bonus.obiective', an=an, luna=luna) }}">Setează acum</a></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
