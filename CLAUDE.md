@@ -51,7 +51,7 @@ wb = openpyxl.load_workbook('file.xlsx', data_only=True, read_only=True)
 **Citește obligatoriu la începutul fiecărei sesiuni:**
 1. `context/plan_strategic_5ani.md` — planul strategic 2026–2030 (teza, piloni, roadmap, financial model). Nu reinterpreta strategia de la zero — pleacă de aici.
 2. `context/STATUS.md` — starea curentă a execuției. Ce s-a livrat, ce e în lucru, ce e blocat, care e următorul pas. **Actualizează acest fișier la fiecare schimbare de stare**, nu la fiecare discuție.
-3. Restul fișierelor din `context/` — findings de research (overview business, riscuri, oportunități AI, reference fișiere de date).
+3. Restul fișierelor din `context/` — findings de research (overview business, riscuri, oportunități AI, reference fișiere de date). **Excepție:** fișierele `*_history.md` (ex. `infrastructure_history.md`) sunt arhive write-mostly — **nu** le încărca automat; citește-le doar când investighezi explicit o schimbare trecută.
 4. `.claude/project_knowledge.md` — durable technical notes: deploy pipeline & secrets, Shopify sync internals, Romanian-encoding rules for `.py` files, Typst manual rules, tech-debt backlog. Read before working on any of those areas.
 
 **Separarea responsabilităților:**

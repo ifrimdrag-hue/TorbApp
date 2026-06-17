@@ -233,8 +233,24 @@ def create_app(test_config=None):
         return render_template('500.html'), 500
 
     # ── Security headers ─────────────────────────────────────────────────────
-    # CSP is intentionally omitted for now: templates use inline scripts/styles
-    # and CDN assets, so a strict policy needs a dedicated audit pass first.
+    # CSP: pragmatic 'self'-based policy. All assets are served same-origin from
+    # static/ (no CDN), so this blocks every externally-hosted script/style/frame
+    # and external exfiltration. 'unsafe-inline' is required because templates use
+    # ~25 inline <script> blocks, 99 inline event handlers, and many inline styles;
+    # a strict nonce/hash policy would need a full template refactor (follow-up).
+    _CSP = "; ".join([
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data:",
+        "font-src 'self'",
+        "connect-src 'self'",
+        "frame-ancestors 'self'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "object-src 'none'",
+    ])
+
     @app.after_request
     def _security_headers(resp):
         resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
@@ -243,6 +259,7 @@ def create_app(test_config=None):
         resp.headers.setdefault(
             'Strict-Transport-Security', 'max-age=31536000; includeSubDomains'
         )
+        resp.headers.setdefault('Content-Security-Policy', _CSP)
         return resp
 
     # ── OPENCLAW AGENT PROXY ─────────────────────────────────────────────────

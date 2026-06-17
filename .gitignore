@@ -37,8 +37,10 @@ docs/manuals/**
 .env.local
 .env.*.local
 
-# Server manual — plaintext secrets companion (NEVER commit, even if manuals rule changes)
+# Server secrets — migrated 2026-06-17 to a KeePassXC vault (torb-secrets.kdbx, kept OUTSIDE the repo).
+# Rules retained as safety nets: NEVER commit the old plaintext companion or any key vault.
 docs/manuals/server/secrets.local.md
+*.kdbx
 
 # macOS
 .DS_Store
