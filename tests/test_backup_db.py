@@ -116,6 +116,50 @@ def test_prune_keeps_fresh_files(tmp_path):
     assert len(backup_db.list_backups(bdir)) == 2
 
 
+# ── Clone prod → dev ─────────────────────────────────────────────────────────
+
+def test_clone_prod_to_dev_copies_data(tmp_path):
+    prod = str(tmp_path / "prod.db")
+    dev = str(tmp_path / "dev.db")
+    bdir = str(tmp_path / "backups")
+    _make_db(prod, "prod-data")
+    _make_db(dev, "dev-data")
+
+    safety = backup_db.clone_prod_to_dev(
+        prod_db_path=prod, dev_db_path=dev, backup_dir=bdir, run_migrations=False
+    )
+    assert _read_marker(dev) == "prod-data"   # dev overwritten with prod data
+    assert _read_marker(prod) == "prod-data"  # prod is read-only, untouched
+    assert "pre-restore" in safety            # dev safety backup was taken
+
+    # The safety backup preserves the pre-copy dev state
+    raw = str(tmp_path / "old_dev.db")
+    with gzip.open(os.path.join(bdir, safety), "rb") as f_in, open(raw, "wb") as f_out:
+        f_out.write(f_in.read())
+    assert _read_marker(raw) == "dev-data"
+
+
+def test_clone_missing_prod_raises(tmp_path):
+    dev = str(tmp_path / "dev.db")
+    _make_db(dev, "dev-data")
+    with pytest.raises(FileNotFoundError):
+        backup_db.clone_prod_to_dev(
+            prod_db_path=str(tmp_path / "nope.db"), dev_db_path=dev,
+            backup_dir=str(tmp_path / "b"), run_migrations=False,
+        )
+    assert _read_marker(dev) == "dev-data"  # dev untouched on failure
+
+
+def test_clone_missing_dev_raises(tmp_path):
+    prod = str(tmp_path / "prod.db")
+    _make_db(prod, "prod-data")
+    with pytest.raises(FileNotFoundError):
+        backup_db.clone_prod_to_dev(
+            prod_db_path=prod, dev_db_path=str(tmp_path / "nope.db"),
+            backup_dir=str(tmp_path / "b"), run_migrations=False,
+        )
+
+
 # ── Admin routes ─────────────────────────────────────────────────────────────
 
 @pytest.fixture()
@@ -137,6 +181,13 @@ def test_db_page_renders_for_admin(client, backups_in_tmp):
     rv = client.get("/admin/db")
     assert rv.status_code == 200
     assert "Backup acum".encode("utf-8") in rv.data
+
+
+def test_db_page_shows_clone_button(client, backups_in_tmp):
+    rv = client.get("/admin/db")
+    assert rv.status_code == 200
+    assert "/admin/db/clone-prod".encode("utf-8") in rv.data
+    assert "PRD".encode("utf-8") in rv.data
 
 
 def test_manual_backup_route(client, backups_in_tmp):
@@ -200,6 +251,29 @@ def test_restore_route_round_trip(client, backups_in_tmp, db_path):
     conn = sqlite3.connect(db_path)
     n = conn.execute(
         "SELECT COUNT(*) FROM auth_log WHERE event='db_restore'"
+    ).fetchone()[0]
+    conn.close()
+    assert n == 1
+
+
+def test_clone_route_requires_exact_confirmation(client, backups_in_tmp):
+    rv = client.post("/admin/db/clone-prod", data={"confirm": "yes"},
+                     follow_redirects=True)
+    assert rv.status_code == 200
+    tags = [b["tag"] for b in backup_db.list_backups(backups_in_tmp)]
+    assert "pre-restore" not in tags  # nothing happened — no safety backup taken
+
+
+def test_clone_route_success(client, backups_in_tmp, db_path):
+    rv = client.post("/admin/db/clone-prod", data={"confirm": "COPY"},
+                     follow_redirects=True)
+    assert rv.status_code == 200
+    tags = [b["tag"] for b in backup_db.list_backups(backups_in_tmp)]
+    assert "pre-restore" in tags  # dev safety backup of the overwritten state
+
+    conn = sqlite3.connect(db_path)
+    n = conn.execute(
+        "SELECT COUNT(*) FROM auth_log WHERE event='db_clone_prod'"
     ).fetchone()[0]
     conn.close()
     assert n == 1

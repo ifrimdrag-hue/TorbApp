@@ -120,6 +120,58 @@ def _run_migrations(db_path: str) -> None:
     run_all(db_path)
 
 
+def _prod_db_path():
+    import paths
+    return os.environ.get('PROD_DB_PATH') or paths.DB_PATH
+
+
+def _dev_db_path():
+    import paths
+    return os.environ.get('DEV_DB_PATH') or paths.DB_PATH
+
+
+def clone_prod_to_dev(prod_db_path: str = None, dev_db_path: str = None,
+                      backup_dir: str = None, run_migrations: bool = True) -> str:
+    """Overwrite the dev DB with a live snapshot of the prod DB.
+
+    Direction is fixed: prod is a read-only source, dev is the target — so this
+    is safe to trigger from either environment (prod is never written). Safety
+    order: validate paths → snapshot prod → integrity_check → pre-restore backup
+    of the current dev DB → copy into dev → re-apply migrations (prod schema may
+    differ). Returns the name of the pre-copy safety backup.
+    """
+    prod_db_path = prod_db_path or _prod_db_path()
+    dev_db_path = dev_db_path or _dev_db_path()
+    backup_dir = backup_dir or _backup_dir()
+    if not os.path.isfile(prod_db_path):
+        raise FileNotFoundError(prod_db_path)
+    if not os.path.isfile(dev_db_path):
+        raise FileNotFoundError(dev_db_path)
+    os.makedirs(backup_dir, exist_ok=True)
+
+    tmp_db = os.path.join(backup_dir, 'clone-prod.tmp')
+    try:
+        _snapshot_to(prod_db_path, tmp_db)
+
+        check = sqlite3.connect(tmp_db)
+        try:
+            result = check.execute('PRAGMA integrity_check').fetchone()[0]
+        finally:
+            check.close()
+        if result != 'ok':
+            raise RuntimeError(f'prod snapshot failed integrity check: {result}')
+
+        safety = create_backup('pre-restore', db_path=dev_db_path, backup_dir=backup_dir)
+        _snapshot_to(tmp_db, dev_db_path)
+    finally:
+        if os.path.exists(tmp_db):
+            os.unlink(tmp_db)
+
+    if run_migrations:
+        _run_migrations(dev_db_path)
+    return os.path.basename(safety)
+
+
 def restore_backup(name: str, db_path: str = None, backup_dir: str = None,
                    run_migrations: bool = True) -> str:
     """Restore the named backup over the live DB.

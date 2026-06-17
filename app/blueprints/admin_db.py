@@ -10,7 +10,14 @@ import logging
 from flask import flash, redirect, render_template, request, send_from_directory, url_for
 from flask_login import current_user
 
-from backup_db import _backup_dir, create_backup, list_backups, prune, restore_backup
+from backup_db import (
+    _backup_dir,
+    clone_prod_to_dev,
+    create_backup,
+    list_backups,
+    prune,
+    restore_backup,
+)
 from blueprints.auth import _log, admin_bp, require_role
 
 _logger = logging.getLogger(__name__)
@@ -61,6 +68,31 @@ def db_restore():
     except Exception as exc:
         _logger.exception("Restore failed for %s", name)
         flash(f"Restaurare eșuată: {exc}", "danger")
+    return redirect(url_for("admin.db_maintenance"))
+
+
+@admin_bp.route("/db/clone-prod", methods=["POST"])
+@require_role("admin")
+def db_clone_prod():
+    confirm = request.form.get("confirm", "")
+    if confirm.strip() != "COPY":
+        flash("Copiere anulată — confirmarea trebuie să fie exact COPY.", "warning")
+        return redirect(url_for("admin.db_maintenance"))
+    try:
+        safety = clone_prod_to_dev()
+        _clear_query_caches()
+        _log(current_user.id, "db_clone_prod", request.remote_addr or "0.0.0.0",
+             f"safety: {safety}")
+        flash(
+            "Datele din producție au fost copiate în dev. "
+            f"Backup de siguranță pre-copiere: {safety}. "
+            "Recomandat: reporniți serviciul torb-dev pentru consistența completă "
+            "a cache-urilor.",
+            "success",
+        )
+    except Exception as exc:
+        _logger.exception("Clone prod->dev failed")
+        flash(f"Copiere eșuată: {exc}", "danger")
     return redirect(url_for("admin.db_maintenance"))
 
 

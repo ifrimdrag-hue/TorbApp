@@ -14,6 +14,14 @@
         <i class="bi bi-cloud-arrow-down me-1"></i> Backup acum
       </button>
     </form>
+    <form method="POST" action="{{ url_for('admin.db_clone_prod') }}"
+          class="d-inline clone-prod-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="confirm" value="">
+      <button class="btn btn-warning btn-sm" title="Copiază datele din producție în dev">
+        <i class="bi bi-arrow-left-right me-1"></i> Date PRD→DEV
+      </button>
+    </form>
   </div>
 </div>
 
@@ -96,6 +104,21 @@ document.querySelectorAll('.restore-form').forEach(function (form) {
       '\n\nTastați RESTORE pentru a confirma:'
     );
     if (answer === null || answer.trim() !== 'RESTORE') {
+      e.preventDefault();
+      return;
+    }
+    form.querySelector('input[name="confirm"]').value = answer.trim();
+  });
+});
+
+document.querySelectorAll('.clone-prod-form').forEach(function (form) {
+  form.addEventListener('submit', function (e) {
+    var answer = prompt(
+      'ATENȚIE: baza de date DEV va fi înlocuită complet cu datele din PRODUCȚIE.' +
+      '\nProducția nu este afectată. Se creează automat un backup de siguranță al dev.' +
+      '\n\nTastați COPY pentru a confirma:'
+    );
+    if (answer === null || answer.trim() !== 'COPY') {
       e.preventDefault();
       return;
     }

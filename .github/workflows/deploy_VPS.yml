@@ -127,6 +127,11 @@ jobs:
             echo "EMAG_STOCK_SAFETY_THRESHOLD=5" >> .env
             grep -v '^SESSION_COOKIE_SECURE=' .env > .env.tmp && mv .env.tmp .env
             echo "SESSION_COOKIE_SECURE=1" >> .env
+            # Date PRD→DEV button — same values on both services
+            grep -v '^PROD_DB_PATH=' .env > .env.tmp && mv .env.tmp .env
+            echo "PROD_DB_PATH=/var/www/html/torb-py/data/torb.db" >> .env
+            grep -v '^DEV_DB_PATH=' .env > .env.tmp && mv .env.tmp .env
+            echo "DEV_DB_PATH=/var/www/html/torb-py-dev/data/torb.db" >> .env
 
             # Lock down .env — gunicorn runs as www-data (group), never world-readable.
             # The .env rewrites above use default umask (664); reset perms every deploy.
@@ -283,6 +288,11 @@ jobs:
             echo "EMAG_STOCK_SAFETY_THRESHOLD=5" >> .env
             grep -v '^SESSION_COOKIE_SECURE=' .env > .env.tmp && mv .env.tmp .env
             echo "SESSION_COOKIE_SECURE=1" >> .env
+            # Date PRD→DEV button — same values on both services
+            grep -v '^PROD_DB_PATH=' .env > .env.tmp && mv .env.tmp .env
+            echo "PROD_DB_PATH=/var/www/html/torb-py/data/torb.db" >> .env
+            grep -v '^DEV_DB_PATH=' .env > .env.tmp && mv .env.tmp .env
+            echo "DEV_DB_PATH=/var/www/html/torb-py-dev/data/torb.db" >> .env
 
             # Lock down .env — gunicorn runs as www-data (group), never world-readable.
             # The .env rewrites above use default umask (664); reset perms every deploy.
