@@ -25,9 +25,9 @@ secrets companion / move to a password vault").
   passes) then deleted. ⚠️ SSD wear-leveling means overwrite-delete is best-effort — full-disk
   encryption (BitLocker) is the real at-rest protection; confirm it's enabled.
 - **Docs updated:** `infrastructure.md` references + pending list; `.gitignore` (retained the
-  `secrets.local.md` ignore as a safety net, added `*.kdbx`).
-- **Follow-up:** the Typst server manual (`manual_server.typ`, ch. 9) still documents the old
-  `secrets.local.md` file/path — needs updating + a recompile.
+  `secrets.local.md` ignore as a safety net, added `*.kdbx`); Typst server manual
+  (`manual_server.typ`, ch. 9) rewritten to describe the KeePassXC vault + recompiled to
+  `docs/manual_server.pdf`.
 
 ---
 

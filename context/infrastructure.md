@@ -324,8 +324,7 @@ sudo systemctl reload nginx
   vault `C:\Users\rosio\Vault\torb-secrets.kdbx` (AES-256 + Argon2id, master passphrase held only by
   the owner) and the plaintext securely deleted. *Residual:* the laptop SSD makes overwrite-delete
   non-guaranteed — full-disk encryption (BitLocker) is the real at-rest protection; confirm it's on.
-  *Follow-up:* the Typst server manual (`manual_server.typ`, ch. 9) still describes the old
-  `secrets.local.md` file — update + recompile.
+  Server manual (`manual_server.typ`, ch. 9) updated to describe the vault + recompiled 2026-06-17.
 - **CSP header** — ✅ pragmatic policy shipped (`app/app.py` `_security_headers`): `default-src 'self'`
   with `'unsafe-inline'` for script/style (all assets are same-origin; no CDN). Blocks external script/
   style/frame injection + exfiltration. **Follow-up (own task):** strict nonce-based CSP — requires
