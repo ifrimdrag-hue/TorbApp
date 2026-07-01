@@ -56,6 +56,8 @@ def derive_furnizor(sku: str, cp_lookup: dict, cod_produs: str) -> str:
     if not sku:
         return "Altele"
     s = str(sku).strip()
+    if s.upper().startswith("B.ECO ORGANSIA"):
+        return "Organsia"
     if s.startswith("B.") or s.startswith('B."') or s.startswith("WB."):
         return "Basilur"
     if s.startswith("KL "):

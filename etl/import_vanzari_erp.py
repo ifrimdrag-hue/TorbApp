@@ -81,6 +81,8 @@ def _furnizor_from_prefix(sku: str) -> str | None:
     if not sku:
         return None
     s = str(sku).strip()
+    if s.upper().startswith("B.ECO ORGANSIA"):
+        return "Organsia"
     if s.startswith("B.") or s.startswith('B."') or s.startswith("WB."):
         return "Basilur"
     if s.startswith("KL "):

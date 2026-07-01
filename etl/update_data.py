@@ -28,6 +28,7 @@ DOCS_PATH = "docs_input"
 # Mapping furnizor → gama
 GAMA_MAP = {
     "Basilur":   "Basilur",
+    "Organsia":  "Organsia",
     "Celmar":    "Celmar",
     "KingsLeaf": "KingsLeaf",
     "Toras":     "Toras",
