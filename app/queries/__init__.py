@@ -46,6 +46,8 @@ from queries.clients import (
     client_brand_mix as client_brand_mix,
     client_yearly as client_yearly,
     client_products_full as client_products_full,
+    client_produse_nelistate_perioada as client_produse_nelistate_perioada,
+    client_produse_nelistate_istoric as client_produse_nelistate_istoric,
     client_yearly_full as client_yearly_full,
     client_monthly_full as client_monthly_full,
 )

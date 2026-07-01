@@ -1,6 +1,27 @@
 {% extends 'base.html' %}
 {% block title %}{{ info.client }} — Torb Logistic{% endblock %}
 
+{% macro nelistate_rows(rows) %}
+{% for p in rows %}
+<tr>
+  <td class="small text-muted">{{ (sku_cod_mare.get(p.sku) or p.cod_produs) or '—' }}</td>
+  <td class="small" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ p.sku }}">
+    <a href="{{ url_for('reports.produs_detail', sku=p.sku, an=an, luna=luna) if luna else url_for('reports.produs_detail', sku=p.sku, an=an) }}" class="text-decoration-none">
+      {{ (p.descriere or p.sku) | truncate(40, True, '…') }}
+    </a>
+  </td>
+  <td class="small" data-v="{{ p.brand }}"><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ p.brand }}</span></td>
+  <td class="small" data-v="{{ p.categorie or '' }}">{{ p.categorie or '—' }}</td>
+  <td class="text-end small" data-v="{{ p.pret_lista if p.pret_lista else '' }}">{{ '%.2f RON' % p.pret_lista if p.pret_lista else '—' }}</td>
+  <td class="text-end small" data-v="{{ p.val_neta_companie if p.val_neta_companie else '' }}">{{ p.val_neta_companie | ron }}</td>
+  <td class="text-end small" data-v="{{ p.nr_clienti if p.nr_clienti else '' }}">{{ p.nr_clienti }}</td>
+</tr>
+{% else %}
+<tr><td colspan="7" class="text-center text-muted py-3">Niciun produs nelistat</td></tr>
+{% endfor %}
+<tr class="table-filter-empty-row d-none"><td colspan="7" class="text-center text-muted py-3">Niciun rezultat pentru filtrele selectate</td></tr>
+{% endmacro %}
+
 {% block content %}
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb">
@@ -136,7 +157,7 @@
       <i class="bi bi-funnel"></i> Filtre
     </button>
   </div>
-  <div class="table-responsive">
+  <div class="table-responsive table-scroll-20">
     <table class="table table-sm table-hover mb-0" id="prodTable" data-filterable>
       <thead class="table-dark">
         <tr>
@@ -191,6 +212,65 @@
     </table>
   </div>
 </div>
+
+<!-- Produse nelistate -->
+<div class="card shadow-sm border-0 mt-4">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 fw-semibold">
+    <span><i class="bi bi-box text-secondary me-1"></i>
+      Produse Nelistate {{ period_cy }}
+      <span class="badge bg-secondary ms-1" id="nelistatePeriodCount" data-filter-count="nelistatePeriodTable">{{ nelistate_perioada | length }}</span>
+      <span class="badge bg-secondary ms-1 d-none" id="nelistateIstoricCount" data-filter-count="nelistateIstoricTable">{{ nelistate_istoric | length }}</span>
+    </span>
+    <div class="d-flex gap-2 align-items-center">
+      <div class="btn-group btn-group-sm">
+        <button type="button" class="btn btn-primary active" id="btnNelistatePeriod" onclick="switchNelistate('period')">Perioadă</button>
+        <button type="button" class="btn btn-outline-primary" id="btnNelistateIstoric" onclick="switchNelistate('istoric')">Istoric</button>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-filter-toggle="nelistatePeriodTable" id="filtreNelistatePeriod">
+        <i class="bi bi-funnel"></i> Filtre
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary d-none" data-filter-toggle="nelistateIstoricTable" id="filtreNelistateIstoric">
+        <i class="bi bi-funnel"></i> Filtre
+      </button>
+    </div>
+  </div>
+  <div class="table-responsive table-scroll-20" id="wrapNelistatePeriod">
+    <table class="table table-sm table-hover mb-0" id="nelistatePeriodTable" data-filterable>
+      <thead class="table-dark">
+        <tr>
+          <th data-filter="text">Cod</th>
+          <th data-filter="text">Produs</th>
+          <th data-filter="select">Brand</th>
+          <th data-filter="select">Categorie</th>
+          <th class="text-end" data-filter="number">Preț Listă</th>
+          <th class="text-end" data-filter="number">Val Netă (companie)</th>
+          <th class="text-end" data-filter="number">Nr. Clienți</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ nelistate_rows(nelistate_perioada) }}
+      </tbody>
+    </table>
+  </div>
+  <div class="table-responsive table-scroll-20 d-none" id="wrapNelistateIstoric">
+    <table class="table table-sm table-hover mb-0" id="nelistateIstoricTable" data-filterable>
+      <thead class="table-dark">
+        <tr>
+          <th data-filter="text">Cod</th>
+          <th data-filter="text">Produs</th>
+          <th data-filter="select">Brand</th>
+          <th data-filter="select">Categorie</th>
+          <th class="text-end" data-filter="number">Preț Listă</th>
+          <th class="text-end" data-filter="number">Val Netă (companie)</th>
+          <th class="text-end" data-filter="number">Nr. Clienți</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ nelistate_rows(nelistate_istoric) }}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -206,6 +286,22 @@ const PALETTE = {
   2026: {vn:'rgba(25,135,84,0.85)', mb:'rgba(25,135,84,0.6)'},
 };
 let trendChart, currentM = 'vn';
+
+function switchNelistate(mode) {
+  const isPeriod = mode === 'period';
+  document.getElementById('wrapNelistatePeriod').classList.toggle('d-none', !isPeriod);
+  document.getElementById('wrapNelistateIstoric').classList.toggle('d-none', isPeriod);
+  document.getElementById('nelistatePeriodCount').classList.toggle('d-none', !isPeriod);
+  document.getElementById('nelistateIstoricCount').classList.toggle('d-none', isPeriod);
+  document.getElementById('filtreNelistatePeriod').classList.toggle('d-none', !isPeriod);
+  document.getElementById('filtreNelistateIstoric').classList.toggle('d-none', isPeriod);
+  document.getElementById('btnNelistatePeriod').classList.toggle('btn-primary', isPeriod);
+  document.getElementById('btnNelistatePeriod').classList.toggle('btn-outline-primary', !isPeriod);
+  document.getElementById('btnNelistatePeriod').classList.toggle('active', isPeriod);
+  document.getElementById('btnNelistateIstoric').classList.toggle('btn-primary', !isPeriod);
+  document.getElementById('btnNelistateIstoric').classList.toggle('btn-outline-primary', isPeriod);
+  document.getElementById('btnNelistateIstoric').classList.toggle('active', !isPeriod);
+}
 
 function switchMetric(m, btn) {
   currentM = m;

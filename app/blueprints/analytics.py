@@ -181,6 +181,8 @@ def client_detail(cod_client):
         abort(404)
     max_luna = None if luna else queries.max_luna_for_year(an)
     products   = queries.client_products_full(cod_client, an, luna=luna, max_luna=max_luna)
+    nelistate_perioada = queries.client_produse_nelistate_perioada(cod_client, an, luna=luna, max_luna=max_luna)
+    nelistate_istoric  = queries.client_produse_nelistate_istoric(cod_client, an, luna=luna, max_luna=max_luna)
     brand_mix  = queries.client_brand_mix(cod_client, an)
     yearly     = queries.client_yearly_full(cod_client)
     monthly    = queries.client_monthly_full(cod_client)
@@ -197,6 +199,8 @@ def client_detail(cod_client):
         'client.html',
         an=an, luna=luna, info=info,
         products=products,
+        nelistate_perioada=nelistate_perioada,
+        nelistate_istoric=nelistate_istoric,
         brand_mix_json=json.dumps([{'label': r['furnizor'], 'value': r['val_neta']} for r in brand_mix]),
         yearly=yearly,
         monthly_vn_json=json.dumps(monthly_vn),

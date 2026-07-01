@@ -821,3 +821,15 @@ pre {
   background-position: right 0.4rem center;
   background-size: 12px 9px;
 }
+
+/* ── Fixed-height scrollable tables (~20 rows) ───────────────────────────── */
+
+.table-scroll-20 {
+  max-height: 640px;
+  overflow-y: auto;
+}
+.table-scroll-20 thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}

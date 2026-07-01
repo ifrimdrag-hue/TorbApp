@@ -245,6 +245,62 @@ def client_products_full(cod_client, an, luna=None, max_luna=None):
     return query(sql, params)
 
 
+def _client_produse_nelistate(cod_client, an, luna, max_luna, all_time_exclusion):
+    """Shared query for client_produse_nelistate_perioada/_istoric.
+    Company-wide Val Netă/Nr. Clienți always reflect the selected an/perioada;
+    only the exclusion list (products the client already bought) changes scope."""
+    if luna:
+        stats_filter = 'AND luna = :luna'
+    elif max_luna:
+        stats_filter = 'AND luna <= :max_luna'
+    else:
+        stats_filter = ''
+    exclusion_filter = '' if all_time_exclusion else f'AND an = :an {stats_filter}'
+
+    sql = f"""
+        WITH cod_map AS (
+            SELECT sku, MIN(cod_produs) AS cod_produs FROM tranzactii GROUP BY sku
+        ),
+        stats AS (
+            SELECT sku, SUM(val_neta) AS val_neta, COUNT(DISTINCT cod_client) AS nr_clienti
+            FROM tranzactii WHERE an = :an {stats_filter}
+            GROUP BY sku
+        )
+        SELECT p.sku, cm.cod_produs, p.descriere, p.furnizor AS brand, p.categorie,
+            pv.pret_vanzare_ron AS pret_lista,
+            ROUND(COALESCE(s.val_neta, 0), 0) AS val_neta_companie,
+            COALESCE(s.nr_clienti, 0) AS nr_clienti
+        FROM produse p
+        LEFT JOIN cod_map cm ON cm.sku = p.sku
+        LEFT JOIN preturi_vanzare pv
+            ON pv.sku = p.sku AND pv.an = :an AND pv.cod_client IS NULL AND pv.activ = 1
+        LEFT JOIN stats s ON s.sku = p.sku
+        WHERE p.activ = 1
+          AND p.sku NOT IN (
+              SELECT sku FROM tranzactii WHERE cod_client = :cod {exclusion_filter}
+          )
+        ORDER BY val_neta_companie DESC
+    """
+    params = {'cod': cod_client, 'an': an}
+    if luna:
+        params['luna'] = luna
+    elif max_luna:
+        params['max_luna'] = max_luna
+    return query(sql, params)
+
+
+def client_produse_nelistate_perioada(cod_client, an, luna=None, max_luna=None):
+    """Active catalog products the client did NOT buy in the selected period,
+    with company-wide sales signal (Val Netă, Nr. Clienți) for that same period."""
+    return _client_produse_nelistate(cod_client, an, luna, max_luna, all_time_exclusion=False)
+
+
+def client_produse_nelistate_istoric(cod_client, an, luna=None, max_luna=None):
+    """Active catalog products the client has NEVER bought (any year),
+    with company-wide sales signal (Val Netă, Nr. Clienți) for the selected period."""
+    return _client_produse_nelistate(cod_client, an, luna, max_luna, all_time_exclusion=True)
+
+
 def client_yearly_full(cod_client):
     """Client's yearly summary: VN, MB, MN."""
     return query("""
