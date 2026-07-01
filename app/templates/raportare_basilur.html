@@ -10,8 +10,7 @@
       Sales &amp; Stock Report
     </h4>
     <p class="text-muted small mb-0 mt-1">
-      Basilur Group &mdash; Basilur &middot; KingsLeaf &middot; Tipson &middot;
-      <span class="text-warning" title="Not yet imported">Organsia*</span>
+      Basilur Group &mdash; Basilur &middot; KingsLeaf &middot; Tipson &middot; Organsia
       &nbsp;|&nbsp;
       <span class="text-muted">Rate: 1 USD = {{ usd_rate }} RON</span>
     </p>
@@ -43,7 +42,7 @@
 {% include '_period_selector.html' %}
 
 {# ── KPI cards — group total ── #}
-{% set brand_colors = {'Basilur': '#0d6efd', 'KingsLeaf': '#198754', 'Tipson': '#fd7e14'} %}
+{% set brand_colors = {'Basilur': '#0d6efd', 'KingsLeaf': '#198754', 'Tipson': '#fd7e14', 'Organsia': '#6f42c1'} %}
 <div class="row g-3 mb-4">
   {% set vn   = kpi_total.val_neta or 0 %}
   {% set dlt  = kpi_total.delta_vn %}
@@ -223,11 +222,6 @@
   </div>
 </div>
 
-<p class="text-muted small">
-  <i class="bi bi-info-circle me-1"></i>
-  * <strong>Organsia</strong> is not yet imported as a separate brand in the ERP — Organsia SKUs
-  currently appear under the Basilur brand until the import flow is configured.
-</p>
 {% endblock %}
 
 {% block scripts %}
@@ -236,9 +230,9 @@
   const USD_RATE = {{ usd_rate }};
   const months   = {{ months_json | safe }};
   const rawData  = {{ monthly_data_json | safe }};
-  const BRANDS   = ['Basilur', 'KingsLeaf', 'Tipson'];
-  const COLORS   = ['#0d6efd', '#198754', '#fd7e14'];
-  const ALPHAS   = ['rgba(13,110,253,0.18)', 'rgba(25,135,84,0.18)', 'rgba(253,126,20,0.18)'];
+  const BRANDS   = ['Basilur', 'KingsLeaf', 'Tipson', 'Organsia'];
+  const COLORS   = ['#0d6efd', '#198754', '#fd7e14', '#6f42c1'];
+  const ALPHAS   = ['rgba(13,110,253,0.18)', 'rgba(25,135,84,0.18)', 'rgba(253,126,20,0.18)', 'rgba(111,66,193,0.18)'];
 
   const datasets = BRANDS.map((b, i) => ({
     label:           b,

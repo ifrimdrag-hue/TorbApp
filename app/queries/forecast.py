@@ -477,8 +477,8 @@ def forecast_brands_list():
 
 # ── Raportare Basilur (grup: Basilur, KingsLeaf, Tipson) ────────────────────
 
-BASILUR_BRANDS = ('Basilur', 'KingsLeaf', 'Tipson')
-_BASILUR_IN    = "('Basilur','KingsLeaf','Tipson')"
+BASILUR_BRANDS = ('Basilur', 'KingsLeaf', 'Tipson', 'Organsia')
+_BASILUR_IN    = "('Basilur','KingsLeaf','Tipson','Organsia')"
 
 
 def basilur_monthly_per_brand(an):

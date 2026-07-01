@@ -641,11 +641,12 @@ def timestamped_filename(base):
 def build_basilur_ppt(an, period_label, kpi_total, kpi_per_brand,
                       monthly_data, stoc_per_brand, stoc_detail):
     _check()
-    BRANDS = ["Basilur", "KingsLeaf", "Tipson"]
+    BRANDS = ["Basilur", "KingsLeaf", "Tipson", "Organsia"]
     BRAND_COLORS = [
         RGBColor(0x0d, 0x6e, 0xfd),
         RGBColor(0x19, 0x87, 0x54),
         RGBColor(0xfd, 0x7e, 0x14),
+        RGBColor(0x6f, 0x42, 0xc1),
     ]
     MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -670,7 +671,7 @@ def build_basilur_ppt(an, period_label, kpi_total, kpi_per_brand,
     _add_text(slide, "SALES & STOCK REPORT",
               0.5, 1.2, 12, 0.7, font_size=32, bold=True,
               color=C_WHITE, align=PP_ALIGN.LEFT)
-    _add_text(slide, "Basilur Group  •  Basilur  •  KingsLeaf  •  Tipson",
+    _add_text(slide, "Basilur Group  •  Basilur  •  KingsLeaf  •  Tipson  •  Organsia",
               0.5, 2.0, 12, 0.45, font_size=16,
               color=RGBColor(0x9e, 0xc8, 0xff), align=PP_ALIGN.LEFT)
     _add_text(slide, f"Period: {period_label}",
@@ -754,7 +755,7 @@ def build_basilur_ppt(an, period_label, kpi_total, kpi_per_brand,
     # ── Slide 4: Unsold stock at acquisition cost ──
     slide = _blank(prs)
     _header_bar(slide, "Unsold Stock  —  Acquisition Value (USD)",
-                "Basilur  •  KingsLeaf  •  Tipson")
+                "Basilur  •  KingsLeaf  •  Tipson  •  Organsia")
     _footer(slide)
 
     stoc_map = {r["furnizor"]: r for r in (stoc_per_brand or [])}

@@ -327,7 +327,7 @@ def export_excel(report):
 # Raportare Basilur
 # ---------------------------------------------------------------------------
 
-BASILUR_BRANDS = ['Basilur', 'KingsLeaf', 'Tipson']
+BASILUR_BRANDS = ['Basilur', 'KingsLeaf', 'Tipson', 'Organsia']
 
 
 def _basilur_monthly_matrix(rows, an):

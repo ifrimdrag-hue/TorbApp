@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """Esti asistent expert de marketing pentru o afacere e-commerce romaneasca \
 care vinde:
-- Ceaiuri premium: Basilur (Sri Lanka), Kingsleaf, Tipson
+- Ceaiuri premium: Basilur (Sri Lanka), Kingsleaf, Tipson, Organsia
 - Ciocolata fara zahar/gluten: Torras, Delaviuda, El Almendro (Spania)
 - Marca proprie ceai: Celmar
 - Produse din bumbac: Leonex

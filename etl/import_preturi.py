@@ -103,6 +103,10 @@ def import_monitorizare(conn):
         furnizor = str(row[col['Furnizor']] or '').strip()
         brand    = str(row[col.get('Brand', col['Furnizor'])] or furnizor).strip()
         descriere= str(row[col['Produs']] or '').strip()
+        _d = descriere.upper()
+        if _d.startswith("ORGANSIA") or _d.startswith("B.ECO ORGANSIA"):
+            furnizor = "Organsia"
+            brand = "Organsia"
         categorie= str(row[col.get('Categorie', 0)] or '').strip() if col.get('Categorie') is not None else ''
         moneda   = str(row[col['Monedă']] or 'USD').strip()
         pret_cur = to_float(row[col.get('Preț curent')])

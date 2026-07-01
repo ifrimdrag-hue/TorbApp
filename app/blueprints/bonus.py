@@ -18,7 +18,7 @@ DEFAULT_GAME = [
     ("Celmar", 0.15), ("Delaviuda", 0.10),
 ]
 ALL_GAME = ['Basilur', 'Toras', 'Celmar', 'Leonex', 'Delaviuda',
-            'KingsLeaf', 'Solvex', 'Tipson', 'Cosmetice']
+            'KingsLeaf', 'Solvex', 'Tipson', 'Cosmetice', 'Organsia']
 
 
 def _actual_for_kpi(kpi, db_agent, an, luna, istoric_manual, auto=None):

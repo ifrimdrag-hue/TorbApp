@@ -25,6 +25,7 @@ BRAND-URI ACTIVE in portofoliu:
 - Basilur (ceaiuri premium, gift-friendly Tea Books)
 - Kingsleaf (ceaiuri)
 - Tipson (ceaiuri)
+- Organsia (ceaiuri bio)
 - Torras (ciocolata fara zahar/gluten — health niche)
 - Celmar (marca proprie ceai — entry price)
 - Delaviuda + El Almendro (ciocolata praline premium din Spania)
@@ -220,7 +221,7 @@ def validate_proposal_brands(proposal: dict, products_catalog: list[dict]) -> li
     code_to_brand = {str(p.get("cod_articol")): p.get("brand", "") for p in products_catalog}
 
     # Detectam brand-urile mentionate in numele campaniei
-    known_brand_keywords = ["basilur", "kingsleaf", "tipson", "torras", "celmar",
+    known_brand_keywords = ["basilur", "kingsleaf", "tipson", "organsia", "torras", "celmar",
                             "delaviuda", "almendro", "leonex", "miss magic"]
     mentioned_brands = [b for b in known_brand_keywords if b in name]
 

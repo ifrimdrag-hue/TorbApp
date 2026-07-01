@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT_POSTS = """Esti specialist in social media pentru o afacere e-commerce romaneasca \
 care vinde:
-- Ceaiuri premium: Basilur, Kingsleaf, Tipson
+- Ceaiuri premium: Basilur, Kingsleaf, Tipson, Organsia
 - Ciocolata fara zahar/gluten: Torras, Delaviuda, El Almendro
 - Marca proprie ceai: Celmar
 - Produse din bumbac: Leonex

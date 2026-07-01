@@ -150,6 +150,66 @@ foreach ($img in $images) {
 
 ---
 
+## Virtual brands (KingsLeaf, Tipson, Organsia)
+
+`KingsLeaf`, `Tipson`, and `Organsia` are **virtual sub-brands of Basilur** — they
+are not distinct ERP suppliers. All three ship from Basilur (Sri Lanka) on the same
+PFI/shipment and are split out at import time from the product-name prefix:
+
+| Brand     | SKU-name prefix    | Notes |
+|-----------|--------------------|-------|
+| KingsLeaf | `KL ` (KL + space) | ERP product code range 90xxx |
+| Tipson    | `TS ` (TS + space) | ERP product code range 80xxx |
+| Organsia  | `B.ECO ORGANSIA`   | Subset of the `B.` Basilur prefix — MUST be checked BEFORE the generic `B.` rule |
+
+**Two different naming conventions — the trap for adding another virtual brand:**
+Organsia (and only Organsia, since it shares Basilur's `B.` ERP prefix) has product
+names that differ across tables depending on data source:
+- `stoc.sku` and `tranzactii.sku` come from ERP exports and hold names like
+  `B.ECO ORGANSIA APPLE CINNAMON...` → match prefix **`B.ECO ORGANSIA`**.
+- `produse.descriere` comes from the pricing/monitorizare spreadsheet (`Oferta
+  produse TORB LOGISTIC CU ORGANSIA...xlsx`) and holds names like
+  `ORGANSIA - ORGANIC - BOX - ...` → match prefix **`ORGANSIA`** (the `B.ECO
+  ORGANSIA` form never appears in `produse`).
+
+KingsLeaf's `KL ` and Tipson's `TS ` prefixes do not have this split — they look
+the same in every table, because they don't overlap with a shared ERP letter
+prefix the way Organsia/Basilur (`B.`) do.
+
+**Where the rule lives (duplicated by design — no shared module):**
+- `etl/import_stoc.py` — `derive_furnizor()` matches `sku.upper().startswith("B.ECO ORGANSIA")` (checked before the generic `s.startswith("B.")` Basilur rule), `s.startswith("KL ")`, `s.startswith("TS ")`; `derive_gama()` maps `furnizor` → `gama` via `gama_map`
+- `etl/import_vanzari_erp.py` — `_furnizor_from_prefix()`
+- `etl/import_vanzari_tobra_auchan.py` — `derive_furnizor()`
+- `etl/import_preturi.py` — `import_monitorizare()` overrides `furnizor`/`brand` to `"Organsia"` for the `produse` table when `descriere.upper()` starts with `"ORGANSIA"` (the pricing spreadsheet uses this form, not the ERP `B.ECO ORGANSIA` form — the `"B.ECO ORGANSIA"` check in that same `if` is defensive and doesn't currently match any `produse` row)
+- `etl/update_data.py` + `etl/rebuild_db.py` — `GAMA_MAP` / lead-time seed
+
+**Migrations backfill by table, using the prefix that matches each table's naming
+convention.** Migration `0012` (`migrations/0012_20260701_organsia_brand.py`) is
+the reference example:
+- `stoc` / `tranzactii`: `UPDATE ... WHERE furnizor='Basilur' AND sku LIKE 'B.ECO ORGANSIA%'`
+- `produse`: `UPDATE ... WHERE furnizor='Basilur' AND descriere LIKE 'ORGANSIA%'`
+
+**Rolled into "Basilur family" reports:** the four brands are grouped via
+`BASILUR_BRANDS` / `_BASILUR_IN` in `app/queries/forecast.py`, `BASILUR_BRANDS`
+in `app/blueprints/reports.py`, and `BRANDS` in `app/exports/ppt_export.py`.
+The Basilur report template is `app/templates/raportare_basilur.html`.
+
+**Lead time:** all four share Basilur's 120-day (4-month) extra-EU lead time and
+Christmas seasonality — seeded in `termene_aprovizionare`.
+
+**Adding another virtual brand:** first check whether it shares an ERP letter
+prefix with an existing family (like Organsia shares `B.` with Basilur) — if so,
+expect the same `stoc`/`tranzactii` (ERP-name prefix) vs `produse`
+(spreadsheet-name prefix) split, and identify both prefixes before writing any
+code. Then: add the prefix rule to the three ETL derivation functions (before the
+generic `B.` check if it's a `B.` subset), add to `GAMA_MAP` and the
+`rebuild_db.py` seed, write a migration to seed `termene_aprovizionare` and
+backfill existing `stoc`/`tranzactii`/`produse` rows (each with its own matching
+prefix), then extend the `BASILUR_BRANDS` constants + template colors. See
+migration `0012` for the Organsia example.
+
+---
+
 ## Tech-debt & infrastructure backlog
 
 Combines the leftovers of the 2026-05-28 code audit (re-verified against code on 2026-06-11) and the infrastructure gaps found in the 2026-06-11 stack assessment. Resolved since the audit:

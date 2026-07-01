@@ -61,6 +61,8 @@ def derive_furnizor(sku: str, cp_lookup: dict = None, cod_produs: str = None) ->
     if not sku:
         return "Altele"
     s = str(sku).strip()
+    if s.upper().startswith("B.ECO ORGANSIA"):
+        return "Organsia"
     if s.startswith("B.") or s.startswith('B."') or s.startswith("WB."):
         return "Basilur"
     if s.startswith("KL "):
@@ -120,6 +122,7 @@ def derive_gama(furnizor: str, sku: str) -> str:
     """Map furnizor → gama. KingsLeaf kept as KingsLeaf until Kings/Leaf split is defined."""
     gama_map = {
         "Basilur":   "Basilur",
+        "Organsia":  "Organsia",
         "Celmar":    "Celmar",
         "KingsLeaf": "KingsLeaf",
         "Toras":     "Toras",
