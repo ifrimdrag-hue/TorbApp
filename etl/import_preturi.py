@@ -103,7 +103,7 @@ def import_monitorizare(conn):
         furnizor = str(row[col['Furnizor']] or '').strip()
         brand    = str(row[col.get('Brand', col['Furnizor'])] or furnizor).strip()
         descriere= str(row[col['Produs']] or '').strip()
-        _d = str(descriere).upper()
+        _d = descriere.upper()
         if _d.startswith("ORGANSIA") or _d.startswith("B.ECO ORGANSIA"):
             furnizor = "Organsia"
             brand = "Organsia"
