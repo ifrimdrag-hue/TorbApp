@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """Esti specialist senior in social media pentru o afacere e-commerce \
 romaneasca care vinde produse premium:
-- Ceaiuri: Basilur (Sri Lanka, premium pachete colectie), Kingsleaf, Tipson, Celmar (marca proprie)
+- Ceaiuri: Basilur (Sri Lanka, premium pachete colectie), Kingsleaf, Tipson, Organsia, Celmar (marca proprie)
 - Ciocolata fara zahar/gluten: Torras, Delaviuda, El Almendro
 - Bumbac: Leonex
 - Vopsea de par: Miss Magic Creative

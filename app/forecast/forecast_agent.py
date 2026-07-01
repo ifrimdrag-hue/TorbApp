@@ -17,12 +17,12 @@ CONTEXT BUSINESS:
 - Agent principal: Bogdan Dragnea — 55.6% din vânzări
 
 TERMENE DE APROVIZIONARE:
-- Basilur, Kings Leaf, Tipson: 4 luni (120 zile) — import extraeuropean
+- Basilur, Kings Leaf, Tipson, Organsia: 4 luni (120 zile) — import extraeuropean
 - Toras: 1,5 luni (45 zile)
 - Delaviuda, Celmar, Leonex: 1 lună (30 zile)
 
 SEZONALITATE IMPORTANTĂ:
-- Produse Crăciun (Basilur, Kings Leaf, Tipson): vârf de vânzări Oct-Nov
+- Produse Crăciun (Basilur, Kings Leaf, Tipson, Organsia): vârf de vânzări Oct-Nov
 - Fereastra de comandă Crăciun: APRILIE-MAI → livrare August → vânzări Oct-Nov
 - Produsele trebuie comandate ACUM (apr-mai) dacă dorești stoc la Crăciun
 

@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 GIFTING_SYSTEM = """Esti expert in pachete cadou pentru e-commerce romanesc.
 Afacerea vinde:
-- Ceaiuri premium: Basilur (Sri Lanka), Kingsleaf, Tipson, Celmar (marca proprie)
+- Ceaiuri premium: Basilur (Sri Lanka), Kingsleaf, Tipson, Organsia, Celmar (marca proprie)
 - Ciocolata fara zahar/gluten: Torras, Delaviuda, El Almendro
 - Bumbac: Leonex
 - Vopsea: Miss Magic Creative
