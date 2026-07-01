@@ -814,3 +814,10 @@ pre {
 .table-filter-row input[type="number"] {
   width: 4.5rem;
 }
+/* Override Bootstrap's form-select right padding so the compact filter
+   row still leaves room for the background-image dropdown arrow. */
+.table-filter-row select {
+  padding-right: 1.4rem;
+  background-position: right 0.4rem center;
+  background-size: 12px 9px;
+}
