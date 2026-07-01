@@ -507,6 +507,7 @@ def main(vanzari_file=None):
         ('Basilur',    120, 1, 'Produse sezoniere Crăciun — comandă Apr-Mai'),
         ('KingsLeaf',  120, 1, 'Produse sezoniere Crăciun — comandă Apr-Mai'),
         ('Tipson',     120, 1, 'Produse sezoniere Crăciun — comandă Apr-Mai'),
+        ('Organsia',   120, 1, 'Produse sezoniere Crăciun — comandă Apr-Mai'),
         ('Toras',       45, 0, None),
         ('Delaviuda',   30, 0, None),
         ('Celmar',      30, 0, None),
