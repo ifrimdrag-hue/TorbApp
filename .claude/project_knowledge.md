@@ -4,6 +4,22 @@ Consolidated from AI session memory on 2026-06-11. Update in place when facts ch
 
 ---
 
+## Data — SQLite database & Excel
+
+`data/torb.db` — 131,898 transaction rows, 2024-01-03 → 2026-03-31.
+Main table: `tranzactii` (31 columns). Useful views: `v_vanzari_an_furnizor`, `v_vanzari_luna_agent`, `v_vanzari_luna_client`, `v_top_sku`, `v_clienti`.
+To rebuild: `python etl/import_to_sqlite.py`
+
+Forecast tables live here too — see `app/forecast/README.md`.
+
+**Reading Excel files** — use `openpyxl` with `read_only=True` for large files:
+```python
+import openpyxl
+wb = openpyxl.load_workbook('file.xlsx', data_only=True, read_only=True)
+```
+
+---
+
 ## Deploy pipeline (`.github/workflows/deploy_VPS.yml`)
 
 Jobs (as of 2026-06-11):
