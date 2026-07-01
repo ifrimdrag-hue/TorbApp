@@ -1,6 +1,6 @@
 # Torb — Status Execuție Plan Strategic 2026–2030
 
-**Ultima actualizare:** 2026-06-16
+**Ultima actualizare:** 2026-07-01
 **Document referință:** `context/plan_strategic_5ani.md` (v1.0)
 **Regulă:** actualizează acest fișier la fiecare schimbare de stare (nu la fiecare discuție). Legend: `[ ]` = neînceput · `[~]` = în lucru · `[x]` = livrat · `[!]` = blocat · `[↑]` = întârziat.
 
@@ -54,6 +54,9 @@
 ---
 
 ## Livrări recente
+
+- **2026-07-01 — Organsia adăugat ca al patrulea brand virtual Basilur (branch `feat/organsia-brand`).**
+  Produsele `B.ECO ORGANSIA*` (nume ERP) / `ORGANSIA - ...` (nume din lista de prețuri) erau etichetate greșit ca `Basilur`. Adăugat regula de derivare pe prefix în cele 3 module ETL (`import_stoc`, `import_vanzari_erp`, `import_vanzari_tobra_auchan`), override pe `produse` în `import_preturi.py`, seed lead-time 120 zile în `rebuild_db` + migrația `0012` (seed `termene_aprovizionare` + backfill istoric: ~20 stoc, ~718 tranzacții, 11 produse). Organsia apare acum ca al patrulea brand în raportul Basilur (`/raportare-basilur`, export Excel + PPT, culoare mov `#6f42c1`), plus dropdown-uri bonus/postări și prompturi AI. Logica celor 3 branduri virtuale documentată în `.claude/project_knowledge.md`. Test nou `tests/test_derive_furnizor.py`; 139 teste trec, ruff curat.
 
 - **2026-06-11 — Backup & restore DB livrat (prod).**
   Engine `app/backup_db.py` (SQLite online backup API, gzip, retenție 15 zile / min 3) + CLI `etl/backup_db.py` (backup/list/restore). Trigger: cron zilnic 02:30 pe VPS prod + backup automat pre-deploy în CI înainte de migrări. Pagină admin `/admin/db`: listă, backup manual, download, restaurare cu confirmare "RESTORE" (backup de siguranță automat + re-aplicare migrări). `PRAGMA busy_timeout=5000` adăugat în `app/db.py`. 101 teste trec (14 noi).
