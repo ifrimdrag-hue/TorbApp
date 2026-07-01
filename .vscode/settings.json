@@ -1,3 +1,6 @@
 {
-  "tinymist.rootPath": "${workspaceFolder}/docs/manuals"
+  "tinymist.rootPath": "${workspaceFolder}/docs/manuals",
+  "files.associations": {
+    "*.html": "jinja-html"
+  }
 }
