@@ -798,3 +798,19 @@ pre {
 #sidebar.collapsed .sidebar-group-links {
   max-height: 600px !important;
 }
+
+/* ── Table column filters ────────────────────────────────────────────────── */
+
+.table-filter-row td {
+  background: #f4f6f9;
+  padding: 0.25rem 0.35rem;
+  vertical-align: middle;
+}
+.table-filter-row input,
+.table-filter-row select {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.3rem;
+}
+.table-filter-row input[type="number"] {
+  width: 4.5rem;
+}

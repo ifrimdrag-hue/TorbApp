@@ -30,6 +30,7 @@ class EmagClient:
     async def test_connection(self) -> None:
         """Ping eMAG API using product_offer/count. Raises on any failure."""
         self._check_configured()
+        """TODO: find a better connection test - optimum"""
         url = f"{self.base_url}/product_offer/count"
         payload = {}
         timeout = httpx.Timeout(8.0, connect=5.0)

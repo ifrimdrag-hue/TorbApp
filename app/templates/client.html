@@ -130,27 +130,28 @@
   <div class="card-header bg-white d-flex justify-content-between align-items-center fw-semibold">
     <span><i class="bi bi-box-seam text-secondary me-1"></i>
       Produse Cumpărate {{ period_cy }}
-      <span class="badge bg-secondary ms-1">{{ products | length }}</span>
+      <span class="badge bg-secondary ms-1" data-filter-count="prodTable">{{ products | length }}</span>
     </span>
-    <input type="text" id="prodSearch" class="form-control form-control-sm w-auto"
-           placeholder="Filtrare produs…" oninput="filterProds(this.value)">
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-filter-toggle="prodTable">
+      <i class="bi bi-funnel"></i> Filtre
+    </button>
   </div>
   <div class="table-responsive">
-    <table class="table table-sm table-hover mb-0" id="prodTable">
+    <table class="table table-sm table-hover mb-0" id="prodTable" data-filterable>
       <thead class="table-dark">
         <tr>
-          <th>Cod</th>
-          <th>Produs</th>
-          <th>Brand</th>
-          <th class="text-end">Preț Med</th>
-          <th class="text-end">Cant.</th>
-          <th class="text-end">Δ Cant %</th>
-          <th class="text-end">Val Netă</th>
-          <th class="text-end">Δ VN %</th>
-          <th class="text-end">MB (RON)</th>
-          <th class="text-end">MB%</th>
-          <th class="text-end">MN (RON)</th>
-          <th class="text-end">MN%</th>
+          <th data-filter="text">Cod</th>
+          <th data-filter="text">Produs</th>
+          <th data-filter="select">Brand</th>
+          <th class="text-end" data-filter="number">Preț Med</th>
+          <th class="text-end" data-filter="number">Cant.</th>
+          <th class="text-end" data-filter="number">Δ Cant %</th>
+          <th class="text-end" data-filter="number">Val Netă</th>
+          <th class="text-end" data-filter="number">Δ VN %</th>
+          <th class="text-end" data-filter="number">MB (RON)</th>
+          <th class="text-end" data-filter="number">MB%</th>
+          <th class="text-end" data-filter="number">MN (RON)</th>
+          <th class="text-end" data-filter="number">MN%</th>
         </tr>
       </thead>
       <tbody>
@@ -162,26 +163,30 @@
               {{ p.sku | truncate(40, True, '…') }}
             </a>
           </td>
-          <td class="small"><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ p.furnizor }}</span></td>
-          <td class="text-end small">{{ '%.2f RON' % p.pret_mediu if p.pret_mediu else '—' }}</td>
-          <td class="text-end small">{{ p.cantitate }}</td>
-          <td class="text-end small {% if p.delta_cant_pct is not none %}{% if p.delta_cant_pct > 0 %}text-success{% elif p.delta_cant_pct < 0 %}text-danger{% else %}text-muted{% endif %}{% else %}text-muted{% endif %}">
+          <td class="small" data-v="{{ p.furnizor }}"><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ p.furnizor }}</span></td>
+          <td class="text-end small" data-v="{{ p.pret_mediu if p.pret_mediu else '' }}">{{ '%.2f RON' % p.pret_mediu if p.pret_mediu else '—' }}</td>
+          <td class="text-end small" data-v="{{ p.cantitate if p.cantitate else '' }}">{{ p.cantitate }}</td>
+          <td class="text-end small {% if p.delta_cant_pct is not none %}{% if p.delta_cant_pct > 0 %}text-success{% elif p.delta_cant_pct < 0 %}text-danger{% else %}text-muted{% endif %}{% else %}text-muted{% endif %}"
+              data-v="{{ p.delta_cant_pct if p.delta_cant_pct is not none else '' }}">
             {% if p.delta_cant_pct is not none %}{{ '%+.1f' % p.delta_cant_pct }}%{% else %}—{% endif %}
           </td>
-          <td class="text-end small fw-semibold">{{ p.val_neta | ron }}</td>
-          <td class="text-end small {% if p.delta_vn_pct is not none %}{% if p.delta_vn_pct > 0 %}text-success{% elif p.delta_vn_pct < 0 %}text-danger{% else %}text-muted{% endif %}{% else %}text-muted{% endif %}">
+          <td class="text-end small fw-semibold" data-v="{{ p.val_neta if p.val_neta else '' }}">{{ p.val_neta | ron }}</td>
+          <td class="text-end small {% if p.delta_vn_pct is not none %}{% if p.delta_vn_pct > 0 %}text-success{% elif p.delta_vn_pct < 0 %}text-danger{% else %}text-muted{% endif %}{% else %}text-muted{% endif %}"
+              data-v="{{ p.delta_vn_pct if p.delta_vn_pct is not none else '' }}">
             {% if p.delta_vn_pct is not none %}{{ '%+.1f' % p.delta_vn_pct }}%{% else %}—{% endif %}
           </td>
-          <td class="text-end small">{{ p.marja_bruta | ron }}</td>
-          <td class="text-end small text-success">{{ p.marja_bruta_pct | pct }}</td>
-          <td class="text-end small fw-semibold {% if (p.marja_neta or 0) < 0 %}text-danger{% endif %}">{{ p.marja_neta | ron }}</td>
-          <td class="text-end small {% if (p.marja_neta_pct or 0) >= 5 %}text-success{% elif (p.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}">
+          <td class="text-end small" data-v="{{ p.marja_bruta if p.marja_bruta else '' }}">{{ p.marja_bruta | ron }}</td>
+          <td class="text-end small text-success" data-v="{{ p.marja_bruta_pct if p.marja_bruta_pct else '' }}">{{ p.marja_bruta_pct | pct }}</td>
+          <td class="text-end small fw-semibold {% if (p.marja_neta or 0) < 0 %}text-danger{% endif %}" data-v="{{ p.marja_neta if p.marja_neta else '' }}">{{ p.marja_neta | ron }}</td>
+          <td class="text-end small {% if (p.marja_neta_pct or 0) >= 5 %}text-success{% elif (p.marja_neta_pct or 0) < 0 %}text-danger{% else %}text-warning{% endif %}"
+              data-v="{{ p.marja_neta_pct if p.marja_neta_pct else '' }}">
             {{ p.marja_neta_pct | pct }}
           </td>
         </tr>
         {% else %}
         <tr><td colspan="12" class="text-center text-muted py-3">Nicio dată pentru {{ an }}</td></tr>
         {% endfor %}
+        <tr class="table-filter-empty-row d-none"><td colspan="12" class="text-center text-muted py-3">Niciun rezultat pentru filtrele selectate</td></tr>
       </tbody>
     </table>
   </div>
@@ -249,12 +254,5 @@ function switchMetric(m, btn) {
     options: {plugins: {legend: {position:'right',labels:{font:{size:9}}}}, cutout:'60%'},
   });
 })();
-
-function filterProds(q) {
-  const lq = q.toLowerCase();
-  document.querySelectorAll('#prodTable tbody tr').forEach(r => {
-    r.style.display = r.textContent.toLowerCase().includes(lq) ? '' : 'none';
-  });
-}
 </script>
 {% endblock %}
