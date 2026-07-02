@@ -21,13 +21,13 @@ __pycache__/
 .claude/settings.json
 .claude/settings.local.json
 .claude/__store/
-docs/superpowers/specs/
+docs/specs/
 extra/
 
-# Manuals — only compiled PDFs are versioned
+# Manuals — Typst sources/images in subdirs are not versioned; only the
+# compiled PDFs at docs/manuals/*.pdf are
 docs/manuals/**
-!docs/manuals/**/
-!docs/manuals/**/*.pdf
+!docs/manuals/*.pdf
 
 # Windows crash dumps
 *.stackdump

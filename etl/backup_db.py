@@ -5,7 +5,7 @@
     python etl/backup_db.py restore <backup-name>
 
 Stdlib only — safe to run in CI before pip install. Scheduled daily on the
-prod VPS via cron (see context/infrastructure.md).
+prod VPS via cron (see docs/TECHNICAL.md).
 """
 import argparse
 import os

@@ -267,7 +267,7 @@ def create_app(test_config=None):
     # `openclaw` user (its gateway/auth/device state lives in that user's home,
     # unreadable by www-data) and returns the reply as JSON. No secret reaches
     # the client. CSRF via the X-CSRFToken header. The wrapper script and the
-    # sudoers rule are documented in context/infrastructure.md.
+    # sudoers rule are documented in docs/TECHNICAL.md.
     @app.route('/admin/openclaw-ask', methods=['POST'])
     def openclaw_ask():
         if not current_user.is_authenticated or getattr(current_user, 'role', '') != 'admin':

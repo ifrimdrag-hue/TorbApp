@@ -107,14 +107,14 @@ The prod DB is backed up daily by cron and automatically before every deploy's m
 (`etl/backup_db.py`, SQLite online backup API — safe on the live database). Backups are
 gzipped into `data/backups/` with 15-day retention. Admins can list, create, download and
 restore backups from **/admin/db**; a restore takes a safety backup first, re-applies
-migrations, and is confirmed by typing `RESTORE`. See `context/infrastructure.md` for
+migrations, and is confirmed by typing `RESTORE`. See `docs/TECHNICAL.md` for
 the cron setup.
 
 ---
 
 ## Forecasting
 
-The demand forecast engine lives in `forecast/` and is accessible at `/forecast` in the web app.
+The demand forecast engine lives in `app/forecast/` and is accessible at `/forecast` in the web app.
 
 ```powershell
 # Run forecast for a single brand (horizon = weeks ahead)
@@ -246,16 +246,19 @@ torbapp/
 ├── tests/                      # pytest test suite
 ├── tools/                      # Windows launcher scripts
 │   └── Start-Hub.ps1
-├── context/                    # Project research, reference docs and strategic files
-│   ├── plan_strategic_5ani.md  # 5-year strategic plan 2026–2030
-│   ├── STATUS.md               # Current execution status
-│   ├── torb_background.md      # Company background research
-│   └── ...                     # Business overview, AI opportunities, risks, data file map
-├── docs/                       # Implementation plans, analysis and user manuals
-│   ├── plans/                  # Implementation plans
+├── context/
+│   └── STATUS.md               # Current execution status (live tracker)
+├── docs/                       # Consolidated documentation, analysis and user manuals
+│   ├── BUSINESS.md             # Company, market, risks, AI opportunities, 5-year strategic plan
+│   ├── BUSINESS_LOGIC.md       # Domain model + implemented feature logic (bonus, brands, sync, forecast)
+│   ├── TECHNICAL.md            # Data layer, deploy pipeline, VPS infrastructure, encoding, Typst
+│   ├── TECHNICAL_history.md    # Write-mostly archive of resolved infrastructure changes
+│   ├── BACKLOG.md              # Open technical/infrastructure/product issues
 │   ├── analysis/               # Analysis documents
-│   ├── superpowers/            # AI-generated specs and plans
-│   └── manuals/                # End-user manuals (PDF + Typst source)
+│   ├── plans/                  # Implementation plans
+│   ├── specs/                  # Design specs (gitignored session artifacts)
+│   └── manuals/                # End-user manuals — compiled PDFs at this level,
+│                               #   Typst sources in per-manual subfolders (gitignored)
 ├── .claude/skills/             # Shared Claude Code skills (auto-loaded for all collaborators)
 │   └── bug-fix-with-coverage/  # BUG: prefix — fix + regression test workflow
 ├── migrations/                 # Versioned DB migration files (applied on startup)

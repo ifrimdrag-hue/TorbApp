@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Documentation reorganization (2026-07-02)
+
+- Consolidated all project documentation into four category files under `docs/`:
+  - `docs/BUSINESS.md` — company profile, market research, risks, AI opportunities, and the full 2026–2030 strategic plan (absorbs `context/` torb_background, project_business_overview, key_facts, project_key_risks, project_ai_opportunities, ai_optimization_report_1, glossary business sections, plan_strategic_5ani)
+  - `docs/BUSINESS_LOGIC.md` — domain vocabulary, data model, transaction anatomy, bonus calculation, virtual brands, stock sync, forecast pointers (absorbs `context/glossary.md` data sections + `.claude/project_knowledge.md` feature sections)
+  - `docs/TECHNICAL.md` — data layer, input-file map, deploy pipeline, VPS infrastructure, Romanian encoding rules, Typst manual rules (absorbs `.claude/project_knowledge.md` + `context/infrastructure.md` + `context/reference_data_files.md`)
+  - `docs/BACKLOG.md` — tech-debt, infrastructure pending items, forecast audit findings, product/AI opportunity backlog
+- `context/infrastructure_history.md` → `docs/TECHNICAL_history.md` (write-mostly archive, unchanged)
+- `context/` now holds only the live `STATUS.md`; `.claude/project_knowledge.md` deleted (content redistributed)
+- `CLAUDE.md` routing table updated to the new layout; working preferences consolidated from Claude session memory
+- Path references updated in `README.md`, `.env.example`, `etl/backup_db.py`, `app/app.py`, `context/STATUS.md`
+- Stale status fixed: bonus module marked delivered (was still listed as blocked), margin-audit deadline marked overdue
+- Compiled manual PDFs moved from `docs/` root to `docs/manuals/*.pdf` (flat); Typst sources remain in gitignored per-manual subfolders — compile convention updated in `docs/TECHNICAL.md` §Typst
+- `docs/superpowers/` dissolved: plans → `docs/plans/`, specs → `docs/specs/` (still gitignored); AI-workflow outputs now go directly under `docs/` (rule added to `CLAUDE.md`)
+
 ## [0.6.0] - 2026-06-10
 
 ### Stock sync — history and eMAG sync

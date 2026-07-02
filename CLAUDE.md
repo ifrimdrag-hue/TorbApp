@@ -2,6 +2,11 @@
 
 AI consulting for **Torb Logistic SRL**, a Romanian FMCG distributor. Goal: identify and implement AI/agentic automation to optimize business operations. This is a Flask + SQLite app.
 
+## Working preferences
+- **English** for all developer communication (code, comments, commit messages, responses); **Romanian** for UI text, user-facing strings, and end-user manuals.
+- Keep token usage minimal: concise code, no over-commenting, short responses, no "here's what I changed" summaries unless asked.
+- Before any batch operation (multi-file edits, bulk scripts), save progress to memory first so work can resume after a context reset.
+
 ## Code quality rules (enforced in CI)
 - **Linter**: `ruff` — all Python must pass `ruff check .` with zero errors before commit.
 - **Auto-fix hook**: a `PostToolUse` hook in `~/.claude/settings.json` runs `ruff check --fix --quiet` on every `.py` file Claude writes or edits. No manual lint pass needed.
@@ -12,19 +17,19 @@ CLAUDE.md is injected every turn, so it holds only routing + file-placement rule
 
 | Working on... | Read first |
 |---------------|-----------|
-| strategy / roadmap | `context/plan_strategic_5ani.md` — the 2026–2030 plan. Don't reinterpret strategy from scratch; start here. |
+| strategy / roadmap / company / risks | `docs/BUSINESS.md` — key facts at the top; §7 = the 2026–2030 plan. Don't reinterpret strategy from scratch; start here. |
 | current state / next step | `context/STATUS.md` — what's delivered / in progress / blocked. **Update it on every state change.** |
-| business facts, brands, data-file map | `context/key_facts.md` |
-| data / SQLite / ETL / Excel | `.claude/project_knowledge.md` §Data |
+| domain terms / data model / bonus / virtual brands / stock sync | `docs/BUSINESS_LOGIC.md` |
+| data / SQLite / ETL / Excel / data-file map | `docs/TECHNICAL.md` §Data |
 | forecast / backtest / reorder | `app/forecast/README.md` |
-| deploy / VPS / secrets / Shopify sync | `.claude/project_knowledge.md` |
-| Romanian strings in `.py` files | `.claude/project_knowledge.md` §Encoding — **critical, read before editing any `.py` with Romanian text** |
-| Typst user manuals (`docs/manuals/`) | `.claude/project_knowledge.md` §Typst |
-| tech-debt backlog | `.claude/project_knowledge.md` §Tech-debt |
+| deploy / VPS / secrets | `docs/TECHNICAL.md` |
+| Romanian strings in `.py` files | `docs/TECHNICAL.md` §Encoding — **critical, read before editing any `.py` with Romanian text** |
+| Typst user manuals (`docs/manuals/`) | `docs/TECHNICAL.md` §Typst |
+| tech-debt / open issues backlog | `docs/BACKLOG.md` |
 
-Other `context/*.md` are research findings — read when relevant. **Exception:** `*_history.md` files are write-mostly archives; read only when investigating a past change.
+`docs/TECHNICAL_history.md` is a write-mostly archive; read only when investigating a past change.
 
-Actual #1 open question: bonusarea automată lunară (pasul 5 din `context/STATUS.md`, deadline depășit) + validarea forecast Basilur cu owner-ul.
+Actual open priorities: see "Next immediate step" in `context/STATUS.md`.
 
 ## Project Directory Structure
 
@@ -37,8 +42,8 @@ All new files must follow this layout. Never add `.py` files to root.
 | `app/forecast/` | Forecast package: statistical engine, data queries, CLI, Flask-facing logic, AI agent |
 | `tools/` | Windows launcher scripts (`Start-Hub.ps1`); `Start-Hub.bat` is at project root |
 | `tests/` | pytest test files |
-| `context/` | Project research, reference markdown, strategic docs (`plan_strategic_5ani.md`, `STATUS.md`, `key_facts.md`) |
-| `docs/` | Implementation plans (`plans/`), analysis docs (`analysis/`), AI-generated specs (`superpowers/`), user manuals (`manuals/`) |
+| `context/` | Live execution tracker only (`STATUS.md`) |
+| `docs/` | Consolidated docs (`BUSINESS.md`, `BUSINESS_LOGIC.md`, `TECHNICAL.md`, `BACKLOG.md`), analysis docs (`analysis/`), implementation plans (`plans/`), design specs (`specs/`, gitignored), user manuals (`manuals/`) |
 | `docs_input/` | Input Excel/CSV data files (never committed, gitignored) |
 | `data/` | SQLite database and generated outputs (gitignored) |
 | Root | Config/doc files only: `requirements.txt`, `.gitignore`, `.env.example`, `CLAUDE.md`, `README.md`, `CHANGELOG.md`, `Start-Hub.bat` |
@@ -49,6 +54,8 @@ All new files must follow this layout. Never add `.py` files to root.
 - New Windows launcher script → `tools/`
 - New forecast model, backtest, or forecast CLI tool → `app/forecast/`
 - New pytest test → `tests/`
+- Superpowers/AI-workflow outputs go **directly under `docs/`** — never create a `docs/superpowers/` directory: design specs → `docs/specs/YYYY-MM-DD-<topic>-design.md`, implementation plans → `docs/plans/`, analysis docs → `docs/analysis/`
+- Compiled user-manual PDFs → `docs/manuals/manual_<name>.pdf` (Typst sources stay in `docs/manuals/<name>/`, gitignored)
 
 ### Import path note for etl/ scripts
 ETL scripts use CWD-relative paths (`"data/torb.db"`, `"docs_input/..."`). Always run them from the project root:

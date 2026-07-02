@@ -1,10 +1,10 @@
-# Infrastructure — History & Resolved Items
+# Technical History — Infrastructure & Resolved Items
 
 > ⛔ **Archive — do not auto-load.** Read this file **only** when explicitly investigating a past
-> change. It is excluded from session-start reading and is not pulled in by `infrastructure.md`.
+> change. It is excluded from session-start reading and is not pulled in by `docs/TECHNICAL.md`.
 >
 > **Purpose:** archive of dated changes, resolved security items, and applied checklists for the VPS
-> server. The live source of truth for **current** facts is `context/infrastructure.md`. This file
+> server. The live source of truth for **current** facts is `docs/TECHNICAL.md` §Infrastructure. This file
 > is append-mostly — record what was done, when, and why, so the current file can stay lean.
 
 ---
