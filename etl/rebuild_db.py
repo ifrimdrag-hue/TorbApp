@@ -66,6 +66,28 @@ CREATE TABLE IF NOT EXISTS tranzactii (
 )
 """
 
+# Cost table for the Auchan import (migration 0013). NOT dropped on rebuild:
+# cost history persists; INSERT OR IGNORE in import_vanzari_erp.py dedups.
+CREATE_VANZARI_TOBRA = """
+CREATE TABLE IF NOT EXISTS vanzari_tobra (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    data_dl        TEXT,
+    nr_dl          TEXT,
+    nr_factura     TEXT,
+    cod_produs     TEXT,
+    sku            TEXT,
+    cantitate      REAL,
+    pret_cumparare REAL,
+    pret_vanzare   REAL,
+    UNIQUE(nr_dl, cod_produs, nr_factura, pret_vanzare)
+)
+"""
+
+VANZARI_TOBRA_INDEX = (
+    "CREATE INDEX IF NOT EXISTS idx_vanzari_tobra_cod_data"
+    " ON vanzari_tobra(cod_produs, data_dl)"
+)
+
 INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_an_luna     ON tranzactii(an, luna)",
     "CREATE INDEX IF NOT EXISTS idx_client      ON tranzactii(client)",
@@ -208,6 +230,8 @@ def reset_tranzactii(conn):
               "v_top_sku", "v_clienti"):
         conn.execute(f"DROP VIEW IF EXISTS {v}")
     conn.execute(CREATE_TABLE)
+    conn.execute(CREATE_VANZARI_TOBRA)
+    conn.execute(VANZARI_TOBRA_INDEX)
     for idx in INDEXES:
         conn.execute(idx)
     for view in VIEWS:
