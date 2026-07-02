@@ -1,4 +1,4 @@
-from app.business_constants import (
+from business_constants import (
     AUCHAN_AGENT,
     AUCHAN_CLIENT_NAME,
     AUCHAN_COD_CLIENT,

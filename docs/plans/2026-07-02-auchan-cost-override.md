@@ -29,11 +29,17 @@
 - Test: `tests/test_business_constants.py`
 
 **Interfaces:**
-- Produces (used by Tasks 2, 4, 5): module `app.business_constants` with constants
+- Produces (used by Tasks 2, 4, 5): module `app/business_constants.py` with constants
   `AUCHAN_COD_CLIENT: str = "732"`, `AUCHAN_CLIENT_NAME: str = "AUCHAN ROMANIA SA"`,
   `AUCHAN_TIP_CLIENT: str = "HYPERMARKET"`, `AUCHAN_AGENT: str = "Oana Filip"`,
   `TOBRA_COD_CLIENT: str = "719"`, `TOBRA_INVOICE_PREFIX: str = "TOBRA"`,
   `TOBRA_COST_WINDOW_DAYS: int = 30`.
+- **Import convention (binding):** consumers insert `<project_root>/app` on
+  `sys.path` and import FLAT — `from business_constants import ...` — the
+  `migrations/runner.py:92-93` pattern. NEVER import it as
+  `app.business_constants` and never add `app/__init__.py`: bare `import app`
+  must keep resolving to the module `app/app.py` (tests/conftest.py and the
+  launcher depend on that; a package named `app` breaks 51 fixture-based tests).
 
 - [ ] **Step 0: Create the branch**
 
@@ -43,10 +49,10 @@ git checkout -b feat/auchan-cost-override
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tests/test_business_constants.py`:
+Create `tests/test_business_constants.py` (flat import — conftest puts `app/` on sys.path):
 
 ```python
-from app.business_constants import (
+from business_constants import (
     AUCHAN_AGENT,
     AUCHAN_CLIENT_NAME,
     AUCHAN_COD_CLIENT,
@@ -76,7 +82,7 @@ def test_client_codes_are_strings():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_business_constants.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'app.business_constants'`
+Expected: FAIL — `ModuleNotFoundError: No module named 'business_constants'`
 
 - [ ] **Step 3: Write the module**
 
@@ -139,7 +145,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Modify: `etl/import_vanzari_tobra_auchan.py` (constants block at lines 30–39, usages at lines 146, 229–236, 301–313)
 
 **Interfaces:**
-- Consumes: `app.business_constants` (Task 1).
+- Consumes: constants from `app/business_constants.py` (Task 1, flat import per its binding convention).
 - Produces: no new API — same module behavior, constants now imported. `TOBRA_COD_CLIENT` keeps its name (now imported); `AGENT_OVERRIDE→AUCHAN_AGENT`, `COD_CLIENT_OVERRIDE→AUCHAN_COD_CLIENT`, `CLIENT_OVERRIDE→AUCHAN_CLIENT_NAME`, `TIP_CLIENT_OVERRIDE→AUCHAN_TIP_CLIENT`.
 
 - [ ] **Step 1: Add the import (Edit tool — ASCII-safe)**
@@ -157,8 +163,8 @@ with:
 ```python
 import xlrd
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from app.business_constants import (  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app"))
+from business_constants import (  # noqa: E402
     AUCHAN_AGENT,
     AUCHAN_CLIENT_NAME,
     AUCHAN_COD_CLIENT,
@@ -454,7 +460,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Test: `tests/test_vanzari_tobra.py` (extend)
 
 **Interfaces:**
-- Consumes: `app.business_constants.TOBRA_COD_CLIENT` (Task 1); table `vanzari_tobra` (Task 3).
+- Consumes: `TOBRA_COD_CLIENT` from `app/business_constants.py` (Task 1, flat import); table `vanzari_tobra` (Task 3).
 - Produces: `process_rows(rows_raw, cp_lookup) -> tuple[list[dict], list[dict]]` (was `-> list[dict]`); `insert_tobra_rows(conn, tobra_records) -> int`; module constant `TOBRA_COLS: list[str]`. Tobra record dict keys = `TOBRA_COLS` = `["data_dl", "nr_dl", "nr_factura", "cod_produs", "sku", "cantitate", "pret_cumparare", "pret_vanzare"]`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -533,8 +539,8 @@ with:
 ```python
 from datetime import datetime, date
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from app.business_constants import TOBRA_COD_CLIENT  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app"))
+from business_constants import TOBRA_COD_CLIENT  # noqa: E402
 
 if sys.platform == "win32":
 ```
