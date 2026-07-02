@@ -19,6 +19,7 @@ import sys
 import os
 import sqlite3
 import xlrd
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app"))
 from business_constants import (  # noqa: E402
@@ -27,6 +28,7 @@ from business_constants import (  # noqa: E402
     AUCHAN_COD_CLIENT,
     AUCHAN_TIP_CLIENT,
     TOBRA_COD_CLIENT,
+    TOBRA_COST_WINDOW_DAYS,
     TOBRA_INVOICE_PREFIX,
 )
 
@@ -128,6 +130,67 @@ def normalize_num(val):
         return float(val)
     except (ValueError, TypeError):
         return None
+
+
+def lookup_tobra_cost(conn, cod_produs, data_dl_str):
+    """True Torb acquisition cost for cod_produs at date data_dl_str.
+
+    Returns (cost, source): "window" = simple avg over the last
+    TOBRA_COST_WINDOW_DAYS days (exclusive start, inclusive end);
+    "last_known" = avg of entries on the most recent data_dl <= date.
+    (None, None) when vanzari_tobra has no usable entry.
+    """
+    d = datetime.strptime(data_dl_str, "%Y-%m-%d").date()
+    window_start = (d - timedelta(days=TOBRA_COST_WINDOW_DAYS)).strftime("%Y-%m-%d")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT AVG(pret_cumparare) FROM vanzari_tobra"
+        " WHERE cod_produs = ? AND pret_cumparare IS NOT NULL"
+        " AND data_dl > ? AND data_dl <= ?",
+        (cod_produs, window_start, data_dl_str),
+    )
+    avg = cur.fetchone()[0]
+    if avg is not None:
+        return round(avg, 4), "window"
+    cur.execute(
+        "SELECT AVG(pret_cumparare) FROM vanzari_tobra"
+        " WHERE cod_produs = ? AND pret_cumparare IS NOT NULL"
+        " AND data_dl = (SELECT MAX(data_dl) FROM vanzari_tobra"
+        "  WHERE cod_produs = ? AND pret_cumparare IS NOT NULL"
+        "  AND data_dl <= ?)",
+        (cod_produs, cod_produs, data_dl_str),
+    )
+    last = cur.fetchone()[0]
+    if last is not None:
+        return round(last, 4), "last_known"
+    return None, None
+
+
+def apply_cost_override(conn, records):
+    """Override pret_cumparare with the true Torb cost from vanzari_tobra
+    and recompute val_achizitie + marja_bruta. Rows without a known cost
+    keep the value from the Tobra file. Mutates records; returns counts."""
+    cache = {}
+    counts = {"window": 0, "last_known": 0, "excel": 0}
+    for r in records:
+        cod = r["cod_produs"]
+        if not cod:
+            counts["excel"] += 1
+            continue
+        key = (cod, r["data_dl"])
+        if key not in cache:
+            cache[key] = lookup_tobra_cost(conn, cod, r["data_dl"])
+        cost, source = cache[key]
+        if cost is None:
+            counts["excel"] += 1
+            continue
+        counts[source] += 1
+        r["pret_cumparare"] = cost
+        r["val_achizitie"] = round((r["cantitate"] or 0) * cost, 4)
+        r["marja_bruta"] = round((r["val_neta"] or 0) - r["val_achizitie"], 4)
+    print(f"    -> Cost real Torb: {counts['window']:,} medie {TOBRA_COST_WINDOW_DAYS}z"
+          f" | {counts['last_known']:,} ultimul cost | {counts['excel']:,} valoare fisier")
+    return counts
 
 
 def build_cod_furnizor_lookup(conn):
@@ -288,6 +351,8 @@ def run(filepath=None):
     rows_raw, datemode = read_tobra_xls(filepath)
     records = process_rows(rows_raw, cp_lookup, datemode, cod_sku_lookup)
     print(f"    → {len(records):,} rânduri procesate")
+
+    apply_cost_override(conn, records)
 
     inserted = insert_rows(conn, records)
     skipped = len(records) - inserted
