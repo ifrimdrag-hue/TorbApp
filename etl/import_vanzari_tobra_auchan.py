@@ -7,7 +7,7 @@ Acest script preia tot istoricul facturat de Tobra către Auchan și îl injecte
 (care e deja alocat pentru Auchan în Torb).
 
 Fisier sursa:    docs_input/rapoarte/auchan tobra 2024-2026.xls
-Suprascrieri:    agent='Oana Filip', cod_client='732', client='AUCHAN ROMANIA SA'
+Suprascrieri:    vezi app/business_constants.py (AUCHAN_*, TOBRA_*)
 Pastrate:        nr_factura (prefix 'TOBRA' = marker), nr_dl, cod_produs, etc.
 Dedup:           UNIQUE(nr_dl, cod_produs, nr_factura)
 
@@ -20,6 +20,16 @@ import os
 import sqlite3
 import xlrd
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app"))
+from business_constants import (  # noqa: E402
+    AUCHAN_AGENT,
+    AUCHAN_CLIENT_NAME,
+    AUCHAN_COD_CLIENT,
+    AUCHAN_TIP_CLIENT,
+    TOBRA_COD_CLIENT,
+    TOBRA_INVOICE_PREFIX,
+)
+
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -27,16 +37,6 @@ if sys.platform == "win32":
 DB_PATH = "data/torb.db"
 DEFAULT_FILE = "docs_input/rapoarte/auchan tobra 2024-2026.xls"
 
-# Hard-coded overrides — Tobra invoicing of Auchan must appear as Torb sales
-AGENT_OVERRIDE       = "Oana Filip"
-COD_CLIENT_OVERRIDE  = "732"
-CLIENT_OVERRIDE      = "AUCHAN ROMANIA SA"
-TIP_CLIENT_OVERRIDE  = "HYPERMARKET"
-
-# Cod client TOBRA INVEST SRL în Torb DB — facturile Torb→Tobra sunt fictive
-# (intermediarul economic), trebuie șterse pentru a evita dublu-numărare cu
-# înregistrările Tobra→Auchan importate aici.
-TOBRA_COD_CLIENT     = "719"
 
 DB_COLS = [
     "luna", "an", "data_dl", "nr_dl", "nr_factura", "nr_comanda",
@@ -143,7 +143,7 @@ def build_cod_sku_lookup(conn):
     cur.execute(
         "SELECT cod_produs, MAX(sku) AS sku FROM tranzactii "
         "WHERE cod_produs IS NOT NULL AND cod_produs != '' "
-        f"  AND cod_client != '{COD_CLIENT_OVERRIDE}' "
+        f"  AND cod_client != '{AUCHAN_COD_CLIENT}' "
         "GROUP BY cod_produs"
     )
     return {str(row[0]): row[1] for row in cur.fetchall() if row[1]}
@@ -226,14 +226,14 @@ def process_rows(rows_raw, cp_lookup, datemode, cod_sku_lookup=None):
             "discount_pct":   normalize_num(raw.get("procent")) or normalize_num(raw.get("discproc")),
             "discount_val":   discount,
             # Hard-coded overrides — Tobra→Auchan attached as Torb→Auchan via Oana
-            "client":         CLIENT_OVERRIDE,
-            "cod_client":     COD_CLIENT_OVERRIDE,
+            "client":         AUCHAN_CLIENT_NAME,
+            "cod_client":     AUCHAN_COD_CLIENT,
             "cui_client":     normalize_str(raw.get("cfcli")),
-            "tip_client":     TIP_CLIENT_OVERRIDE,
+            "tip_client":     AUCHAN_TIP_CLIENT,
             "oras_client":    normalize_str(raw.get("localcli")),
             "judet_client":   normalize_str(raw.get("judet")),
             "adresa_client":  normalize_str(raw.get("adresa")),
-            "agent":          AGENT_OVERRIDE,
+            "agent":          AUCHAN_AGENT,
             "adr_livrare":    normalize_str(raw.get("adr_livr")),
             "locatie":        normalize_str(raw.get("locatie")),
         }
@@ -298,19 +298,21 @@ def run(filepath=None):
     delete_torb_to_tobra_entries(conn)
 
     cur = conn.cursor()
-    cur.execute("""
-        SELECT COUNT(*), SUM(val_neta), MIN(data_dl), MAX(data_dl)
-        FROM tranzactii WHERE nr_factura LIKE 'TOBRA%'
-    """)
+    cur.execute(
+        "SELECT COUNT(*), SUM(val_neta), MIN(data_dl), MAX(data_dl)"
+        " FROM tranzactii WHERE nr_factura LIKE ?",
+        (TOBRA_INVOICE_PREFIX + "%",),
+    )
     n, vn, d_min, d_max = cur.fetchone()
     print(f"    → Total Tobra→Auchan în DB: {n:,} tranz | {(vn or 0):,.0f} RON | {d_min} → {d_max}")
 
-    cur.execute("""
-        SELECT COUNT(*), SUM(val_neta) FROM tranzactii
-        WHERE cod_client='732' AND agent=? AND nr_factura LIKE 'TOBRA%'
-    """, (AGENT_OVERRIDE,))
+    cur.execute(
+        "SELECT COUNT(*), SUM(val_neta) FROM tranzactii"
+        " WHERE cod_client=? AND agent=? AND nr_factura LIKE ?",
+        (AUCHAN_COD_CLIENT, AUCHAN_AGENT, TOBRA_INVOICE_PREFIX + "%"),
+    )
     n_oa, v_oa = cur.fetchone()
-    print(f"    → Atribuite la {AGENT_OVERRIDE} pentru Auchan: {n_oa:,} tranz | {(v_oa or 0):,.0f} RON")
+    print(f"    → Atribuite la {AUCHAN_AGENT} pentru Auchan: {n_oa:,} tranz | {(v_oa or 0):,.0f} RON")
 
     conn.close()
     return inserted
