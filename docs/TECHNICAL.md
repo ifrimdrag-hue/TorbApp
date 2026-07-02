@@ -11,6 +11,9 @@ Setup, run, and project-structure basics are in `README.md`; directory placement
 `data/torb.db` — 131,898 transaction rows, 2024-01-03 → 2026-03-31.
 Main table: `tranzactii` (31 columns). Useful views: `v_vanzari_an_furnizor`, `v_vanzari_luna_agent`, `v_vanzari_luna_client`, `v_top_sku`, `v_clienti`.
 To rebuild: `python etl/import_to_sqlite.py`
+Cost table: `vanzari_tobra` — Torb→Tobra invoice lines (true acquisition cost),
+diverted at ERP import; consumed by the Auchan-import cost override
+(`docs/BUSINESS_LOGIC.md` §3, migration 0013).
 
 Forecast tables live here too — see `app/forecast/README.md`.
 

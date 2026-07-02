@@ -119,6 +119,26 @@ What a single row in `tranzactii` represents:
 
 ---
 
+### The Auchan/Tobra exception
+
+Torb→Auchan sales are invoiced through the intermediary **Tobra Invest SRL**
+(cod_client 719 in Torb's ERP). Shared constants: `app/business_constants.py`.
+
+- `etl/import_vanzari_erp.py` diverts Torb→Tobra invoice lines (cod 719) out of
+  `tranzactii` into the cost table `vanzari_tobra` — Torb's true acquisition
+  cost per product over time.
+- `etl/import_vanzari_tobra_auchan.py` imports Tobra→Auchan invoices as if they
+  were Torb→Auchan sales (client 732 `AUCHAN ROMANIA SA`, agent Oana Filip;
+  invoice numbers keep the `TOBRA` prefix as a marker).
+- **Cost rule (2026-07-02):** each imported row's `pret_cumparare` is overridden
+  with the simple average of `vanzari_tobra` costs for that `cod_produs` over
+  the 30 days before the row's own `data_dl`; fallback: most recent cost ≤ row
+  date, then the value from the Tobra file. `val_achizitie` and `marja_bruta`
+  are recomputed. Upload order matters: import Vânzări ERP before Vânzări
+  Auchan so the cost table is fresh.
+
+---
+
 ## 4. Bonus calculation
 
 ### Current implementation (delivered 2026-06-16, migration 0011)

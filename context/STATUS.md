@@ -54,6 +54,9 @@
 
 ## Livrări recente
 
+- **2026-07-02 — Constante business centralizate + cost real Torb pe vânzările Auchan.**
+  Modul nou `app/business_constants.py` (excepția Auchan/Tobra: agent, coduri client, prefix factură, fereastră cost 30z), folosit de `import_vanzari_erp.py` + `import_vanzari_tobra_auchan.py`. Tabel nou `vanzari_tobra` (migrația 0013): liniile Torb→Tobra (cod 719) sunt deviate acolo la importul ERP în loc să fie aruncate. Importul Auchan suprascrie `pret_cumparare` cu media simplă pe 30 de zile per `cod_produs` la data fiecărui rând (fallback: ultimul cost cunoscut, apoi valoarea din fișier) și recalculează `val_achizitie`/`marja_bruta`. Ordine încărcare: Vânzări ERP înainte de Vânzări Auchan (notat în UI). Necesită backfill: un re-import al fișierului ERP de vânzări.
+
 - **2026-07-02 — Audit complet pagina `/forecast` (doar analiză, fără fix-uri aplicate).**
   Documentat în `docs/analysis/forecast_page_analysis.md`: arhitectura celor 5 taburi + agent AI, algoritmul de sugestie (ambele implementări), referință coloană-cu-coloană pentru tabul Stoc & Urgente, tot API-ul, plus 20 de probleme ierarhizate. Critice: (A1) split-ul Export HU e mort — `clienti_export` are codurile `BRANDMIX`/`HUNTRADE`, dar `tranzactii` folosește `1429`/`1430` → 0 potriviri, toate sugestiile HU sunt 0; (A2) statusurile legacy capitalizate din DB (`In tranzit` etc.) + modalul lowercase pot scrie `status=''` și scot comanda din calculul tranzitului — agentul AI nu vede deloc comenzile în tranzit; (B1) cardurile KPI numără loturi, nu SKU-uri; (B3) „Confirmă Comanda" include și rândurile ascunse de filtru. Ordinea de fix recomandată în §7 din document. Relevant pentru item 4b (validare forecast Basilur) — cifrele HU/export din pagina actuală nu sunt de încredere până la fix A1.
 
