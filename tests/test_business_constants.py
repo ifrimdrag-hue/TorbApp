@@ -1,4 +1,4 @@
-from business_constants import (
+from app.business_constants import (
     AUCHAN_AGENT,
     AUCHAN_CLIENT_NAME,
     AUCHAN_COD_CLIENT,
@@ -20,6 +20,6 @@ def test_auchan_tobra_values():
 
 
 def test_client_codes_are_strings():
-    # tranzactii.cod_client is TEXT — int constants would silently break queries
+    # tranzactii.cod_client is TEXT -- int constants would silently break queries
     assert isinstance(AUCHAN_COD_CLIENT, str)
     assert isinstance(TOBRA_COD_CLIENT, str)

@@ -7,7 +7,7 @@ except ImportError:
     def has_app_context():
         return False
 
-from paths import DB_PATH
+from app.paths import DB_PATH
 
 # Pragmas aplicate la fiecare conexiune. WAL + cache mare + mmap reduc
 # semnificativ I/O când baza e pe Google Drive (sync folder).

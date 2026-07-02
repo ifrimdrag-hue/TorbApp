@@ -13,7 +13,7 @@ import atexit
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, 'app'))
+sys.path.insert(0, ROOT)
 
 # ── Create temp DB and patch DB_PATH BEFORE any app module is imported ──────
 _tmp = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
@@ -21,10 +21,10 @@ _tmp.close()
 _TEST_DB = _tmp.name
 atexit.register(lambda: os.unlink(_TEST_DB) if os.path.exists(_TEST_DB) else None)
 
-import paths as _paths_mod  # noqa: E402
+import app.paths as _paths_mod  # noqa: E402
 _paths_mod.DB_PATH = _TEST_DB
 
-import db as _db_mod  # noqa: E402
+import app.db as _db_mod  # noqa: E402
 _db_mod.DB_PATH = _TEST_DB
 
 # ── Build schema via the versioned migration runner (always in sync) ─────────
@@ -68,7 +68,7 @@ _conn.close()
 
 @pytest.fixture(scope='session')
 def flask_app():
-    import app as flask_module
+    import app.app as flask_module
     a = flask_module.create_app({'TESTING': True, 'WTF_CSRF_ENABLED': False})
     return a
 

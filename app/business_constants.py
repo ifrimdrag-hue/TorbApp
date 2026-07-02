@@ -1,7 +1,7 @@
 """Business constants shared across app/ and etl/.
 
 Home for hard-coded business facts (client codes, agent names, business
-rule parameters). NOT for deployment/env settings — those live in
+rule parameters). NOT for deployment/env settings -- those live in
 app/config.py (env-overridable; business facts must never be).
 
 Convention: each constant group carries a 'Used by:' comment listing the
