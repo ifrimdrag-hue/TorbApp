@@ -17,6 +17,9 @@ import sqlite3
 import openpyxl
 from datetime import datetime, date
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app"))
+from business_constants import TOBRA_COD_CLIENT  # noqa: E402
+
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -30,11 +33,13 @@ AGENT_NAME_MAP = {
     "OANA FILIP": "Oana Filip",
 }
 
-# Cod-uri client de excluse la import — facturate fictiv prin intermediar.
-# TOBRA INVEST SRL (cod 719) este intermediar economic catre Auchan;
-# vanzarile reale Tobra→Auchan sunt importate separat prin
-# import_vanzari_tobra_auchan.py si atribuite agentului Oana.
-SKIP_COD_CLIENT = {"719"}
+# Torb->Tobra invoice lines (cod_client=TOBRA_COD_CLIENT) are diverted to
+# the vanzari_tobra cost table (true Torb acquisition cost per product),
+# consumed by import_vanzari_tobra_auchan.py. They never enter tranzactii.
+TOBRA_COLS = [
+    "data_dl", "nr_dl", "nr_factura", "cod_produs", "sku",
+    "cantitate", "pret_cumparare", "pret_vanzare",
+]
 
 DB_COLS = [
     "luna", "an", "data_dl", "nr_dl", "nr_factura", "nr_comanda",
@@ -218,20 +223,32 @@ def read_erp_sheet(filepath):
     return rows_raw
 
 
+def _tobra_record(raw):
+    return {
+        "data_dl": normalize_date(raw.get("datadl")),
+        "nr_dl": normalize_str(raw.get("nrdl")),
+        "nr_factura": normalize_str(raw.get("factout")),
+        "cod_produs": normalize_str(raw.get("codprod")),
+        "sku": normalize_str(raw.get("den_b")),
+        "cantitate": normalize_num(raw.get("cantit")),
+        "pret_cumparare": normalize_num(raw.get("pcump")),
+        "pret_vanzare": normalize_num(raw.get("pvanz")),
+    }
+
+
 def process_rows(rows_raw, cp_lookup):
     records = []
-    skipped_intermediary = 0
+    tobra_records = []
     for raw in rows_raw:
-        # Skip clienți intermediari (ex: TOBRA INVEST SRL) — facturate prin
-        # alt flux și importate separat ca vânzări către clientul real.
+        # Divert Torb->Tobra lines to the cost table instead of tranzactii
         cod_cli_raw = raw.get("codcli")
         if cod_cli_raw is not None:
             try:
                 cod_cli_str = str(int(float(cod_cli_raw)))
             except (ValueError, TypeError):
                 cod_cli_str = str(cod_cli_raw).strip()
-            if cod_cli_str in SKIP_COD_CLIENT:
-                skipped_intermediary += 1
+            if cod_cli_str == TOBRA_COD_CLIENT:
+                tobra_records.append(_tobra_record(raw))
                 continue
 
         # Map ERP column names to canonical names
@@ -312,9 +329,9 @@ def process_rows(rows_raw, cp_lookup):
 
         records.append(record)
 
-    if skipped_intermediary:
-        print(f"    → {skipped_intermediary:,} rânduri sărite (clienți intermediari: {sorted(SKIP_COD_CLIENT)})")
-    return records
+    if tobra_records:
+        print(f"    -> Deviate in vanzari_tobra: {len(tobra_records):,} randuri (cod_client={TOBRA_COD_CLIENT})")
+    return records, tobra_records
 
 
 def aggregate_records(records):
@@ -381,6 +398,19 @@ def insert_rows(conn, records):
     return inserted
 
 
+def insert_tobra_rows(conn, tobra_records):
+    if not tobra_records:
+        return 0
+    placeholders = ", ".join(["?" for _ in TOBRA_COLS])
+    cols = ", ".join(TOBRA_COLS)
+    sql = f"INSERT OR IGNORE INTO vanzari_tobra ({cols}) VALUES ({placeholders})"
+    data = [[r[c] for c in TOBRA_COLS] for r in tobra_records]
+    cursor = conn.cursor()
+    cursor.executemany(sql, data)
+    conn.commit()
+    return cursor.rowcount
+
+
 def run(filepath=None):
     if filepath is None:
         filepath = find_latest_erp_file()
@@ -392,7 +422,7 @@ def run(filepath=None):
     cp_lookup = build_cod_furnizor_lookup(conn)
 
     rows_raw = read_erp_sheet(filepath)
-    records = process_rows(rows_raw, cp_lookup)
+    records, tobra_records = process_rows(rows_raw, cp_lookup)
     print(f"    → {len(records):,} rânduri procesate")
     records = aggregate_records(records)
     print(f"    → {len(records):,} rânduri după agregare")
@@ -400,6 +430,10 @@ def run(filepath=None):
     inserted = insert_rows(conn, records)
     skipped = len(records) - inserted
     print(f"    → Inserate: {inserted:,} | Duplicate ignorate: {skipped:,}")
+
+    n_tobra = insert_tobra_rows(conn, tobra_records)
+    if tobra_records:
+        print(f"    -> Inserate in vanzari_tobra: {n_tobra:,} | Duplicate ignorate: {len(tobra_records) - n_tobra:,}")
 
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*), MIN(data_dl), MAX(data_dl) FROM tranzactii")
