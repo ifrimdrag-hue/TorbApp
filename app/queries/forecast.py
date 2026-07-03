@@ -270,7 +270,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
     transit_by_sku = {}
     transit_sku_meta = {}  # {sku: {'furnizor': ..., 'cod_produs': ...}}
     for r in query("""
-        SELECT l.sku, c.nr_comanda, c.furnizor, c.data_estimata_livrare AS eta,
+        SELECT l.sku, c.nr_comanda, c.furnizor, COALESCE(c.eta, c.data_estimata_livrare) AS eta,
                MAX(l.cod_furnizor) AS cod_produs,
                SUM(COALESCE(l.cantitate_confirmata, l.cantitate_comandata)) AS qty
         FROM comenzi_furnizori_linii l
