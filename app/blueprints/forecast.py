@@ -211,6 +211,9 @@ def api_clienti_export_add():
     d = request.get_json(silent=True) or {}
     try:
         cod = str(d['cod_client']).strip()
+        exists = db.query_one("SELECT 1 FROM tranzactii WHERE cod_client=:c LIMIT 1", {'c': cod})
+        if not exists:
+            return jsonify({'error': f'Codul de client "{cod}" nu apare în nicio tranzacție.'}), 400
         client = (d.get('client') or '').strip()
         if not client:
             r = db.query_one("SELECT client FROM tranzactii WHERE cod_client=:c LIMIT 1", {'c': cod})

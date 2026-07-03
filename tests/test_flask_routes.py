@@ -98,3 +98,25 @@ def test_comanda_avanseaza_endpoint_removed(client):
     """A3: dead /avanseaza endpoint was deleted — route no longer exists."""
     resp = client.post('/api/comenzi/1/avanseaza')
     assert resp.status_code == 404
+
+
+def test_clienti_export_add_rejects_unknown_code(client):
+    """A1: adding an export client with a code absent from tranzactii is rejected."""
+    resp = client.post('/api/clienti-export', json={
+        'cod_client': 'NOSUCHCODE', 'client': 'Ghost Client', 'tara': 'HU',
+    })
+    d = resp.get_json()
+    assert resp.status_code == 400
+    assert 'error' in d
+
+
+def test_clienti_export_add_accepts_known_code(client):
+    """A1: a code present in tranzactii (seeded 'C001') is accepted."""
+    resp = client.post('/api/clienti-export', json={
+        'cod_client': 'C001', 'client': 'Client Test', 'tara': 'HU',
+    })
+    d = resp.get_json()
+    assert resp.status_code == 200
+    assert d['ok'] is True
+    # cleanup so other tests aren't affected
+    client.delete('/api/clienti-export/C001')
