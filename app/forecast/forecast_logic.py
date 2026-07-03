@@ -193,7 +193,7 @@ def _listing_changes(furnizor: str) -> dict:
             LEFT JOIN prev   p USING (sku, cod_client)
             GROUP BY a.sku
         """, {'f': furnizor})
-        return {r['sku']: {'new': r['new_c'] or 0, 'lost': r['lost_c'] or 0} for r in rows}
+        return {_normalize_sku(r['sku']): {'new': r['new_c'] or 0, 'lost': r['lost_c'] or 0} for r in rows}
     except Exception:
         logger.warning("_listing_changes failed for %s", furnizor, exc_info=True)
         return {}

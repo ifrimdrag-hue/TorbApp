@@ -155,3 +155,28 @@ def test_monthly_sales_by_sku_survives_quote_in_export_code(db_path, client):
     assert 'SKU-C3-001' in result
     assert result['SKU-C3-001']['export'].get(1) == 20, "sale should be attributed to export (O'BRIEN is active)"
     assert result['SKU-C3-001']['ro'].get(1, 0) == 0
+
+
+def test_listing_changes_keys_are_normalized(db_path, client):
+    conn = _conn(db_path)
+    # ERP-style bare-EAN SKU (no parens) — ERP sometimes exports it this way
+    bare_sku = 'PRODUS TEST C5 1234567890123'
+    conn.execute("""
+        INSERT INTO tranzactii (luna, an, data_dl, sku, furnizor, cantitate,
+                                 cod_produs, client, cod_client, agent,
+                                 pret_vanzare, tva_pct, pret_cumparare,
+                                 val_bruta, val_neta, val_achizitie, marja_bruta, discount_pct)
+        VALUES (7, 2026, date('now', '-10 days'), :sku, 'TestBrandC5', 5,
+                'C5-001', 'New Client', 'NEWC5', 'Agent Test',
+                10, 0.09, 5, 50, 45, 25, 20, 0)
+    """, {'sku': bare_sku})
+    conn.commit()
+    conn.close()
+
+    from forecast import forecast_logic
+    changes = forecast_logic._listing_changes('TestBrandC5')
+    normalized = forecast_logic._normalize_sku(bare_sku)
+    assert normalized in changes, (
+        f"expected normalized key {normalized!r} in {list(changes.keys())} "
+        "so build_suggestion's normalized-key lookup finds it"
+    )
