@@ -56,3 +56,48 @@ def test_forecast_summary_counts_skus_not_lots(db_path, client):
         f"critic+atentie+ok ({total_counted}) must equal nr_sku ({summary['nr_sku']}) "
         "— a multi-lot SKU must count once"
     )
+
+
+def test_zile_stoc_excludes_transit(db_path, client):
+    conn = _conn(db_path)
+    conn.execute("""
+        INSERT INTO stoc (data_snapshot, cod_produs, cod_mare, sku, furnizor, gama,
+                           cantitate, pret_achizitie, data_intrare)
+        VALUES ('2026-07-03', 'B2-001', 'B2-001', 'SKU-B2-001', 'TestBrandB2', 'Ceai',
+                30, 10.0, '2026-06-01')
+    """)
+    # 3 years of sales so the 3-year monthly average kicks in and overwrites zile_stoc
+    for luna in range(1, 13):
+        conn.execute("""
+            INSERT INTO tranzactii (luna, an, data_dl, sku, furnizor, cantitate,
+                                     cod_produs, client, cod_client, agent,
+                                     pret_vanzare, tva_pct, pret_cumparare,
+                                     val_bruta, val_neta, val_achizitie, marja_bruta, discount_pct)
+            VALUES (:luna, 2025, '2025-' || printf('%02d', :luna) || '-10',
+                    'SKU-B2-001', 'TestBrandB2', 30,
+                    'B2-001', 'Client Test', 'C001', 'Agent Test',
+                    10, 0.09, 5, 300, 275, 150, 125, 0)
+        """, {'luna': luna})
+    # An active in-transit order for the same SKU — must NOT reduce zile_stoc
+    conn.execute("""
+        INSERT INTO comenzi_furnizori (nr_comanda, furnizor, status, data_estimata_livrare)
+        VALUES ('CMD-B2-1', 'TestBrandB2', 'confirmata', '2026-08-01')
+    """)
+    cid = conn.execute("SELECT id FROM comenzi_furnizori WHERE nr_comanda='CMD-B2-1'").fetchone()[0]
+    conn.execute("""
+        INSERT INTO comenzi_furnizori_linii (comanda_id, sku, cantitate_comandata)
+        VALUES (?, 'SKU-B2-001', 30)
+    """, (cid,))
+    conn.commit()
+    conn.close()
+
+    import queries
+    rows = queries.forecast_stoc_extended(furnizor='TestBrandB2')
+    assert len(rows) == 1
+    r = rows[0]
+    # 30 avg/month sales -> daily rate 1/day -> stoc-only zile_stoc should be ~30 (30 buc / 1 buc/day)
+    # If transit (30 more) were included, available=60 -> zile_stoc would be ~60
+    assert r['zile_stoc'] < 45, (
+        f"zile_stoc={r['zile_stoc']} appears to include the 30-unit in-transit order "
+        "(physical stock alone should give ~30 days, not ~60)"
+    )

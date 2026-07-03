@@ -333,7 +333,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
         r['avg_monthly_hu'] = round(sum(monthly_hu.values()) / 12, 1) if monthly_hu else 0
         r['vanzari_luna_avg'] = round(avg_total, 1)
         if avg_total > 0:
-            r['zile_stoc'] = int(available / (avg_total / 30))
+            r['zile_stoc'] = int(float(r['stoc_total'] or 0) / (avg_total / 30))
 
     # Adaugă SKU-uri cu tranzit activ dar fără stoc fizic (lipsesc din tabela stoc)
     existing_skus = {r['sku'] for r in rows}
@@ -370,7 +370,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
         sug_ro = max(0.0, demand_ro - available)
         surplus = max(0.0, available - demand_ro)
         sug_hu = max(0.0, demand_hu - surplus)
-        zile_stoc = int(available / (avg_total / 30)) if avg_total > 0 else None
+        zile_stoc = 0 if avg_total > 0 else None
 
         rows.append({
             'sku':               sku,
