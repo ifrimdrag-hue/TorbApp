@@ -1,6 +1,6 @@
 # Torb — Status Execuție Plan Strategic 2026–2030
 
-**Ultima actualizare:** 2026-07-02
+**Ultima actualizare:** 2026-07-03
 **Document referință:** `docs/BUSINESS.md` §7 — Plan Strategic 2026–2030 (v1.0)
 **Regulă:** actualizează acest fișier la fiecare schimbare de stare (nu la fiecare discuție). Legend: `[ ]` = neînceput · `[~]` = în lucru · `[x]` = livrat · `[!]` = blocat · `[↑]` = întârziat.
 
@@ -48,11 +48,25 @@
 
 ## În curs / blocaje active
 
-- `[~]` **Validare forecast Basilur** — hindcast 2025 Q4 manual blocată până când owner-ul livrează Excel stoc curent. Notă: cifrele HU/export din pagina `/forecast` nu sunt de încredere până la fix-ul A1 (vezi `docs/BACKLOG.md` §Forecast).
+- `[~]` **Validare forecast Basilur** — hindcast 2025 Q4 manual blocată până când owner-ul livrează Excel stoc curent. Fix-ul A1 (coduri export HU) e livrat 2026-07-03 — cifrele HU/export ar trebui reverificate de owner înainte de validarea finală.
 
 ---
 
 ## Livrări recente
+
+- **2026-07-03 — 10 fix-uri P0/P1 pagina `/forecast` livrate direct pe `main`.**
+  Plan `docs/plans/2026-07-03-forecast-p0-p1-fixes.md`, execuție agentică (subagent-driven development, 10 task-uri + review final pe fiecare + review whole-branch). Rezolvate din `docs/analysis/forecast_page_analysis.md`:
+  - **A3** — șters endpoint mort `/api/comenzi/<id>/avanseaza`.
+  - **A1** — split Export HU repornit: `clienti_export.cod_client` patch-uit direct în DB (`BRANDMIX`→`1429`, `HUNTRADE`→`1430`, cu backup prealabil), plus validare la adăugare cod client nou (respinge coduri fără tranzacții).
+  - **A5** — preț de achiziție în valută (`costuri_landing`) afișat în tabul Stoc & Urgente.
+  - **B1** — cardurile KPI numără SKU-uri distincte, nu loturi.
+  - **B2** — „Zile stoc" exclude stocul în tranzit (coloana separată „cu tranzit" rămâne neschimbată).
+  - **B6** — ETA tranzit preferă `costuri_landing.eta` peste `data_estimata_livrare` când există.
+  - **C3** — interogare coduri export SQL-injection-safe (subselect în loc de f-string).
+  - **C5** — cheile din `_listing_changes()` normalizate ca să se potrivească cu `build_suggestion()`.
+  - **B3** — „Confirmă Comanda" exclude rândurile ascunse de filtru (aliniat cu `updateTotal()`).
+  - **A4+C1** — `escapeHtml()` adăugat + folosit peste tot în `loadExportClients`/`addExportClient`/modal status/`sendAgentMsg`; atribute HTML mutate din string-uri interpolate în `data-*`; escapare extinsă și la ghilimele (`"`/`'`) după găsirea unui gap de context-atribut la review-ul final.
+  Teste noi: `tests/test_forecast_queries.py` (6 teste) + 3 teste în `tests/test_flask_routes.py`. 165 teste trec, ruff curat. Neatinse (necesită decizie owner/Opus): A2 (migrare vocabular statusuri), D-DUP (unificare cod duplicat `build_suggestion`/`forecast_stoc_extended`), B4/B5/B7/B8, D2 (mojibake). Detalii progres: `.superpowers/sdd/progress.md`.
 
 - **2026-07-02 — Constante business centralizate + cost real Torb pe vânzările Auchan.**
   Modul nou `app/business_constants.py` (excepția Auchan/Tobra: agent, coduri client, prefix factură, fereastră cost 30z), folosit de `import_vanzari_erp.py` + `import_vanzari_tobra_auchan.py`. Tabel nou `corr_vanzari_tobra` (migrația 0013): liniile Torb→Tobra (cod 719) sunt deviate acolo la importul ERP în loc să fie aruncate. Importul Auchan suprascrie `pret_cumparare` cu media simplă pe 30 de zile per `cod_produs` la data fiecărui rând (fallback: ultimul cost cunoscut, apoi valoarea din fișier) și recalculează `val_achizitie`/`marja_bruta`. Ordine încărcare: Vânzări ERP înainte de Vânzări Auchan (notat în UI). Necesită backfill: un re-import al fișierului ERP de vânzări.
