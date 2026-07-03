@@ -9,14 +9,31 @@ def _conn(db_path):
     return sqlite3.connect(db_path)
 
 
+def _next_snapshot(conn):
+    """Return a data_snapshot date guaranteed newer than any existing row.
+
+    forecast_stoc_extended() and friends filter on a GLOBAL
+    MAX(data_snapshot) FROM stoc, not scoped per furnizor/sku. Tests
+    sharing the session-scoped db_path must each pick a date newer than
+    every prior insert or their rows silently drop out of the "latest
+    snapshot" filter — computing it here decouples tests from execution
+    order instead of relying on hardcoded increasing literals.
+    """
+    current = conn.execute("SELECT MAX(data_snapshot) FROM stoc").fetchone()[0]
+    if current is None:
+        return '2026-07-01'
+    return conn.execute("SELECT date(?, '+1 day')", (current,)).fetchone()[0]
+
+
 def test_forecast_stoc_extended_includes_price(db_path, client):
     conn = _conn(db_path)
+    snap = _next_snapshot(conn)
     conn.execute("""
         INSERT INTO stoc (data_snapshot, cod_produs, cod_mare, sku, furnizor, gama,
                            cantitate, pret_achizitie, data_intrare)
-        VALUES ('2026-07-01', 'A5-001', 'A5-001', 'SKU-A5-001', 'TestBrandA5', 'Ceai',
+        VALUES (?, 'A5-001', 'A5-001', 'SKU-A5-001', 'TestBrandA5', 'Ceai',
                 100, 10.0, '2026-06-01')
-    """)
+    """, (snap,))
     conn.execute("""
         INSERT INTO costuri_landing (an, sku, moneda, pret_achizitie_valuta)
         VALUES (2026, 'SKU-A5-001', 'EUR', 3.5)
@@ -33,19 +50,20 @@ def test_forecast_stoc_extended_includes_price(db_path, client):
 
 def test_forecast_summary_counts_skus_not_lots(db_path, client):
     conn = _conn(db_path)
+    snap = _next_snapshot(conn)
     # Same SKU, two lots (multi-lot SKU) — must count once, not twice
     conn.execute("""
         INSERT INTO stoc (data_snapshot, cod_produs, cod_mare, sku, furnizor, gama,
                            cantitate, pret_achizitie, data_intrare)
-        VALUES ('2026-07-02', 'B1-001', 'B1-001', 'SKU-B1-MULTILOT', 'TestBrandB1', 'Ceai',
+        VALUES (?, 'B1-001', 'B1-001', 'SKU-B1-MULTILOT', 'TestBrandB1', 'Ceai',
                 10, 5.0, '2026-05-01')
-    """)
+    """, (snap,))
     conn.execute("""
         INSERT INTO stoc (data_snapshot, cod_produs, cod_mare, sku, furnizor, gama,
                            cantitate, pret_achizitie, data_intrare)
-        VALUES ('2026-07-02', 'B1-001', 'B1-001', 'SKU-B1-MULTILOT', 'TestBrandB1', 'Ceai',
+        VALUES (?, 'B1-001', 'B1-001', 'SKU-B1-MULTILOT', 'TestBrandB1', 'Ceai',
                 10, 5.0, '2026-06-01')
-    """)
+    """, (snap,))
     conn.commit()
     conn.close()
 
@@ -60,12 +78,13 @@ def test_forecast_summary_counts_skus_not_lots(db_path, client):
 
 def test_zile_stoc_excludes_transit(db_path, client):
     conn = _conn(db_path)
+    snap = _next_snapshot(conn)
     conn.execute("""
         INSERT INTO stoc (data_snapshot, cod_produs, cod_mare, sku, furnizor, gama,
                            cantitate, pret_achizitie, data_intrare)
-        VALUES ('2026-07-03', 'B2-001', 'B2-001', 'SKU-B2-001', 'TestBrandB2', 'Ceai',
+        VALUES (?, 'B2-001', 'B2-001', 'SKU-B2-001', 'TestBrandB2', 'Ceai',
                 30, 10.0, '2026-06-01')
-    """)
+    """, (snap,))
     # 3 years of sales so the 3-year monthly average kicks in and overwrites zile_stoc
     for luna in range(1, 13):
         conn.execute("""
@@ -105,12 +124,13 @@ def test_zile_stoc_excludes_transit(db_path, client):
 
 def test_transit_eta_prefers_eta_column(db_path, client):
     conn = _conn(db_path)
+    snap = _next_snapshot(conn)
     conn.execute("""
         INSERT INTO stoc (data_snapshot, cod_produs, cod_mare, sku, furnizor, gama,
                            cantitate, pret_achizitie, data_intrare)
-        VALUES ('2026-07-04', 'B6-001', 'B6-001', 'SKU-B6-001', 'TestBrandB6', 'Ceai',
+        VALUES (?, 'B6-001', 'B6-001', 'SKU-B6-001', 'TestBrandB6', 'Ceai',
                 5, 10.0, '2026-06-01')
-    """)
+    """, (snap,))
     conn.execute("""
         INSERT INTO comenzi_furnizori (nr_comanda, furnizor, status, data_estimata_livrare, eta)
         VALUES ('CMD-B6-1', 'TestBrandB6', 'confirmata', '2026-06-02', '2026-07-21')
