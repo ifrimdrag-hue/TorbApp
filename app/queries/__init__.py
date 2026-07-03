@@ -96,7 +96,6 @@ from queries.orders import (
     comanda_line_delete as comanda_line_delete,
 )
 from queries.forecast import (
-    forecast_stoc as forecast_stoc,
     forecast_summary as forecast_summary,
     forecast_gama_list as forecast_gama_list,
     forecast_stoc_brand as forecast_stoc_brand,

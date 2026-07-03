@@ -2,56 +2,6 @@ from db import query, query_one
 from queries._shared import _years_params, display_years
 
 
-def forecast_stoc(gama=None, urgenta=None):
-    """
-    Stoc curent + viteză vânzări → zile stoc rămase.
-    urgenta: 'critic' (<30z), 'atentie' (30-60z), 'ok' (>60z), None = toate
-    """
-    filters, params = [], {}
-    if gama:
-        filters.append("s.gama = :gama")
-        params["gama"] = gama
-    where = ("AND " + " AND ".join(filters)) if filters else ""
-
-    rows = query(f"""
-        SELECT
-            s.sku,
-            s.furnizor,
-            s.gama,
-            SUM(s.cantitate)                               AS stoc_total,
-            ROUND(SUM(s.cantitate * s.pret_achizitie), 2)  AS valoare_stoc,
-            COALESCE(ROUND(v.vanzari_luna_avg, 1), 0)      AS vanzari_luna_avg,
-            CASE
-                WHEN COALESCE(v.vanzari_luna_avg, 0) > 0
-                THEN CAST(ROUND(SUM(s.cantitate) / (v.vanzari_luna_avg / 30.0)) AS INTEGER)
-                ELSE NULL
-            END                                            AS zile_stoc,
-            MIN(s.data_intrare)                            AS cel_mai_vechi_lot,
-            MAX(s.nr_zile_stoc)                            AS max_zile_in_stoc
-        FROM stoc s
-        LEFT JOIN (
-            SELECT sku, SUM(cantitate) / 3.0 AS vanzari_luna_avg
-            FROM tranzactii
-            WHERE data_dl >= date('now', '-90 days')
-            GROUP BY sku
-        ) v ON s.sku = v.sku
-        WHERE s.data_snapshot = (SELECT MAX(data_snapshot) FROM stoc)
-          AND s.cantitate > 0
-          {where}
-        GROUP BY s.sku, s.furnizor, s.gama
-        ORDER BY zile_stoc ASC, valoare_stoc DESC
-    """, params)
-
-    if urgenta == "critic":
-        rows = [r for r in rows if r["zile_stoc"] is not None and r["zile_stoc"] < 30]
-    elif urgenta == "atentie":
-        rows = [r for r in rows if r["zile_stoc"] is not None and 30 <= r["zile_stoc"] < 60]
-    elif urgenta == "ok":
-        rows = [r for r in rows if r["zile_stoc"] is None or r["zile_stoc"] >= 60]
-
-    return rows
-
-
 def forecast_summary():
     """KPI cards pentru pagina de forecast."""
     return query_one("""
