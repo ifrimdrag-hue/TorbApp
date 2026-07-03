@@ -56,13 +56,13 @@ Full analysis (architecture, both suggestion-algorithm implementations, column-b
 
 **10 P0/P1 items fixed 2026-07-03** (plan `docs/plans/2026-07-03-forecast-p0-p1-fixes.md`, ledger `.superpowers/sdd/progress.md`): A3, A1, A5, B1, B2, B6, C3, C5, B3, A4+C1. See `context/STATUS.md` 2026-07-03 entry for the full list.
 
+**D2 + 2 Minor findings also fixed 2026-07-03** (same day, follow-up cleanup batch): mojibake repair, dead-code removal, test-ordering fix — see ledger for commits.
+
 Still open, ordered by priority / effort:
 - **A2 — Legacy capitalized statuses**: DB values like `In tranzit` vs the lowercase modal can write `status=''`, dropping the order from the transit calculation — the AI agent doesn't see in-transit orders at all. Needs a human/Opus-level decision (status-vocabulary migration touches DB values + UI + agent prompt, not a mechanical fix).
 - **D-DUP — Duplicated per-SKU suggestion logic** between `build_suggestion()` and `forecast_stoc_extended()`. Needs Opus-level judgment (shared-extraction design, cross-cutting).
 - **B4/B5/B7 — Algorithm-quality items** (see analysis doc for specifics). Not a model-tier question — need owner validation of the underlying business logic first.
 - **B8 — Excel round-trip export/import fix.** Not yet assigned a model tier.
-- **D2 — Mojibake / encoding repair.** Must go through the repair script per `docs/TECHNICAL.md` §Encoding — never hand-edit.
-- **Minor (from 2026-07-03 final review, non-blocking):** `get_export_codes()` in `app/forecast/forecast_logic.py:20-31` is dead code since the C3 fix removed its only caller — candidate for deletion. Test-ordering fragility in `tests/test_forecast_queries.py` (order-coupled snapshot dates across 6 accumulated tests) — low priority.
 
 ---
 
