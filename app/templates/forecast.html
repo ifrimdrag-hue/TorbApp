@@ -1276,6 +1276,17 @@ async function openSKUClients(sku) {
       });
       html += `<td class="text-center fw-bold">${total}</td></tr>`;
     });
+
+    const monthTotals = Array(12).fill(0);
+    clients_with_yr.forEach(c => {
+      const vals = c.years[yr] || Array(12).fill(0);
+      vals.forEach((v, i) => monthTotals[i] += v);
+    });
+    const grandTotal = monthTotals.reduce((a,b) => a+b, 0);
+    html += `<tr class="table-light fw-bold"><td>Total</td>`;
+    monthTotals.forEach(v => html += `<td class="text-center">${v > 0 ? v : '—'}</td>`);
+    html += `<td class="text-center">${grandTotal}</td></tr>`;
+
     html += '</tbody></table></div>';
   });
 
