@@ -263,16 +263,10 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
         monthly_hu = sku_data.get('export', {})
         monthly_total = sku_data.get('total', {})
 
-        demand_ro = forecast_logic._coverage_demand(monthly_ro, lead)
-        demand_hu = forecast_logic._coverage_demand(monthly_hu, lead)
-
         available = float(r['stoc_total'] or 0) + float(r['in_tranzit_qty'] or 0)
-        sug_ro = max(0.0, demand_ro - available)
-        surplus = max(0.0, available - demand_ro)
-        sug_hu = max(0.0, demand_hu - surplus)
-
-        r['suggested_ro'] = int(round(sug_ro))
-        r['suggested_hu'] = int(round(sug_hu))
+        split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, available)
+        r['suggested_ro'] = int(round(split['suggested_ro']))
+        r['suggested_hu'] = int(round(split['suggested_export']))
         r['lead_time_days'] = lead
 
         # Actualizează mediile lunare cu istoricul complet (3 ani) în loc de 90 zile
@@ -312,12 +306,10 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
         monthly_total = sku_data.get('total', {})
         avg_total = sum(monthly_total.values()) / 12 if monthly_total else 0
 
-        demand_ro = forecast_logic._coverage_demand(monthly_ro, lead)
-        demand_hu = forecast_logic._coverage_demand(monthly_hu, lead)
         available = float(transit_qty)
-        sug_ro = max(0.0, demand_ro - available)
-        surplus = max(0.0, available - demand_ro)
-        sug_hu = max(0.0, demand_hu - surplus)
+        split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, available)
+        sug_ro = split['suggested_ro']
+        sug_hu = split['suggested_export']
         zile_stoc = 0 if avg_total > 0 else None
 
         rows.append({
@@ -373,8 +365,8 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
         monthly_total = sku_data.get('total', {})
         avg_total = sum(monthly_total.values()) / 12 if monthly_total else 0
         lead = lt_map.get(furn, 30)
-        demand_ro = forecast_logic._coverage_demand(monthly_ro, lead)
-        demand_hu = forecast_logic._coverage_demand(monthly_hu, lead)
+        # Fără stoc și fără tranzit → available = 0, deci sugestia = cererea completă.
+        split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, 0)
         # Derivă cod furnizor din SKU dacă nu e în stoc istoric (ex: "71725" → "71725-00")
         cod_mare = row_s['cod_mare']
         if not cod_mare:
@@ -397,8 +389,8 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
             'in_tranzit':        [],
             'in_tranzit_qty':    0,
             'in_tranzit_eta_min': None,
-            'suggested_ro':      int(round(max(0.0, demand_ro))),
-            'suggested_hu':      int(round(max(0.0, demand_hu))),
+            'suggested_ro':      int(round(split['suggested_ro'])),
+            'suggested_hu':      int(round(split['suggested_export'])),
             'lead_time_days':    lead,
         })
         existing_skus.add(sku)

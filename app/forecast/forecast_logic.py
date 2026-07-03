@@ -147,6 +147,28 @@ def _coverage_demand(monthly_avg: dict, lead_time_days: int) -> float:
     return total
 
 
+def _ro_hu_split(monthly_ro: dict, monthly_export: dict,
+                 lead_days: int, available: float) -> dict:
+    """RO-first demand split shared by both suggestion paths (Tab 1 & Tab 2).
+
+    Common stock + in-transit (`available`) covers the RO coverage demand
+    first; only the leftover surplus offsets the separate export order.
+    Returns the two coverage demands and the two non-negative suggested
+    quantities as floats — callers round to their own convention.
+    """
+    demand_ro = _coverage_demand(monthly_ro, lead_days)
+    demand_export = _coverage_demand(monthly_export, lead_days)
+    suggested_ro = max(0.0, demand_ro - available)
+    surplus = max(0.0, available - demand_ro)
+    suggested_export = max(0.0, demand_export - surplus)
+    return {
+        'demand_ro': demand_ro,
+        'demand_export': demand_export,
+        'suggested_ro': suggested_ro,
+        'suggested_export': suggested_export,
+    }
+
+
 def _listing_changes(furnizor: str) -> dict:
     """
     Returns {sku: {'new': N, 'lost': N}} — clients listing/delisting vs same period last year.
@@ -278,8 +300,6 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
         cod_produs = stock.get(sku, {}).get('cod') or sku_data.get('cod_produs')
 
         demand_total = _coverage_demand(sku_monthly_total, lead_days)
-        demand_ro = _coverage_demand(sku_monthly_ro, lead_days)
-        demand_export = _coverage_demand(sku_monthly_export, lead_days)
         s_idx = _seasonality_index(sku_monthly_total)
 
         zile_stoc = None
@@ -288,12 +308,13 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
             zile_stoc = int(total_available / (avg_monthly / 30))
 
         # Stocul comun + tranzitul acopera intai cererea RO; surplusul
-        # ramane disponibil pentru export. Comanda separata catre furnizor
-        # pentru export = demand_export - surplus.
+        # ramane disponibil pentru export (vezi _ro_hu_split).
         available = stoc_qty + transit_qty
-        suggested_ro = max(0, round(demand_ro - available))
-        surplus_dupa_ro = max(0, available - demand_ro)
-        suggested_export = max(0, round(demand_export - surplus_dupa_ro))
+        split = _ro_hu_split(sku_monthly_ro, sku_monthly_export, lead_days, available)
+        demand_ro = split['demand_ro']
+        demand_export = split['demand_export']
+        suggested_ro = round(split['suggested_ro'])
+        suggested_export = round(split['suggested_export'])
         suggested_total = suggested_ro + suggested_export
 
         is_xmas = bool(sezon_c) and (s_idx.get(10, 0) > 1.3 or s_idx.get(11, 0) > 1.3)
