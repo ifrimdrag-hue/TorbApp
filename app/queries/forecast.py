@@ -187,8 +187,7 @@ def forecast_stoc_brand(furnizor=None, gama=None, urgenta=None, search=None):
                SUM(l.cantitate_comandata) AS qty
         FROM comenzi_furnizori_linii l
         JOIN comenzi_furnizori c ON c.id = l.comanda_id
-        WHERE c.status IN ('In tranzit', 'Confirmata', 'Emisa',
-                           'in_tranzit', 'confirmata', 'emisa')
+        WHERE c.status IN ('confirmata', 'in_tranzit')
           AND l.cantitate_comandata > 0
         GROUP BY l.sku, c.nr_comanda, c.eta, c.data_estimata_livrare
         ORDER BY l.sku, c.eta
@@ -275,8 +274,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
                SUM(COALESCE(l.cantitate_confirmata, l.cantitate_comandata)) AS qty
         FROM comenzi_furnizori_linii l
         JOIN comenzi_furnizori c ON c.id = l.comanda_id
-        WHERE c.status IN ('In tranzit', 'Confirmata', 'Emisa',
-                           'in_tranzit', 'confirmata', 'emisa')
+        WHERE c.status IN ('confirmata', 'in_tranzit')
           AND COALESCE(l.cantitate_confirmata, l.cantitate_comandata) > 0
         GROUP BY l.sku, c.nr_comanda, c.data_estimata_livrare
         ORDER BY l.sku, c.data_estimata_livrare

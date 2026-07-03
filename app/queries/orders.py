@@ -85,6 +85,10 @@ def comanda_update(comanda_id: int, **kwargs):
     allowed = {'nr_comanda', 'status', 'data_estimata_livrare',
                'data_confirmare_furnizor', 'observatii'}
     fields = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+    # Never write an empty status: an unmatched UI dropdown posts status='',
+    # which would drop the order from every in-transit calculation (finding A2).
+    if 'status' in fields and not str(fields['status']).strip():
+        fields.pop('status')
     if not fields:
         return
     sets = ', '.join(f"{k} = :{k}" for k in fields)

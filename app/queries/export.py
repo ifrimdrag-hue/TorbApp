@@ -112,7 +112,7 @@ def stoc_ro_hu(furnizor: str = None) -> dict:
 
 def in_transit_ro_hu(furnizor: str) -> dict:
     """Cantitate în tranzit per SKU per piată din comenzi active.
-    Status active: 'Emisa', 'Confirmata', 'In tranzit'.
+    Status active: 'confirmata', 'in_tranzit'.
     Returnează {sku: {'ro': qty, 'hu': qty, 'comenzi': [...]}}
     """
     rows = query("""
@@ -126,7 +126,7 @@ def in_transit_ro_hu(furnizor: str) -> dict:
         FROM comenzi_furnizori_linii l
         JOIN comenzi_furnizori cf ON cf.id = l.comanda_id
         WHERE cf.furnizor = :furnizor
-          AND cf.status IN ('Emisa','Confirmata','In tranzit')
+          AND cf.status IN ('confirmata','in_tranzit')
         ORDER BY cf.data_comanda
     """, {'furnizor': furnizor})
 

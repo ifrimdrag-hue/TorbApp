@@ -51,7 +51,7 @@ def get_lead_time(furnizor: str) -> dict:
 
 
 def get_in_transit(furnizor: str) -> dict:
-    """Returns {sku: qty} for orders in emisa / confirmata / in_tranzit status."""
+    """Returns {sku: qty} for orders in confirmata / in_tranzit status."""
     try:
         rows = query("""
             SELECT l.sku,
@@ -59,8 +59,7 @@ def get_in_transit(furnizor: str) -> dict:
             FROM comenzi_furnizori_linii l
             JOIN comenzi_furnizori c ON c.id = l.comanda_id
             WHERE c.furnizor = :f
-              AND c.status IN ('emisa', 'confirmata', 'in_tranzit',
-                               'Emisa', 'Confirmata', 'In tranzit')
+              AND c.status IN ('confirmata', 'in_tranzit')
             GROUP BY l.sku
         """, {'f': furnizor})
         return {_normalize_sku(r['sku']): (r['qty'] or 0) for r in rows}
