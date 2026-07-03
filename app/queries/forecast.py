@@ -56,32 +56,30 @@ def forecast_summary():
     """KPI cards pentru pagina de forecast."""
     return query_one("""
         SELECT
-            COUNT(DISTINCT s.sku)                                       AS nr_sku,
-            ROUND(SUM(s.cantitate * s.pret_achizitie), 0)               AS valoare_totala,
-            SUM(CASE WHEN zile.zile_stoc IS NOT NULL AND zile.zile_stoc < 30  THEN 1 ELSE 0 END) AS critic,
-            SUM(CASE WHEN zile.zile_stoc IS NOT NULL AND zile.zile_stoc BETWEEN 30 AND 59 THEN 1 ELSE 0 END) AS atentie,
-            SUM(CASE WHEN zile.zile_stoc IS NULL OR zile.zile_stoc >= 60 THEN 1 ELSE 0 END) AS ok
-        FROM stoc s
-        LEFT JOIN (
-            SELECT s2.sku,
+            COUNT(*)                                                     AS nr_sku,
+            ROUND(SUM(valoare_stoc), 0)                                  AS valoare_totala,
+            SUM(CASE WHEN zile_stoc IS NOT NULL AND zile_stoc < 30  THEN 1 ELSE 0 END) AS critic,
+            SUM(CASE WHEN zile_stoc IS NOT NULL AND zile_stoc BETWEEN 30 AND 59 THEN 1 ELSE 0 END) AS atentie,
+            SUM(CASE WHEN zile_stoc IS NULL OR zile_stoc >= 60 THEN 1 ELSE 0 END) AS ok
+        FROM (
+            SELECT s.sku,
+                SUM(s.cantitate * s.pret_achizitie) AS valoare_stoc,
                 CASE
                     WHEN COALESCE(v.vanzari_luna_avg, 0) > 0
-                    THEN CAST(ROUND(SUM(s2.cantitate) / (v.vanzari_luna_avg / 30.0)) AS INTEGER)
+                    THEN CAST(ROUND(SUM(s.cantitate) / (v.vanzari_luna_avg / 30.0)) AS INTEGER)
                     ELSE NULL
                 END AS zile_stoc
-            FROM stoc s2
+            FROM stoc s
             LEFT JOIN (
                 SELECT sku, SUM(cantitate) / 3.0 AS vanzari_luna_avg
                 FROM tranzactii
                 WHERE data_dl >= date('now', '-90 days')
                 GROUP BY sku
-            ) v ON s2.sku = v.sku
-            WHERE s2.data_snapshot = (SELECT MAX(data_snapshot) FROM stoc)
-              AND s2.cantitate > 0
-            GROUP BY s2.sku
-        ) zile ON s.sku = zile.sku
-        WHERE s.data_snapshot = (SELECT MAX(data_snapshot) FROM stoc)
-          AND s.cantitate > 0
+            ) v ON s.sku = v.sku
+            WHERE s.data_snapshot = (SELECT MAX(data_snapshot) FROM stoc)
+              AND s.cantitate > 0
+            GROUP BY s.sku
+        )
     """)
 
 
