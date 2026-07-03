@@ -17,20 +17,6 @@ MONTHS_RO = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun',
 SAFETY_DAYS = 30
 
 
-def get_export_codes() -> tuple:
-    """Lista cod_client pentru clienții export, citită dinamic din DB.
-
-    Configurabilă din UI (tab Setări → Clienți Export). Doar clienții
-    activi sunt incluși în calculul sugestiei de comandă export.
-    """
-    try:
-        rows = query("SELECT cod_client FROM clienti_export WHERE activ = 1")
-        return tuple(r['cod_client'] for r in rows)
-    except Exception:
-        logger.warning("get_export_codes failed", exc_info=True)
-        return ()
-
-
 def _normalize_sku(sku: str) -> str:
     """Normalize SKU variants so ERP-format and stoc-format match.
 
