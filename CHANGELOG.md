@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Leonex order import — map supplier codes to Cod TORB (2026-07-03)
+
+- New `corr_leonex_cod_mapping` table (migration 0014, mirrored in `etl/rebuild_db.py`) mapping Leonex supplier codes (`MK…`) to Torb internal codes (`cod_mare`), seeded with 10 pairs
+- `etl/import_comenzi_tranzit_leonex.py` now resolves `MK → cod_torb → stoc.sku` and stores each order line under the Torb identity, so in-transit orders merge into the correct product row in the stock/orders view instead of surfacing as stray MK-coded rows
+- Unmapped codes are skipped and reported (`AVERTISMENT:` line → amber note in the upload UI); upload job surfaces the warning via a new `avertisment` field
+- Documented in `docs/BUSINESS_LOGIC.md` §8 and `docs/TECHNICAL.md` §Data
+
 ### Documentation reorganization (2026-07-02)
 
 - Consolidated all project documentation into four category files under `docs/`:

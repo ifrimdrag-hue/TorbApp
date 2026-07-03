@@ -281,3 +281,25 @@ Quick orientation:
 - UI: `/forecast` (5 tabs + AI agent); CLI: `tools/run_forecast.ps1`, `tools/run_backtest.ps1`
 - Results tables: `forecasts`, `reorder_suggestions`, `forecast_runs`, `forecast_backtests`; per-brand business rules (lead times, safety stock, seasonal restrictions) in `brands_config`
 - Full page audit (architecture, suggestion algorithm, column-by-column reference, API, 20 ranked issues): `docs/analysis/forecast_page_analysis.md` (2026-07-02); open findings tracked in `docs/BACKLOG.md`
+
+---
+
+## 8. Supplier order imports — code mapping (Leonex)
+
+In-transit supplier orders are imported per brand (`etl/import_comenzi_tranzit_*.py`)
+into `comenzi_furnizori` + `comenzi_furnizori_linii`, then merged into the
+stock/orders view (`/forecast`, Operational → Stoc & comenzi) **by `sku`**.
+
+**Leonex trap:** the Leonex Order Form uses the supplier's own article codes
+(`MK…`, e.g. `MK000928`) with English descriptions — these exist nowhere in
+Torb's stock, so a line stored under the raw MK code cannot merge and surfaces as
+a stray zero-stock row. Fix (delivered 2026-07-03, migration 0014):
+`corr_leonex_cod_mapping` maps each `MK…` → Cod TORB (`stoc.cod_mare`, e.g. `584`);
+the importer resolves `MK → cod_torb → stoc.sku` and stores each line under the
+Torb identity (`cod_furnizor = cod_torb`, `sku`/`descriere` = Torb SKU name).
+
+- The mapping is **seeded once** (10 pairs); it is not auto-derivable — MK codes
+  appear in no stock column.
+- Lines whose MK code is **not in the mapping are skipped** (not stored) and
+  reported via an `AVERTISMENT:` line, surfaced as an amber note in the upload UI
+  so a new code can be added to the table.

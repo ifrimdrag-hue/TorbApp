@@ -452,6 +452,10 @@ def main(vanzari_file=None):
             moneda                  TEXT    DEFAULT 'EUR',
             observatii              TEXT
         );
+        CREATE TABLE IF NOT EXISTS corr_leonex_cod_mapping (
+            cod_furnizor TEXT PRIMARY KEY,
+            cod_torb     TEXT NOT NULL
+        );
 
         CREATE TABLE IF NOT EXISTS clienti_export (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -540,6 +544,17 @@ def main(vanzari_file=None):
         cfg_conn.execute(
             "INSERT OR IGNORE INTO termene_aprovizionare (furnizor, zile_livrare, sezon_craciun, observatii)"
             " VALUES (?, ?, ?, ?)", (furnizor, zile, sezon, obs)
+        )
+    # Seed Leonex supplier-code -> Cod TORB mapping (INSERT OR IGNORE)
+    for cod_furnizor, cod_torb in [
+        ('MK001730', '1683'), ('MK001728', '1571'), ('MK000928', '584'),
+        ('MK001731', '1574'), ('MK000497', '580'),  ('MK000493', '579'),
+        ('MK000927', '978'),  ('MK001729', '1570'), ('MK000929', '583'),
+        ('MK001899', '1701'),
+    ]:
+        cfg_conn.execute(
+            "INSERT OR IGNORE INTO corr_leonex_cod_mapping (cod_furnizor, cod_torb) VALUES (?, ?)",
+            (cod_furnizor, cod_torb)
         )
     # Migrare coloane lipsă din comenzi_furnizori_linii (schema evolutivă)
     extra_cols = [

@@ -17,6 +17,12 @@ diverted at ERP import; consumed by the Auchan-import cost override
 
 Forecast tables live here too — see `app/forecast/README.md`.
 
+Correction/lookup tables use a `corr_` prefix. `corr_leonex_cod_mapping`
+(migration 0014) maps Leonex supplier article codes (`MK…`) to Torb internal
+codes (`cod_mare`, "Cod TORB"); consumed by `etl/import_comenzi_tranzit_leonex.py`
+so imported order lines resolve to the correct Torb product
+(`docs/BUSINESS_LOGIC.md` §8).
+
 Migrations are versioned in `migrations/` (`NNNN_YYYYMMDD_description.py`), applied automatically on Flask startup and explicitly in CI before service restart. `schema_version` table tracks applied versions; the runner is idempotent.
 
 **Reading Excel files** — use `openpyxl` with `read_only=True` for large files:

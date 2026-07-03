@@ -260,8 +260,11 @@ function pollStatus(zone, jobId, fileName) {
         clearInterval(timer);
         if (d.status === 'done') {
           const rows = d.randuri != null ? ' · ' + Number(d.randuri).toLocaleString('ro') + ' rând.' : '';
+          const warn = d.avertisment
+            ? '<div class="text-warning-emphasis small mt-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>' + escHtml(d.avertisment) + '</div>'
+            : '';
           setZoneState(zone, 'success',
-            '<i class="bi bi-check-circle-fill me-1"></i>' + escHtml(fileName) + rows);
+            '<i class="bi bi-check-circle-fill me-1"></i>' + escHtml(fileName) + rows + warn);
         } else {
           setZoneState(zone, 'error',
             '<i class="bi bi-x-circle me-1"></i>' + escHtml(d.mesaj || 'Eroare import'));

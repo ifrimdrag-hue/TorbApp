@@ -14,7 +14,8 @@ Coloane:
   [8] Pallets          → cantitate_baxuri
 
 Rândurile cu cantitate = 0 sunt sărite (produse necomandante în acest order).
-SKU-ul este mapat din cod_furnizor (ex: MK001730) prin stoc/tranzactii.
+cod_furnizor (ex: MK000928) e mapat la Cod TORB via corr_leonex_cod_mapping,
+apoi la SKU-ul Torb din stoc. Liniile fără mapare sunt sărite și raportate.
 Data comenzii extrasă din numele fișierului (ex: Order 92 from 27.05.2026 ipek.xls → 2026-05-27).
 
 Usage:
@@ -80,33 +81,29 @@ def lead_time_days(conn, furnizor):
     return row[0] if row else 45
 
 
-def map_leonex_ref_to_sku(conn, ref):
-    """Mapează codul Leonex (ex: MK001730) la SKU din stoc/tranzactii."""
+def map_leonex_ref_to_torb(conn, ref):
+    """Mapează codul furnizor Leonex (ex: MK000928) la (cod_torb, sku).
+
+    MK... → corr_leonex_cod_mapping.cod_torb → stoc.sku (cod_mare = cod_torb,
+    ultimul snapshot). Întoarce (None, None) dacă lipsește maparea sau produsul
+    Torb nu există în stoc."""
     if not ref:
-        return None
-    # 1) Match exact pe stoc.cod_mare
+        return None, None
     row = conn.execute(
-        "SELECT sku FROM stoc WHERE cod_mare = ? ORDER BY data_snapshot DESC LIMIT 1",
+        "SELECT cod_torb FROM corr_leonex_cod_mapping WHERE cod_furnizor = ?",
         (ref,)
     ).fetchone()
-    if row:
-        return row[0]
-    # 2) Match pe stoc.cod_produs sau sku conținând ref
-    row = conn.execute(
-        "SELECT sku FROM stoc WHERE cod_produs = ? OR sku LIKE ? "
-        "ORDER BY data_snapshot DESC LIMIT 1",
-        (ref, f"%{ref}%")
+    if not row:
+        return None, None
+    cod_torb = row[0]
+    srow = conn.execute(
+        "SELECT sku FROM stoc WHERE cod_mare = ? "
+        "AND data_snapshot = (SELECT MAX(data_snapshot) FROM stoc) LIMIT 1",
+        (cod_torb,)
     ).fetchone()
-    if row:
-        return row[0]
-    # 3) Fallback în tranzactii
-    row = conn.execute(
-        "SELECT DISTINCT sku FROM tranzactii "
-        "WHERE cod_produs = ? OR sku LIKE ? "
-        "ORDER BY LENGTH(sku) LIMIT 1",
-        (ref, f"%{ref}%")
-    ).fetchone()
-    return row[0] if row else None
+    if not srow:
+        return None, None
+    return cod_torb, srow[0]
 
 
 def read_order_lines(filepath):
@@ -182,8 +179,26 @@ def import_file(filepath, eta=None, force=False):
                    else date.fromtimestamp(os.path.getmtime(filepath))
             eta = (base + timedelta(days=lead_time_days(conn, "Leonex"))).isoformat()
 
-        order_no   = os.path.splitext(file_src)[0]
-        total_eur  = round(sum(line.get("total_valuta") or 0 for line in lines), 2)
+        order_no = os.path.splitext(file_src)[0]
+
+        # Rezolvă fiecare linie la identitatea Torb (cod_torb + sku). Liniile
+        # fără mapare sunt sărite și raportate la final.
+        resolved      = []
+        unmapped_refs = []
+        for line in lines:
+            cod_torb, sku = map_leonex_ref_to_torb(conn, line["cod_furnizor"])
+            if not cod_torb:
+                unmapped_refs.append(line["cod_furnizor"])
+                continue
+            resolved.append({**line, "cod_torb": cod_torb, "sku": sku})
+
+        if not resolved:
+            print("    ! Nicio linie mapată — comanda nu a fost creată.")
+            if unmapped_refs:
+                print(f"AVERTISMENT: {len(unmapped_refs)} linii sarite (coduri nemapate): {', '.join(unmapped_refs)}")
+            return 0
+
+        total_eur = round(sum(line.get("total_valuta") or 0 for line in resolved), 2)
 
         if existing and force:
             print(f"    --force: șterg comanda existentă id={existing[0]}")
@@ -200,15 +215,7 @@ def import_file(filepath, eta=None, force=False):
               f"Importat din {file_src} | În tranzit | ETA {eta}"))
         comanda_id = cur.lastrowid
 
-        inserted   = 0
-        unmatched  = 0
-        unmatched_refs = []
-        for line in lines:
-            sku = map_leonex_ref_to_sku(conn, line["cod_furnizor"])
-            if not sku:
-                sku = line["descriere"] or line["cod_furnizor"]
-                unmatched += 1
-                unmatched_refs.append(line["cod_furnizor"])
+        for line in resolved:
             conn.execute("""
                 INSERT INTO comenzi_furnizori_linii
                     (comanda_id, sku, cod_furnizor, descriere,
@@ -216,18 +223,17 @@ def import_file(filepath, eta=None, force=False):
                      pret_valuta, moneda, total_valuta)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'EUR', ?)
             """, (
-                comanda_id, sku, line["cod_furnizor"], line["descriere"],
+                comanda_id, line["sku"], line["cod_torb"], line["sku"],
                 line["units_per_carton"], line["cantitate_baxuri"],
                 line["cantitate_comandata"], line["pret_valuta"],
                 line["total_valuta"],
             ))
-            inserted += 1
 
         conn.commit()
-        print(f"    OK comanda_id={comanda_id} | {inserted} linii ({unmatched} fără mapare SKU) | total {total_eur:,.2f} EUR | ETA {eta}")
-        if unmatched_refs:
-            print(f"    Refs nemapate: {unmatched_refs}")
-        return inserted
+        print(f"    OK comanda_id={comanda_id} | {len(resolved)} linii | total {total_eur:,.2f} EUR | ETA {eta}")
+        if unmapped_refs:
+            print(f"AVERTISMENT: {len(unmapped_refs)} linii sarite (coduri nemapate): {', '.join(unmapped_refs)}")
+        return len(resolved)
     finally:
         conn.close()
 

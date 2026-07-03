@@ -290,9 +290,15 @@ def _run_upload_job(job_id: str, tip: str, fisier_orig: str, dest_path: str):
                 _upload_jobs[job_id] = {'status': 'error', 'mesaj': error_detail, 'randuri': randuri}
         else:
             mesaj = f'Import finalizat: {randuri or "?"} rÃ¢nduri'
+            avert = None
+            m_av = _re.search(r'^AVERTISMENT:\s*(.+)$', output, _re.MULTILINE)
+            if m_av:
+                avert = m_av.group(1).strip()
+                mesaj += f' | {avert}'
             _log_import(tip, fisier_orig, randuri, durata, 'ok', mesaj)
             with _upload_jobs_lock:
-                _upload_jobs[job_id] = {'status': 'done', 'mesaj': mesaj, 'randuri': randuri}
+                _upload_jobs[job_id] = {'status': 'done', 'mesaj': mesaj,
+                                        'randuri': randuri, 'avertisment': avert}
     except _sub.TimeoutExpired:
         durata = _time.time() - t0
         logger.error("upload job %s timed out after 300s (tip=%s)", job_id, tip)
