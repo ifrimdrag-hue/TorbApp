@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Stoc & Aprovizionare — Torb Logistic{% endblock %}
+{% block title %}Stoc & Comenzi — Torb Logistic{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0"><i class="bi bi-boxes text-primary me-2"></i>Stoc & Aprovizionare</h4>
+  <h4 class="mb-0"><i class="bi bi-boxes text-primary me-2"></i>Stoc & Comenzi</h4>
   <div class="d-flex align-items-center gap-2">
     <span class="text-muted small">
       Snapshot: <strong>{{ stoc_snapshot or '—' }}</strong>
@@ -65,7 +65,41 @@
    ════════════════════════════════════════════════════════════════════ #}
 <div id="tab-stoc" {% if tab != 'stoc' %}style="display:none"{% endif %}>
 
-  <div class="row g-3 mb-4">
+<style>
+  /* ── Stoc & Comenzi: fit as much data on screen as possible ── */
+
+  /* Compress the table (padding only, fonts unchanged) */
+  #tab-stoc .table > :not(caption) > * > * { padding: .15rem .35rem; }
+  #tab-stoc .table .badge { padding: .18em .4em; }
+  #tab-stoc .table td, #tab-stoc .table th { line-height: 1.2; }
+
+  /* Compact KPI strip so it steals less vertical room */
+  #stocSummary .card-body { padding: .35rem .5rem; }
+  #stocSummary .fs-2 { font-size: 1.25rem !important; }
+
+  /* Fill the viewport: the table card grows to the bottom of the screen,
+     so the sticky header AND the horizontal scrollbar always stay in view. */
+  #tab-stoc { display: flex; flex-direction: column; height: calc(100vh - 130px); }
+  #stocTableCard { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  #stocTableCard .table-responsive { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+  /* Opaque cell backgrounds so frozen columns hide content scrolling under them
+     (variant rows still override --bs-table-bg with their own colour). */
+  #tab-stoc .table { --bs-table-bg: var(--bs-body-bg, #fff); }
+
+  /* Freeze the first two columns (Cod furnizor + SKU) */
+  #tab-stoc .table > :not(caption) > * > *:nth-child(1) {
+    position: sticky; left: 0; min-width: 92px; max-width: 92px; z-index: 1;
+  }
+  #tab-stoc .table > :not(caption) > * > *:nth-child(2) {
+    position: sticky; left: 92px; min-width: 190px; z-index: 1;
+  }
+  /* Header corners must sit above both the sticky body cells and sticky header */
+  #tab-stoc .table thead th:nth-child(1),
+  #tab-stoc .table thead th:nth-child(2) { z-index: 3; }
+</style>
+
+  <div id="stocSummary" class="row g-2 mb-2">
     <div class="col-6 col-md-3">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body text-center">
@@ -172,7 +206,7 @@
     <div class="col-auto align-self-end text-muted small">{{ rows|length }} SKU-uri</div>
   </form>
 
-  <div class="card border-0 shadow-sm">
+  <div id="stocTableCard" class="card border-0 shadow-sm">
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle mb-0" style="font-size:.82rem">
         <thead class="table-dark sticky-top">
@@ -180,18 +214,18 @@
             <th>Cod furnizor</th><th>SKU</th><th>Brand</th>
             <th class="text-end">Stoc (buc)</th>
             <th class="text-end">Val. stoc</th>
-            <th>În tranzit (per comandă)</th>
+            <th>În tranzit (comenzi)</th>
             <th class="text-end">Stoc + tranzit</th>
             <th class="text-end">Vânz./lună<br><span class="fw-normal opacity-75" style="font-size:.85em">({{ '3 ani' if sel_vel == '3ani' else '90 zile' }})</span></th>
             <th class="text-center">Zile stoc</th>
             <th class="text-center">Zile cu tranzit</th>
             <th class="text-center">Urgență</th>
-            <th>Cel mai vechi lot</th>
+            <th>Vechime</th>
             <th class="text-center" title="Istoric vânzări pe clienți">Clienți</th>
-            <th class="text-end" style="background:rgba(13,110,253,.25);min-width:90px"
+            <th class="text-end" style="background:#1c375e;min-width:90px"
                 title="Sugestie cantitate de comandat piața RO (editabil)">Sug. RO</th>
-            <th class="text-end" style="background:rgba(255,193,7,.25);min-width:90px"
-                title="Sugestie cantitate de comandat Export HU (editabil)">Sug. HU 🇭🇺</th>
+            <th class="text-end" style="background:#594c21;min-width:90px"
+                title="Sugestie cantitate de comandat Export HU (editabil)">Sug. HU</th>
             <th class="text-center" style="min-width:80px">+ Comandă</th>
           </tr>
         </thead>
@@ -218,7 +252,7 @@
             <td class="text-end">{{ r.valoare_stoc | ron }}</td>
             <td>
               {% if r.in_tranzit %}
-                <div class="d-flex flex-wrap gap-1">
+                <div class="d-flex flex-column align-items-start gap-1">
                 {% for o in r.in_tranzit %}
                   {# Color the chip based on ETA proximity vs days_of_stock:
                      - green: ETA before stock-out (will arrive in time)
@@ -253,7 +287,7 @@
             </td>
             <td class="text-end text-muted">{% if r.vanzari_luna_avg > 0 %}{{ r.vanzari_luna_avg }}{% else %}—{% endif %}</td>
             <td class="text-center fw-bold">{% if zile is not none %}{{ zile }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
-            <td class="text-center text-info">
+            <td class="text-center text-info-emphasis fw-semibold">
               {% if tranz > 0 and zile_total is not none %}{{ zile_total }}{% else %}<span class="text-muted">—</span>{% endif %}
             </td>
             <td class="text-center">{{ badge | safe }}</td>
