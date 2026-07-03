@@ -241,7 +241,9 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
                     ELSE NULL END                              AS zile_stoc,
                MIN(s.data_intrare)                            AS cel_mai_vechi_lot,
                COALESCE(ROUND(v_split.avg_ro, 1), 0)          AS avg_monthly_ro,
-               COALESCE(ROUND(v_split.avg_hu, 1), 0)          AS avg_monthly_hu
+               COALESCE(ROUND(v_split.avg_hu, 1), 0)          AS avg_monthly_hu,
+               cl.pret_achizitie_valuta                       AS pret_valuta,
+               cl.moneda                                      AS moneda_valuta
         FROM stoc s
         LEFT JOIN (
             SELECT sku, SUM(cantitate) / 3.0 AS vanzari_luna_avg
@@ -257,6 +259,8 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
             FROM tranzactii WHERE data_dl >= date('now', '-90 days')
             GROUP BY sku
         ) v_split ON s.sku = v_split.sku
+        LEFT JOIN costuri_landing cl ON cl.sku = s.sku
+            AND cl.an = (SELECT MAX(an) FROM costuri_landing WHERE sku = s.sku)
         WHERE s.data_snapshot = (SELECT MAX(data_snapshot) FROM stoc)
           AND s.cantitate > 0 {where}
         GROUP BY s.sku, s.furnizor, s.gama
@@ -380,6 +384,8 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
             'vanzari_luna_avg':  round(avg_total, 1),
             'zile_stoc':         zile_stoc,
             'cel_mai_vechi_lot': None,
+            'pret_valuta':       None,
+            'moneda_valuta':     None,
             'avg_monthly_ro':    round(sum(monthly_ro.values()) / 12, 1) if monthly_ro else 0,
             'avg_monthly_hu':    round(sum(monthly_hu.values()) / 12, 1) if monthly_hu else 0,
             'in_tranzit':        orders,
@@ -438,6 +444,8 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
             'vanzari_luna_avg':  round(avg_total, 1),
             'zile_stoc':         0,
             'cel_mai_vechi_lot': None,
+            'pret_valuta':       None,
+            'moneda_valuta':     None,
             'avg_monthly_ro':    round(sum(monthly_ro.values()) / 12, 1) if monthly_ro else 0,
             'avg_monthly_hu':    round(sum(monthly_hu.values()) / 12, 1) if monthly_hu else 0,
             'in_tranzit':        [],
