@@ -129,3 +129,29 @@ def test_transit_eta_prefers_eta_column(db_path, client):
     assert rows[0]['in_tranzit'][0]['eta'] == '2026-07-21', (
         "should prefer the newer `eta` column over the stale `data_estimata_livrare`"
     )
+
+
+def test_monthly_sales_by_sku_survives_quote_in_export_code(db_path, client):
+    conn = _conn(db_path)
+    # A client code containing a single quote — breaks the old f-string-interpolated SQL
+    conn.execute("""
+        INSERT INTO clienti_export (tara_id, cod_client, nume_client, activ)
+        VALUES (1, "O'BRIEN", 'OBrien Ltd', 1)
+    """)
+    conn.execute("""
+        INSERT INTO tranzactii (luna, an, data_dl, sku, furnizor, cantitate,
+                                 cod_produs, client, cod_client, agent,
+                                 pret_vanzare, tva_pct, pret_cumparare,
+                                 val_bruta, val_neta, val_achizitie, marja_bruta, discount_pct)
+        VALUES (1, 2025, '2025-01-10', 'SKU-C3-001', 'TestBrandC3', 20,
+                'C3-001', 'OBrien Ltd', "O'BRIEN", 'Agent Test',
+                10, 0.09, 5, 200, 180, 100, 80, 0)
+    """)
+    conn.commit()
+    conn.close()
+
+    from forecast import forecast_logic
+    result = forecast_logic._monthly_sales_by_sku('TestBrandC3')  # must not raise
+    assert 'SKU-C3-001' in result
+    assert result['SKU-C3-001']['export'].get(1) == 20, "sale should be attributed to export (O'BRIEN is active)"
+    assert result['SKU-C3-001']['ro'].get(1, 0) == 0

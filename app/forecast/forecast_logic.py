@@ -95,13 +95,7 @@ def _monthly_sales_by_sku(furnizor: str) -> dict:
     'total' = ro + export (preluat ca avg_monthly în sugestie).
     """
     cutoff_year = datetime.date.today().year - 3
-    export_codes = get_export_codes()
-    if export_codes:
-        placeholders = ",".join(f"'{str(c)}'" for c in export_codes)
-        export_clause = f"cod_client IN ({placeholders})"
-    else:
-        # Fără clienți export configurați → toate vânzările sunt RO
-        export_clause = "0"
+    export_clause = "cod_client IN (SELECT cod_client FROM clienti_export WHERE activ = 1)"
     rows = query(f"""
         SELECT t.sku, t.luna, t.an,
                SUM(CASE WHEN {export_clause} THEN cantitate ELSE 0 END) AS qty_exp,
