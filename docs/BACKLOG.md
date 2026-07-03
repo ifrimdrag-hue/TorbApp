@@ -58,11 +58,14 @@ Full analysis (architecture, both suggestion-algorithm implementations, column-b
 
 **D2 + 2 Minor findings also fixed 2026-07-03** (same day, follow-up cleanup batch): mojibake repair, dead-code removal, test-ordering fix — see ledger for commits.
 
-Still open, ordered by priority / effort:
-- **A2 — Legacy capitalized statuses**: DB values like `In tranzit` vs the lowercase modal can write `status=''`, dropping the order from the transit calculation — the AI agent doesn't see in-transit orders at all. Needs a human/Opus-level decision (status-vocabulary migration touches DB values + UI + agent prompt, not a mechanical fix).
-- **D-DUP — Duplicated per-SKU suggestion logic** between `build_suggestion()` and `forecast_stoc_extended()`. Needs Opus-level judgment (shared-extraction design, cross-cutting).
-- **B4/B5/B7 — Algorithm-quality items** (see analysis doc for specifics). Not a model-tier question — need owner validation of the underlying business logic first.
-- **B8 — Excel round-trip export/import fix.** Not yet assigned a model tier.
+**A2/C4/B8/D1/D-DUP fixed 2026-07-03** (Opus session): status-vocabulary migration (0016) + empty-status guard (A2/C2), foreign_keys pragma (C4), order Excel round-trip column (B8), dead `forecast_stoc()` removed (D1), shared `_ro_hu_split()` extracted (D-DUP, behaviour-preserving). See `context/STATUS.md` 2026-07-03 entry + ledger.
+
+Still open — **owner validation required** (these change suggestion numbers; tie into the open Basilur forecast validation, STATUS item 4b):
+- **B4 — Demand overstated for delisted/declining SKUs**: `_monthly_sales_by_sku` averages only across years that had sales, so a SKU that sold in 2024 and nothing since still shows its old average → keeps reordering dead items. Fix option: zero-fill months since first sale, or weight recent 12 months. Needs owner call on the averaging window.
+- **B5 — In-transit counts forever, even overdue**: full in-transit qty is subtracted regardless of ETA; orders weeks past ETA still suppress suggestions. Fix option: exclude/flag transit overdue by > X days. Needs owner call on X.
+- **B7 — Urgency semantics differ per tab**: Tab 1 fixed 30/60-day thresholds vs Tab 2 lead-time-based. Needs owner call on which is canonical (fixed thresholds are meaningless for a 120-day-lead brand).
+
+Also open by design (owner-facing behavior decision, not a bug): the **page-vs-Excel velocity divergence** (analysis §4.1) — the Tab-1 Excel export uses `forecast_stoc_brand` (raw 90-day velocity) while the page shows the 3-year seasonal average, so exported numbers can differ from the screen.
 
 ---
 

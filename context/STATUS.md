@@ -54,6 +54,15 @@
 
 ## Livrări recente
 
+- **2026-07-03 — Al doilea val de fix-uri `/forecast` (sesiune Opus): A2/C4/B8/D1/D-DUP.**
+  Continuare directă a batch-ului P0/P1, implementat cu TDD (fără subagenți). 170 teste trec, ruff curat.
+  - **A2 (+C2 status)** — vocabular statusuri normalizat: migrația `0016` pliază statusurile legacy capitalizate (`Emisa`/`Confirmata`→`confirmata`, `In tranzit`→`in_tranzit`, `Receptionata`→`livrata`); `comanda_update` refuză un status gol/whitespace (dar aplică restul câmpurilor din același apel), deci modalul nu mai poate scrie `status=''`. Toate listele `IN(...)` de tranzit standardizate la `('confirmata','in_tranzit')` — `export.in_transit_ro_hu` era doar-capitalizat și ar fi returnat 0 rânduri după migrare. Migrarea aplicată pe `data/torb.db` local după backup. ETL-urile scriau deja lowercase.
+  - **C4** — `PRAGMA foreign_keys=ON` adăugat pe conexiunile aplicației, deci `ON DELETE CASCADE` funcționează (ștergerea unei comenzi îi șterge liniile în loc să lase orfani).
+  - **B8** — coloană nouă `— Cantitate comandată` în exportul Excel al comenzii, ca fluxul „export → editează cantități → re-import" să funcționeze (importul cerea o coloană cu „COMAND").
+  - **D1** — șters `forecast_stoc()` mort (0 apelanți; `forecast_stoc_brand` rămâne — încă folosit de exportul Excel).
+  - **D-DUP** — extras `_ro_hu_split()` partajat de `build_suggestion` + 3 ramuri din `forecast_stoc_extended`; verificat identic numeric (Basilur, 293 + 240 SKU) înainte/după.
+  Teste noi: `tests/test_order_status.py`, `tests/test_comanda_excel_roundtrip.py`, `tests/test_ro_hu_split.py`. **Rămase deschise — necesită validare owner (schimbă cifrele sugestiei):** B4 (medie SKU delistate), B5 (tranzit expirat contorizat la infinit), B7 (praguri urgență diferite per tab), plus divergența viteză pagină-vs-Excel (§4.1 din analiză). Detalii: `.superpowers/sdd/progress.md`.
+
 - **2026-07-03 — 10 fix-uri P0/P1 pagina `/forecast` livrate direct pe `main`.**
   Plan `docs/plans/2026-07-03-forecast-p0-p1-fixes.md`, execuție agentică (subagent-driven development, 10 task-uri + review final pe fiecare + review whole-branch). Rezolvate din `docs/analysis/forecast_page_analysis.md`:
   - **A3** — șters endpoint mort `/api/comenzi/<id>/avanseaza`.
@@ -121,4 +130,4 @@
 
 ## Next immediate step
 
-**Prioritate #1 — Validare forecast Basilur cu owner-ul** (item 4b), paralel cu margin audit (item 11, deadline 15 iunie — depășit).
+**Prioritate #1 — Validare forecast Basilur cu owner-ul** (item 4b), paralel cu margin audit (item 11, deadline 15 iunie — depășit). În aceeași discuție de validare intră și cele 3 decizii de algoritm rămase din auditul `/forecast` (B4 fereastră de mediere pentru SKU delistate, B5 prag „tranzit expirat", B7 semantica urgenței per tab) — vezi `docs/BACKLOG.md` §Forecast.
