@@ -153,8 +153,20 @@
       <a href="{{ url_for('forecast.forecast', tab='stoc') }}" class="btn btn-sm btn-outline-secondary">✕ Reset</a>
     </div>
     {% endif %}
-    <div class="col-auto ms-auto">
-      <a href="{{ url_for('reports.export_excel', report='forecast', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search) }}"
+    <div class="col-auto ms-auto d-flex align-items-end gap-2">
+      <input type="hidden" name="vel" id="velInput" value="{{ sel_vel }}">
+      <div class="btn-group btn-group-sm" role="group"
+           aria-label="Bază pentru Vânz./lună și Zile stoc">
+        <button type="button"
+                class="btn {{ 'btn-primary' if sel_vel == '3ani' else 'btn-outline-primary' }}"
+                title="Media sezonieră pe 3 ani"
+                onclick="document.getElementById('velInput').value='3ani';this.form.submit()">3 ani</button>
+        <button type="button"
+                class="btn {{ 'btn-primary' if sel_vel == '90zile' else 'btn-outline-primary' }}"
+                title="Viteza recentă pe ultimele 90 de zile"
+                onclick="document.getElementById('velInput').value='90zile';this.form.submit()">90 zile</button>
+      </div>
+      <a href="{{ url_for('reports.export_excel', report='forecast', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel) }}"
          class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel-fill"></i> Export</a>
     </div>
     <div class="col-auto align-self-end text-muted small">{{ rows|length }} SKU-uri</div>
@@ -170,7 +182,7 @@
             <th class="text-end">Val. stoc</th>
             <th>În tranzit (per comandă)</th>
             <th class="text-end">Stoc + tranzit</th>
-            <th class="text-end">Vânz./lună</th>
+            <th class="text-end">Vânz./lună<br><span class="fw-normal opacity-75" style="font-size:.85em">({{ '3 ani' if sel_vel == '3ani' else '90 zile' }})</span></th>
             <th class="text-center">Zile stoc</th>
             <th class="text-center">Zile cu tranzit</th>
             <th class="text-center">Urgență</th>

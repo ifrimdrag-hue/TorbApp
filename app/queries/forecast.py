@@ -163,8 +163,15 @@ def forecast_stoc_brand(furnizor=None, gama=None, urgenta=None, search=None):
     return rows
 
 
-def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
-    """Ca forecast_stoc_brand + avg RO/HU + sugestii de comandă per SKU."""
+def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, vel='3ani'):
+    """Ca forecast_stoc_brand + avg RO/HU + sugestii de comandă per SKU.
+
+    `vel` controlează baza pentru coloanele afișate Vânz./lună + Zile stoc:
+      '3ani'   → media sezonieră pe 3 ani (implicit, netezește vârfurile);
+      '90zile' → viteza recentă pe ultimele 90 de zile (valorile brute din SQL).
+    Sugestiile Sug. RO/HU rămân mereu pe modelul sezonier, indiferent de `vel`.
+    """
+    vel = '90zile' if vel == '90zile' else '3ani'
     filters, params = [], {}
     if furnizor:
         filters.append("s.furnizor = :furnizor")
@@ -269,13 +276,31 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
         r['suggested_hu'] = int(round(split['suggested_export']))
         r['lead_time_days'] = lead
 
-        # Actualizează mediile lunare cu istoricul complet (3 ani) în loc de 90 zile
         avg_total = sum(monthly_total.values()) / 12 if monthly_total else 0
         r['avg_monthly_ro'] = round(sum(monthly_ro.values()) / 12, 1) if monthly_ro else 0
         r['avg_monthly_hu'] = round(sum(monthly_hu.values()) / 12, 1) if monthly_hu else 0
-        r['vanzari_luna_avg'] = round(avg_total, 1)
-        if avg_total > 0:
-            r['zile_stoc'] = int(float(r['stoc_total'] or 0) / (avg_total / 30))
+        # În modul '3ani' înlocuim viteza afișată cu media sezonieră; în '90zile'
+        # păstrăm valorile brute din SQL (ultimele 90 de zile).
+        if vel == '3ani':
+            r['vanzari_luna_avg'] = round(avg_total, 1)
+            if avg_total > 0:
+                r['zile_stoc'] = int(float(r['stoc_total'] or 0) / (avg_total / 30))
+
+    # Pentru rândurile sintetice (fără rând SQL), în modul '90zile' avem nevoie de
+    # viteza pe 90 de zile per SKU normalizat.
+    vel90_by_sku = {}
+    if vel == '90zile':
+        for vr in query("""
+            SELECT sku, SUM(cantitate) / 3.0 AS v
+            FROM tranzactii WHERE data_dl >= date('now', '-90 days')
+            GROUP BY sku
+        """):
+            vel90_by_sku[forecast_logic._normalize_sku(vr['sku'])] = vr['v']
+
+    def _disp_avg(sku_norm, avg_total):
+        if vel == '90zile':
+            return round(vel90_by_sku.get(sku_norm, 0) or 0, 1)
+        return round(avg_total, 1)
 
     # Adaugă SKU-uri cu tranzit activ dar fără stoc fizic (lipsesc din tabela stoc)
     existing_skus = {r['sku'] for r in rows}
@@ -319,7 +344,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
             'gama':              None,
             'stoc_total':        0,
             'valoare_stoc':      0,
-            'vanzari_luna_avg':  round(avg_total, 1),
+            'vanzari_luna_avg':  _disp_avg(sku_n, avg_total),
             'zile_stoc':         zile_stoc,
             'cel_mai_vechi_lot': None,
             'pret_valuta':       None,
@@ -379,7 +404,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
             'gama':              None,
             'stoc_total':        0,
             'valoare_stoc':      0,
-            'vanzari_luna_avg':  round(avg_total, 1),
+            'vanzari_luna_avg':  _disp_avg(sku_n, avg_total),
             'zile_stoc':         0,
             'cel_mai_vechi_lot': None,
             'pret_valuta':       None,

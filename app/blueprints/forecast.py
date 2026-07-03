@@ -27,8 +27,9 @@ def forecast():
     furnizor = request.args.get('brand', '').strip() or None
     search   = request.args.get('q', '').strip() or None
     sel_status = request.args.get('status', '').strip() or None
+    vel      = '90zile' if request.args.get('vel') == '90zile' else '3ani'
 
-    rows       = queries.forecast_stoc_extended(furnizor=furnizor, gama=gama, urgenta=urgenta, search=search)
+    rows       = queries.forecast_stoc_extended(furnizor=furnizor, gama=gama, urgenta=urgenta, search=search, vel=vel)
     summary    = queries.forecast_summary() or {}
     gama_opts  = queries.forecast_gama_list()
     brand_opts = queries.forecast_brands_list()
@@ -56,6 +57,7 @@ def forecast():
         sel_brand=furnizor or '',
         sel_status=sel_status or '',
         sel_search=search or '',
+        sel_vel=vel,
         is_xmas_window=forecast_logic.is_xmas_window(),
         months_json=json.dumps(MONTHS_RO),
         stoc_snapshot=stoc_snapshot,

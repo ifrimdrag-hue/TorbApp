@@ -184,6 +184,35 @@ def export_ppt_profitabilitate():
 # Export Excel — rapoarte
 # ---------------------------------------------------------------------------
 
+def _urgenta_label(zile_stoc):
+    if zile_stoc is None:
+        return 'OK'
+    if zile_stoc < 30:
+        return 'Critic'
+    if zile_stoc < 60:
+        return 'Atenție'
+    return 'OK'
+
+
+def _forecast_export_row(r, vel_label):
+    """Aplatizează un rând din forecast_stoc_extended în coloane de export,
+    identice cu ce arată pagina pentru modul de viteză selectat."""
+    return {
+        'Cod furnizor':    r.get('cod_produs') or '',
+        'SKU':             r.get('sku') or '',
+        'Brand':           r.get('gama') or r.get('furnizor') or '',
+        'Stoc (buc)':      r.get('stoc_total') or 0,
+        'Val. stoc':       r.get('valoare_stoc') or 0,
+        'În tranzit':      r.get('in_tranzit_qty') or 0,
+        f'Vânz./lună ({vel_label})': r.get('vanzari_luna_avg') or 0,
+        f'Zile stoc ({vel_label})':  r.get('zile_stoc') if r.get('zile_stoc') is not None else '',
+        'Urgență':         _urgenta_label(r.get('zile_stoc')),
+        'Sug. RO':         r.get('suggested_ro') or 0,
+        'Sug. HU':         r.get('suggested_hu') or 0,
+        'Cel mai vechi lot': r.get('cel_mai_vechi_lot') or '',
+    }
+
+
 @reports_bp.route('/export/<report>')
 def export_excel(report):
     an = int(request.args.get('an', datetime.date.today().year))
@@ -231,10 +260,17 @@ def export_excel(report):
         gama     = request.args.get('gama', '').strip() or None
         urgenta  = request.args.get('urgenta', '').strip() or None
         furnizor = request.args.get('brand', '').strip() or None
-        rows = queries.forecast_stoc_brand(furnizor=furnizor, gama=gama, urgenta=urgenta)
+        search   = request.args.get('q', '').strip() or None
+        vel      = '90zile' if request.args.get('vel') == '90zile' else '3ani'
+        # Aceleași date ca pagina (inclusiv modul de viteză selectat), ca exportul
+        # să coincidă cu ecranul.
+        rows = queries.forecast_stoc_extended(
+            furnizor=furnizor, gama=gama, urgenta=urgenta, search=search, vel=vel)
+        vel_label = '3 ani' if vel == '3ani' else '90 zile'
+        export_rows = [_forecast_export_row(r, vel_label) for r in rows]
         return send_excel(
-            {'Forecast Stoc': rows},
-            timestamped_filename('forecast_stoc'),
+            {'Forecast Stoc': export_rows},
+            timestamped_filename(f'forecast_stoc_{vel}'),
         )
 
     if report == 'preturi':

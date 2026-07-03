@@ -84,6 +84,14 @@ def test_forecast_setari_returns_brands(client):
     assert b'<!DOCTYPE' in resp.data or b'<html' in resp.data
 
 
+def test_forecast_page_renders_velocity_toggle(client):
+    for vel, label in (('3ani', b'3 ani'), ('90zile', b'90 zile')):
+        resp = client.get(f'/forecast?tab=stoc&vel={vel}')
+        assert resp.status_code == 200, resp.status_code
+        assert b'velInput' in resp.data, "velocity toggle must render"
+        assert label in resp.data
+
+
 def test_stocuri_shopify_history_elements_present(client):
     """The /stocuri page must contain Shopify history DOM elements so the history card renders."""
     resp = client.get('/stocuri')
