@@ -267,5 +267,8 @@ torbapp/
 ├── docs_input/                 # Source Excel/CSV files (gitignored)
 ├── .env.example                # Environment variable template
 ├── requirements.txt
+├── CLAUDE.md                   # AI assistant project instructions
+├── README.md                   # This file
+├── CHANGELOG.md                # Release history
 └── Start-Hub.bat               # Windows quick launcher
 ```
