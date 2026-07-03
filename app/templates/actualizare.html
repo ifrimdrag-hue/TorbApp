@@ -201,6 +201,27 @@ document.querySelectorAll('.drop-zone').forEach(function(zone) {
   });
 });
 
+// ── Eroare: mesaj complet în modalul partajat AppError ──────────────────────
+
+function showError(zone, label, fullMsg) {
+  fullMsg = fullMsg || 'Eroare necunoscută';
+  if (zone) {
+    zone._errMsg = fullMsg;
+    zone._errLabel = label;
+    setZoneState(zone, 'error',
+      '<i class="bi bi-x-circle me-1"></i>' + escHtml(label) +
+      ' · <a href="#" onclick="reopenError(event,this)">detalii</a>');
+  }
+  AppError.show(label, fullMsg, 'Eroare la import');
+}
+
+function reopenError(ev, a) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  var zone = a.closest('.drop-zone');
+  AppError.show(zone && zone._errLabel, zone && zone._errMsg, 'Eroare la import');
+}
+
 // ── Upload + polling ────────────────────────────────────────────────────────
 
 function setZoneState(zone, state, text) {
@@ -229,7 +250,7 @@ function startUpload(zone, file) {
         return r.text().then(function(t) {
           var msg = r.status === 413
             ? 'Fișier prea mare (limită server). Contactați administratorul.'
-            : 'HTTP ' + r.status + ' – ' + t.replace(/<[^>]*>/g, '').trim().substring(0, 120);
+            : 'HTTP ' + r.status + ' – ' + t.replace(/<[^>]*>/g, '').trim();
           throw new Error(msg);
         });
       }
@@ -237,13 +258,13 @@ function startUpload(zone, file) {
     })
     .then(function(d) {
       if (!d.ok) {
-        setZoneState(zone, 'error', '<i class="bi bi-x-circle me-1"></i>' + escHtml(d.error || 'Eroare upload'));
+        showError(zone, file.name, d.error || 'Eroare upload');
         return;
       }
       pollStatus(zone, d.job_id, file.name);
     })
     .catch(function(err) {
-      setZoneState(zone, 'error', '<i class="bi bi-x-circle me-1"></i>' + escHtml(String(err)));
+      showError(zone, file.name, (err && err.message) ? err.message : String(err));
     });
 }
 
@@ -266,8 +287,7 @@ function pollStatus(zone, jobId, fileName) {
           setZoneState(zone, 'success',
             '<i class="bi bi-check-circle-fill me-1"></i>' + escHtml(fileName) + rows + warn);
         } else {
-          setZoneState(zone, 'error',
-            '<i class="bi bi-x-circle me-1"></i>' + escHtml(d.mesaj || 'Eroare import'));
+          showError(zone, fileName, d.mesaj || 'Eroare import');
         }
         loadLog();
       })

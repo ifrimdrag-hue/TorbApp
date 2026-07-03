@@ -452,6 +452,24 @@ with open('file.py', 'wb') as f:
 
 ---
 
+## Frontend conventions
+
+**Error display — always use the shared `AppError` modal.** `app/static/js/app-error.js`
+is loaded on every page via `base.html`. Any error handler that surfaces a message to
+the user must route it through it, so error UX stays consistent app-wide and long
+messages are fully visible (scrollable + copy button) instead of truncated inline text:
+
+```js
+AppError.show(subtitle, message, title);   // title defaults to "Eroare"
+// e.g. AppError.show(file.name, d.mesaj, 'Eroare la import');
+```
+
+The modal markup is injected lazily on first call — pages need no per-page HTML. Do not
+add ad-hoc per-page error modals or inline red-text error strings for anything a user
+may need to read in full. Reference implementation: the upload zones in `actualizare.html`.
+
+---
+
 ## Typst user manuals (`docs/manuals/`)
 
 **Accuracy — verify every claim against source before writing.** The login manual shipped with four inaccuracies (wrong nav paths, a non-existent label, a false form-field claim). Before writing a section, read:

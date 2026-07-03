@@ -20,17 +20,13 @@ forecast_bp = Blueprint('forecast', __name__)
 MONTHS_RO = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun',
              'Iul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-# Global state for import job â€” tracks status of long-running /api/actualizare-date
+# Global state for import job — tracks status of long-running /api/actualizare-date
 _import_job: dict = {'status': 'idle', 'message': ''}
 _import_lock = threading.Lock()
 
-# Upload jobs â€” fiecare upload async primeÈ™te un UUID
-_upload_jobs: dict = {}
-_upload_jobs_lock = threading.Lock()
-
 
 def _log_import(tip: str, fisier: str, randuri, durata_s: float, status: str, mesaj: str = ''):
-    """Scrie o Ã®nregistrare Ã®n import_log (conexiune proprie â€” e apelat din thread)."""
+    """Scrie o înregistrare în import_log (conexiune proprie — e apelat din thread)."""
     try:
         conn = _sq.connect(paths.DB_PATH)
         conn.execute(
@@ -41,6 +37,38 @@ def _log_import(tip: str, fisier: str, randuri, durata_s: float, status: str, me
         conn.close()
     except Exception:
         logger.warning("_log_import DB write failed for tip=%s fisier=%s", tip, fisier, exc_info=True)
+
+
+def _job_set(job_id, tip, fisier, status, mesaj=None, randuri=None, avertisment=None):
+    """Upsert upload-job state into SQLite (shared across gunicorn workers).
+
+    The former in-memory dict was per-process, so a status poll landing on a
+    different worker reported a false "server restarted". DB-backed state lets
+    any worker answer, and it survives a real restart.
+    """
+    try:
+        conn = _sq.connect(paths.DB_PATH)
+        conn.execute(
+            "INSERT INTO upload_jobs "
+            "(job_id, tip, fisier, status, mesaj, randuri, avertisment, actualizat_la) "
+            "VALUES (?,?,?,?,?,?,?, datetime('now','localtime')) "
+            "ON CONFLICT(job_id) DO UPDATE SET "
+            "status=excluded.status, mesaj=excluded.mesaj, randuri=excluded.randuri, "
+            "avertisment=excluded.avertisment, actualizat_la=excluded.actualizat_la",
+            (job_id, tip, fisier, status, mesaj, randuri, avertisment),
+        )
+        conn.execute("DELETE FROM upload_jobs WHERE creat_la < datetime('now','-2 days')")
+        conn.commit()
+        conn.close()
+    except Exception:
+        logger.warning("_job_set DB write failed for job=%s status=%s", job_id, status, exc_info=True)
+
+
+def _job_get(job_id):
+    return db.query_one(
+        "SELECT status, mesaj, randuri, avertisment FROM upload_jobs WHERE job_id = :j",
+        {"j": job_id},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +117,6 @@ def forecast():
         stoc_snapshot=stoc_snapshot,
         today=datetime.date.today().strftime('%d.%m.%Y'),
     )
-
 
 
 @forecast_bp.route('/forecast/setari')
@@ -185,11 +212,11 @@ def api_forecast_suggest(furnizor):
 
 @forecast_bp.route('/api/actualizare-date', methods=['POST'])
 def api_actualizare_date():
-    """Run update_data.py â€” imports sales + stock and updates gama (async via background thread)."""
+    """Run update_data.py — imports sales + stock and updates gama (async via background thread)."""
     global _import_job
     with _import_lock:
         if _import_job['status'] == 'running':
-            return jsonify({'ok': False, 'error': 'Import deja Ã®n curs'}), 409
+            return jsonify({'ok': False, 'error': 'Import deja în curs'}), 409
         _import_job = {'status': 'running', 'message': ''}
 
     def _run():
@@ -238,7 +265,7 @@ def api_import_log():
 
 
 def _run_upload_job(job_id: str, tip: str, fisier_orig: str, dest_path: str):
-    """RuleazÄƒ importul Ã®ntr-un thread daemon È™i actualizeazÄƒ _upload_jobs."""
+    """Rulează importul într-un thread daemon și actualizează starea job-ului în tabela upload_jobs."""
     import time as _time
     import re as _re
     import subprocess as _sub
@@ -268,11 +295,11 @@ def _run_upload_job(job_id: str, tip: str, fisier_orig: str, dest_path: str):
         durata = _time.time() - t0
         output = (result.stdout or '') + (result.stderr or '')
 
-        # Extrage numÄƒrul de rÃ¢nduri din output
-        # import_stoc.py:        "â†’ Stoc importat: 699 rÃ¢nduri"
+        # Extrage numărul de rânduri din output
+        # import_stoc.py:        "â†’ Stoc importat: 699 rânduri"
         # import_vanzari_erp.py: "â†’ Inserate: 135,420 | Duplicate..."
         randuri = None
-        for pattern in [r'([\d,]+)\s*rÃ¢nduri', r'Inserate:\s*([\d,]+)']:
+        for pattern in [r'([\d,]+)\s*rânduri', r'Inserate:\s*([\d,]+)']:
             m = _re.search(pattern, output)
             if m:
                 randuri = int(m.group(1).replace(',', ''))
@@ -284,33 +311,28 @@ def _run_upload_job(job_id: str, tip: str, fisier_orig: str, dest_path: str):
                 job_id, tip, result.returncode, script, dest_path,
                 result.stdout or '(gol)', result.stderr or '(gol)',
             )
-            error_detail = output[-500:].strip() or f'Script a ieÈ™it cu codul {result.returncode} (fÄƒrÄƒ output)'
+            error_detail = output[-500:].strip() or f'Script a ieșit cu codul {result.returncode} (fără output)'
             _log_import(tip, fisier_orig, randuri, durata, 'error', error_detail)
-            with _upload_jobs_lock:
-                _upload_jobs[job_id] = {'status': 'error', 'mesaj': error_detail, 'randuri': randuri}
+            _job_set(job_id, tip, fisier_orig, 'error', mesaj=error_detail, randuri=randuri)
         else:
-            mesaj = f'Import finalizat: {randuri or "?"} rÃ¢nduri'
+            mesaj = f'Import finalizat: {randuri or "?"} rânduri'
             avert = None
             m_av = _re.search(r'^AVERTISMENT:\s*(.+)$', output, _re.MULTILINE)
             if m_av:
                 avert = m_av.group(1).strip()
                 mesaj += f' | {avert}'
             _log_import(tip, fisier_orig, randuri, durata, 'ok', mesaj)
-            with _upload_jobs_lock:
-                _upload_jobs[job_id] = {'status': 'done', 'mesaj': mesaj,
-                                        'randuri': randuri, 'avertisment': avert}
+            _job_set(job_id, tip, fisier_orig, 'done', mesaj=mesaj, randuri=randuri, avertisment=avert)
     except _sub.TimeoutExpired:
         durata = _time.time() - t0
         logger.error("upload job %s timed out after 300s (tip=%s)", job_id, tip)
         _log_import(tip, fisier_orig, None, durata, 'error', 'Timeout >300s')
-        with _upload_jobs_lock:
-            _upload_jobs[job_id] = {'status': 'error', 'mesaj': 'Timeout import (>300s)', 'randuri': None}
+        _job_set(job_id, tip, fisier_orig, 'error', mesaj='Timeout import (>300s)')
     except Exception as exc:
         durata = _time.time() - t0
         logger.exception("upload job %s failed (tip=%s)", job_id, tip)
         _log_import(tip, fisier_orig, None, durata, 'error', str(exc))
-        with _upload_jobs_lock:
-            _upload_jobs[job_id] = {'status': 'error', 'mesaj': str(exc), 'randuri': None}
+        _job_set(job_id, tip, fisier_orig, 'error', mesaj=str(exc))
 
 
 @forecast_bp.route('/api/upload/<tip>', methods=['POST'])
@@ -320,7 +342,7 @@ def api_upload(tip):
 
     f = request.files.get('file')
     if not f or not f.filename:
-        return jsonify({'ok': False, 'error': 'Niciun fiÈ™ier'}), 400
+        return jsonify({'ok': False, 'error': 'Niciun fișier'}), 400
 
     try:
         from werkzeug.utils import secure_filename as _secure_filename
@@ -335,8 +357,7 @@ def api_upload(tip):
         return jsonify({'ok': False, 'error': f'Eroare server: {exc}'}), 500
 
     job_id = str(_uuid.uuid4())
-    with _upload_jobs_lock:
-        _upload_jobs[job_id] = {'status': 'running', 'mesaj': '', 'randuri': None}
+    _job_set(job_id, tip, fisier_orig, 'running')
 
     threading.Thread(
         target=_run_upload_job,
@@ -350,13 +371,12 @@ def api_upload(tip):
 
 @forecast_bp.route('/api/upload/status/<job_id>')
 def api_upload_status(job_id):
-    with _upload_jobs_lock:
-        job = _upload_jobs.get(job_id)
+    job = _job_get(job_id)
     if job is None:
         return jsonify({
             'ok': True,
             'status': 'error',
-            'mesaj': 'Serverul a fost repornit Ã®n timpul importului. VerificaÈ›i istoricul sau reimportaÈ›i fiÈ™ierul.',
+            'mesaj': 'Job de import negăsit în baza de date. Serverul a fost probabil repornit — verificați Istoric importuri recente sau reimportați fișierul.',
             'randuri': None,
         })
     return jsonify({'ok': True, **job})
@@ -400,7 +420,7 @@ def api_comanda_create():
         return jsonify({'error': str(exc)}), 400
 
 
-# â”€â”€ ClienÈ›i Export (configurabili pentru sugestia de comandÄƒ export) â”€â”€â”€â”€â”€â”€
+# â”€â”€ Clienți Export (configurabili pentru sugestia de comandă export) â”€â”€â”€â”€â”€â”€
 @forecast_bp.route('/api/clienti-export', methods=['GET'])
 def api_clienti_export_list():
     rows = db.query("""
@@ -426,7 +446,7 @@ def api_clienti_export_add():
         tara_str = (d.get('tara') or 'HU').strip()
         activ = 1 if d.get('activ', True) else 0
         obs = d.get('observatii')
-        # GÄƒsim tara_id dupÄƒ piata (HU/RO) sau creÄƒm intrare nouÄƒ
+        # Găsim tara_id după piata (HU/RO) sau creăm intrare nouă
         tara_row = db.query_one(
             "SELECT id FROM tari_export WHERE piata=:p LIMIT 1", {'p': tara_str}
         )
@@ -462,7 +482,7 @@ def api_clienti_export_delete(cod):
 
 @forecast_bp.route('/api/clienti/search')
 def api_clienti_search():
-    """Autocompletare clienÈ›i dupÄƒ cod sau denumire â€” pentru tab-ul Export."""
+    """Autocompletare clienți după cod sau denumire — pentru tab-ul Export."""
     q = (request.args.get('q') or '').strip()
     if not q:
         return jsonify({'ok': True, 'items': []})
@@ -480,7 +500,7 @@ def api_clienti_search():
 def api_comanda_get(cid):
     data = queries.comanda_get(cid)
     if not data:
-        return jsonify({'error': 'ComandÄƒ negÄƒsitÄƒ'}), 404
+        return jsonify({'error': 'Comandă negăsită'}), 404
     return jsonify({'ok': True, **data})
 
 
@@ -579,10 +599,10 @@ def api_termene_upsert():
 
 @forecast_bp.route('/export/forecast/comanda/<int:cid>')
 def export_comanda(cid):
-    """Export comandÄƒ Ã®n format compatibil cu Basilur Order Form (paste-ready):
-    aceleaÈ™i etichete de coloane ca Ã®n PFI (CODE, PRODUCT DESCRIPTION,
+    """Export comandă în format compatibil cu Basilur Order Form (paste-ready):
+    aceleași etichete de coloane ca în PFI (CODE, PRODUCT DESCRIPTION,
     Units per Export, RO, No of Units, Unit Price US$, Total Price US$, etc.)
-    plus coloane interne (sku Torb, cantitate sugerat, observaÈ›ii)."""
+    plus coloane interne (sku Torb, cantitate sugerat, observații)."""
     data = queries.comanda_get(cid)
     if not data:
         abort(404)
@@ -625,13 +645,13 @@ def export_comanda(cid):
             'Gross Kgs':            line.get('gross_kg') or '',
             'Net Kgs':              line.get('net_kg') or '',
             'CBM':                  line.get('cbm') or '',
-            'â€” Cod intern':         line.get('cod_produs') or '',
-            'â€” SKU intern':         line.get('sku') or '',
-            'â€” Cantitate sugerat':  line.get('cantitate_sugerat') or 0,
-            'â€” Qty piaÈ›a RO':       qty_ro,
-            'â€” Qty Export HU':      qty_export,
-            'â€” Cantitate confirmatÄƒ': line.get('cantitate_confirmata') or '',
-            'â€” ObservaÈ›ii':         line.get('observatii') or '',
+            '— Cod intern':         line.get('cod_produs') or '',
+            '— SKU intern':         line.get('sku') or '',
+            '— Cantitate sugerat':  line.get('cantitate_sugerat') or 0,
+            '— Qty piața RO':       qty_ro,
+            '— Qty Export HU':      qty_export,
+            '— Cantitate confirmată': line.get('cantitate_confirmata') or '',
+            '— Observații':         line.get('observatii') or '',
         })
 
     rows.append({
@@ -644,10 +664,10 @@ def export_comanda(cid):
         'Unit Price US$': '',
         'Total Price US$': round(total_value, 2),
         'Gross Kgs': '', 'Net Kgs': '', 'CBM': '',
-        'â€” Cod intern': '', 'â€” SKU intern': '', 'â€” Cantitate sugerat': '',
-        'â€” Qty piaÈ›a RO': total_qty_ro,
-        'â€” Qty Export HU': total_qty_export,
-        'â€” Cantitate confirmatÄƒ': '', 'â€” ObservaÈ›ii': '',
+        '— Cod intern': '', '— SKU intern': '', '— Cantitate sugerat': '',
+        '— Qty piața RO': total_qty_ro,
+        '— Qty Export HU': total_qty_export,
+        '— Cantitate confirmată': '', '— Observații': '',
     })
 
     fname = f"comanda_{h['furnizor']}_{h['data_comanda']}".replace(' ', '_')
@@ -657,7 +677,7 @@ def export_comanda(cid):
 @forecast_bp.route('/import/forecast/comanda/<int:cid>', methods=['POST'])
 def import_comanda_lines(cid):
     if 'file' not in request.files:
-        return jsonify({'error': 'FiÈ™ier lipsÄƒ'}), 400
+        return jsonify({'error': 'Fișier lipsă'}), 400
     f = request.files['file']
     try:
         import openpyxl
@@ -667,7 +687,7 @@ def import_comanda_lines(cid):
         sku_col = next((i for i, h in enumerate(headers) if 'SKU' in h), None)
         qty_col = next((i for i, h in enumerate(headers) if 'COMAND' in h), None)
         if sku_col is None or qty_col is None:
-            return jsonify({'error': 'Nu am gÄƒsit coloanele SKU È™i Cantitate Comandat'}), 400
+            return jsonify({'error': 'Nu am găsit coloanele SKU și Cantitate Comandat'}), 400
         count = 0
         for row in ws.iter_rows(min_row=2, values_only=True):
             sku = row[sku_col] if sku_col < len(row) else None
@@ -692,7 +712,7 @@ def api_forecast_chat():
     question = (d.get('question') or '').strip()
     furnizor = (d.get('furnizor') or '').strip() or None
     if not question:
-        return jsonify({'error': 'ÃŽntrebarea lipsÄƒ'}), 400
+        return jsonify({'error': 'Întrebarea lipsă'}), 400
     try:
         from forecast.forecast_agent import forecast_ask
         result = forecast_ask(question, furnizor)
