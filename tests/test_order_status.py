@@ -63,3 +63,30 @@ def test_comanda_update_ignores_empty_status(db_path, client):
     conn.close()
     assert status == 'confirmata', "empty status must not overwrite the real status"
     assert obs == 'nota noua', "other fields in the same update must still apply"
+
+
+def test_comanda_delete_cascades_to_lines(db_path, client):
+    conn = sqlite3.connect(db_path)
+    conn.execute("""
+        INSERT INTO comenzi_furnizori (nr_comanda, furnizor, status)
+        VALUES ('CMD-C4-1', 'TestBrandC4', 'draft')
+    """)
+    cid = conn.execute(
+        "SELECT id FROM comenzi_furnizori WHERE nr_comanda='CMD-C4-1'"
+    ).fetchone()[0]
+    conn.execute(
+        "INSERT INTO comenzi_furnizori_linii (comanda_id, sku, cantitate_comandata) "
+        "VALUES (?, 'SKU-C4-1', 5)", (cid,)
+    )
+    conn.commit()
+    conn.close()
+
+    import queries
+    queries.comanda_delete(cid)
+
+    conn = sqlite3.connect(db_path)
+    orphans = conn.execute(
+        "SELECT COUNT(*) FROM comenzi_furnizori_linii WHERE comanda_id=?", (cid,)
+    ).fetchone()[0]
+    conn.close()
+    assert orphans == 0, "deleting the order header must cascade-delete its lines"
