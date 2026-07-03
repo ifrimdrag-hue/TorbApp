@@ -1123,6 +1123,7 @@ async function saveOrder(status) {
   // Grupează liniile pe brand (pentru cazul multi-select)
   const linesByBrand = {};
   document.querySelectorAll('#suggestTbody tr').forEach(row => {
+    if (row.style.display === 'none') return;
     const idx = parseInt(row.dataset.idx);
     const inpRo = row.querySelector('input[data-kind="ro"]');
     const inpExp = row.querySelector('input[data-kind="exp"]');
