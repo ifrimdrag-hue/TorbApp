@@ -102,11 +102,6 @@ def profitabilitate():
     )
 
 
-@reports_bp.route('/actualizare')
-def actualizare():
-    return render_template('actualizare.html')
-
-
 # ---------------------------------------------------------------------------
 # Export PPT
 # ---------------------------------------------------------------------------
