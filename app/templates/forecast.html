@@ -531,7 +531,10 @@
             </div>
           </div>
           <div class="d-flex gap-2 flex-wrap">
-            <button class="btn btn-sm btn-outline-primary" onclick="openStatusModal({{ c.id }}, '{{ c.status }}', '{{ c.data_estimata_livrare or '' }}', '{{ c.data_confirmare_furnizor or '' }}', `{{ c.observatii or '' }}`)">
+            <button class="btn btn-sm btn-outline-primary" data-cid="{{ c.id }}" data-status="{{ c.status }}"
+                    data-livrare="{{ c.data_estimata_livrare or '' }}" data-confirmare="{{ c.data_confirmare_furnizor or '' }}"
+                    data-obs="{{ c.observatii or '' }}"
+                    onclick="openStatusModal(this.dataset.cid, this.dataset.status, this.dataset.livrare, this.dataset.confirmare, this.dataset.obs)">
               <i class="bi bi-pencil-square me-1"></i>Actualizare Status
             </button>
             <a href="{{ url_for('forecast.export_comanda', cid=c.id) }}" class="btn btn-sm btn-outline-success">
@@ -1479,7 +1482,7 @@ async function sendAgentMsg() {
   const msgs = document.getElementById('agentMessages');
   msgs.insertAdjacentHTML('beforeend',
     `<div class="d-flex justify-content-end mb-2">
-       <div class="bg-primary text-white rounded px-2 py-1" style="max-width:80%">${q}</div>
+       <div class="bg-primary text-white rounded px-2 py-1" style="max-width:80%">${escapeHtml(q)}</div>
      </div>`);
   msgs.insertAdjacentHTML('beforeend',
     '<div id="agentThinking" class="text-muted small mb-2"><i class="bi bi-three-dots"></i> Se procesează...</div>');
@@ -1496,7 +1499,7 @@ async function sendAgentMsg() {
     const answer = d.answer || d.error || 'Eroare necunoscută.';
     msgs.insertAdjacentHTML('beforeend',
       `<div class="d-flex justify-content-start mb-2">
-         <div class="bg-light border rounded px-2 py-1" style="max-width:90%;white-space:pre-wrap">${answer}</div>
+         <div class="bg-light border rounded px-2 py-1" style="max-width:90%;white-space:pre-wrap">${escapeHtml(answer)}</div>
        </div>`);
     msgs.scrollTop = msgs.scrollHeight;
   } catch(e) {
@@ -1507,6 +1510,12 @@ async function sendAgentMsg() {
 
 
 // ── Clienți Export ────────────────────────────────────────────────────────────
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s ?? '';
+  return div.innerHTML;
+}
+
 async function loadExportClients() {
   const tbody = document.getElementById('exportClientsBody');
   if (!tbody) return;
@@ -1519,18 +1528,21 @@ async function loadExportClients() {
     }
     tbody.innerHTML = d.items.map(c => `
       <tr class="${c.activ ? '' : 'text-muted'}">
-        <td class="fw-semibold">${c.cod_client}</td>
-        <td>${c.client}</td>
-        <td class="text-center"><span class="badge bg-secondary">${c.tara || '—'}</span></td>
+        <td class="fw-semibold">${escapeHtml(c.cod_client)}</td>
+        <td>${escapeHtml(c.client)}</td>
+        <td class="text-center"><span class="badge bg-secondary">${escapeHtml(c.tara || '—')}</span></td>
         <td class="text-center">
           <div class="form-check form-switch d-flex justify-content-center">
             <input class="form-check-input" type="checkbox" ${c.activ ? 'checked' : ''}
-                   onchange="toggleExportClient(${c.cod_client}, '${(c.client || '').replace(/'/g,"\\'")}', this.checked, '${c.tara || 'HU'}', '${(c.observatii || '').replace(/'/g,"\\'")}')">
+                   data-cod="${escapeHtml(c.cod_client)}" data-client="${escapeHtml(c.client || '')}"
+                   data-tara="${escapeHtml(c.tara || 'HU')}" data-obs="${escapeHtml(c.observatii || '')}"
+                   onchange="toggleExportClient(this.dataset.cod, this.dataset.client, this.checked, this.dataset.tara, this.dataset.obs)">
           </div>
         </td>
-        <td class="text-muted small">${c.observatii || '—'}</td>
+        <td class="text-muted small">${escapeHtml(c.observatii || '—')}</td>
         <td>
-          <button class="btn btn-sm btn-link text-danger p-0" onclick="deleteExportClient(${c.cod_client})" title="Șterge">
+          <button class="btn btn-sm btn-link text-danger p-0" data-cod="${escapeHtml(c.cod_client)}"
+                  onclick="deleteExportClient(this.dataset.cod)" title="Șterge">
             <i class="bi bi-trash"></i>
           </button>
         </td>
@@ -1542,7 +1554,7 @@ async function loadExportClients() {
 }
 
 async function addExportClient() {
-  const cod = parseInt(document.getElementById('exportClientCod').value);
+  const cod = document.getElementById('exportClientCod').value.trim();
   if (!cod) { alert('Selectează un client din lista de sugestii.'); return; }
   const client = document.getElementById('exportClientNume').value;
   const tara = document.getElementById('exportClientTara').value.trim() || 'HU';
