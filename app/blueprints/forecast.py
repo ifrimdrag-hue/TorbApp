@@ -140,7 +140,7 @@ def api_forecast_termene_save():
         return jsonify({'error': str(e)}), 400
 
 
-# â”€â”€ Forecast API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Forecast API ──────────────────────────────────────────────────────────────
 
 @forecast_bp.route('/api/forecast/suggest/<path:furnizor>')
 def api_forecast_suggest(furnizor):
@@ -160,7 +160,7 @@ def api_forecast_sku_clients(sku):
     return jsonify({'ok': True, 'sku': sku, 'clients': data})
 
 
-# â”€â”€ Comenzi CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Comenzi CRUD ──────────────────────────────────────────────────────────────
 
 @forecast_bp.route('/api/comenzi/drafts')
 def api_comenzi_drafts():
@@ -192,7 +192,7 @@ def api_comanda_create():
         return jsonify({'error': str(exc)}), 400
 
 
-# â”€â”€ Clienți Export (configurabili pentru sugestia de comandă export) â”€â”€â”€â”€â”€â”€
+# ── Clienți Export (configurabili pentru sugestia de comandă export) ──────
 @forecast_bp.route('/api/clienti-export', methods=['GET'])
 def api_clienti_export_list():
     rows = db.query("""
@@ -354,7 +354,7 @@ def api_comanda_status(cid):
         return jsonify({'error': str(exc)}), 400
 
 
-# â”€â”€ Termene aprovizionare â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Termene aprovizionare ─────────────────────────────────────────────────────
 
 @forecast_bp.route('/api/termene-aprovizionare', methods=['POST'])
 def api_termene_upsert():
@@ -370,7 +370,7 @@ def api_termene_upsert():
         return jsonify({'error': str(exc)}), 400
 
 
-# â”€â”€ Export/Import comenzi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Export/Import comenzi ─────────────────────────────────────────────────────
 
 @forecast_bp.route('/export/forecast/comanda/<int:cid>')
 def export_comanda(cid):
@@ -479,7 +479,7 @@ def import_comanda_lines(cid):
         return jsonify({'error': str(exc)}), 400
 
 
-# â”€â”€ Forecast agent chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Forecast agent chat ───────────────────────────────────────────────────────
 
 @forecast_bp.route('/api/forecast/chat', methods=['POST'])
 def api_forecast_chat():
