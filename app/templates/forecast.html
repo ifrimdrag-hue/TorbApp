@@ -1271,8 +1271,10 @@ async function openSKUClients(sku) {
         <a href="/client/${encodeURIComponent(c.cod_client)}" class="text-decoration-none">${c.client}</a>
       </td>`;
       vals.forEach(v => {
-        const bg = v > 0 ? `background:rgba(25,135,84,${0.15 + (v/maxV)*0.7})` : '';
-        html += `<td class="text-center" style="${bg}">${v > 0 ? v : '—'}</td>`;
+        let bg = '';
+        if (v > 0) bg = `background:rgba(25,135,84,${0.15 + (v/maxV)*0.7})`;
+        else if (v < 0) bg = 'background:rgba(220,53,69,.15)';
+        html += `<td class="text-center" style="${bg}">${v !== 0 ? v : '—'}</td>`;
       });
       html += `<td class="text-center fw-bold">${total}</td></tr>`;
     });
@@ -1284,7 +1286,7 @@ async function openSKUClients(sku) {
     });
     const grandTotal = monthTotals.reduce((a,b) => a+b, 0);
     html += `<tr class="table-light fw-bold"><td>Total</td>`;
-    monthTotals.forEach(v => html += `<td class="text-center">${v > 0 ? v : '—'}</td>`);
+    monthTotals.forEach(v => html += `<td class="text-center">${v !== 0 ? v : '—'}</td>`);
     html += `<td class="text-center">${grandTotal}</td></tr>`;
 
     html += '</tbody></table></div>';
