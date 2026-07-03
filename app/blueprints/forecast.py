@@ -1,7 +1,7 @@
 ﻿import json
 import logging
 import datetime
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, abort
+from flask import Blueprint, render_template, request, jsonify, abort
 import queries
 import db
 from forecast import forecast_logic
@@ -492,24 +492,5 @@ def api_forecast_chat():
     except Exception as exc:
         logger.exception("api_forecast_chat failed")
         return jsonify({'error': str(exc)}), 500
-
-
-@forecast_bp.route('/api/comenzi/<int:comanda_id>/avanseaza', methods=['POST'])
-def api_comanda_avanseaza(comanda_id):
-    flow = ['Emisa', 'Confirmata', 'In tranzit', 'Receptionata']
-    cmd  = queries.query_one("SELECT status FROM comenzi_furnizori WHERE id=?", (comanda_id,))
-    if not cmd:
-        return jsonify({'error': 'not found'}), 404
-    current = cmd['status']
-    if current in flow and flow.index(current) < len(flow) - 1:
-        next_status = flow[flow.index(current) + 1]
-        conn = db.get_db()
-        try:
-            conn.execute("UPDATE comenzi_furnizori SET status=? WHERE id=?",
-                         (next_status, comanda_id))
-            conn.commit()
-        finally:
-            conn.close()
-    return redirect(url_for('forecast.forecast', tab='comenzi'))
 
 

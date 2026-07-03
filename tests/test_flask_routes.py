@@ -92,3 +92,9 @@ def test_stocuri_shopify_history_elements_present(client):
     assert 'id="syncHistoryBody"' in html, "Shopify history tbody missing from stoc page"
     assert 'id="btnHistoryLoad"' in html, "Incarca date button missing from stoc page"
     assert 'id="shopHistoricalBanner"' in html, "Historical view banner missing from stoc page"
+
+
+def test_comanda_avanseaza_endpoint_removed(client):
+    """A3: dead /avanseaza endpoint was deleted — route no longer exists."""
+    resp = client.post('/api/comenzi/1/avanseaza')
+    assert resp.status_code == 404
