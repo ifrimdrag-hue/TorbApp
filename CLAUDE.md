@@ -25,6 +25,7 @@ CLAUDE.md is injected every turn, so it holds only routing + file-placement rule
 | deploy / VPS / secrets | `docs/TECHNICAL.md` |
 | Romanian strings in `.py` files | `docs/TECHNICAL.md` §Encoding — **critical, read before editing any `.py` with Romanian text** |
 | Typst user manuals (`docs/manuals/`) | `docs/TECHNICAL.md` §Typst |
+| frontend error display / any user-facing error handler | `docs/TECHNICAL.md` §Frontend conventions — **always** surface errors via the shared `AppError.show()` modal (`app/static/js/app-error.js`), never ad-hoc inline text. |
 | tech-debt / open issues backlog | `docs/BACKLOG.md` |
 
 `docs/TECHNICAL_history.md` is a write-mostly archive; read only when investigating a past change.
