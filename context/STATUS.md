@@ -54,6 +54,9 @@
 
 ## Livrări recente
 
+- **2026-07-03 — Buton „3 ani / 90 zile" pe pagina `/forecast` (aliniere ecran ↔ Excel).**
+  Comutator segmentat lângă Export pe tabul Stoc: schimbă baza pentru coloanele afișate Vânz./lună + Zile stoc (badge-ul de urgență și sortarea urmează din Zile stoc). Sug. RO/HU rămân pe modelul sezonier (cantitățile de comandă nu se schimbă la un buton de afișare). Exportul Excel folosește acum aceleași date ca pagina (`forecast_stoc_extended(vel=)`, coloane curate) în loc de vechiul `forecast_stoc_brand`, deci ecranul și Excel-ul coincid pentru modul selectat; exportul respectă și filtrul de căutare. Implicit: `3 ani` (comportamentul anterior). Rezolvă divergența viteză pagină-vs-Excel (§4.1 din analiză) ca alegere la runtime. 173 teste trec, ruff curat.
+
 - **2026-07-03 — Al doilea val de fix-uri `/forecast` (sesiune Opus): A2/C4/B8/D1/D-DUP.**
   Continuare directă a batch-ului P0/P1, implementat cu TDD (fără subagenți). 170 teste trec, ruff curat.
   - **A2 (+C2 status)** — vocabular statusuri normalizat: migrația `0016` pliază statusurile legacy capitalizate (`Emisa`/`Confirmata`→`confirmata`, `In tranzit`→`in_tranzit`, `Receptionata`→`livrata`); `comanda_update` refuză un status gol/whitespace (dar aplică restul câmpurilor din același apel), deci modalul nu mai poate scrie `status=''`. Toate listele `IN(...)` de tranzit standardizate la `('confirmata','in_tranzit')` — `export.in_transit_ro_hu` era doar-capitalizat și ar fi returnat 0 rânduri după migrare. Migrarea aplicată pe `data/torb.db` local după backup. ETL-urile scriau deja lowercase.

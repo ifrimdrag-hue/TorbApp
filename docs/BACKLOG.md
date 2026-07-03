@@ -65,7 +65,7 @@ Still open — **owner validation required** (these change suggestion numbers; t
 - **B5 — In-transit counts forever, even overdue**: full in-transit qty is subtracted regardless of ETA; orders weeks past ETA still suppress suggestions. Fix option: exclude/flag transit overdue by > X days. Needs owner call on X.
 - **B7 — Urgency semantics differ per tab**: Tab 1 fixed 30/60-day thresholds vs Tab 2 lead-time-based. Needs owner call on which is canonical (fixed thresholds are meaningless for a 120-day-lead brand).
 
-Also open by design (owner-facing behavior decision, not a bug): the **page-vs-Excel velocity divergence** (analysis §4.1) — the Tab-1 Excel export uses `forecast_stoc_brand` (raw 90-day velocity) while the page shows the 3-year seasonal average, so exported numbers can differ from the screen.
+**Page-vs-Excel velocity divergence (analysis §4.1) — resolved 2026-07-03** via a runtime `3 ani | 90 zile` toggle next to Export: both the page (Vânz./lună, Zile stoc) and the Excel export now run off `forecast_stoc_extended(vel=)` and match for the selected mode. Sug. RO/HU stay seasonal. Owner still to pick a *default* basis if they don't want the toggle default (`3 ani`).
 
 ---
 
