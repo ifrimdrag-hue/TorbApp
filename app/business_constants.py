@@ -11,7 +11,7 @@ usage is visible here without searching the codebase.
 
 # --- Auchan / Tobra invoicing exception ------------------------------------
 # Torb->Auchan sales are invoiced through the intermediary Tobra Invest SRL.
-# The ERP import diverts Torb->Tobra lines (cod 719) to the vanzari_tobra
+# The ERP import diverts Torb->Tobra lines (cod 719) to the corr_vanzari_tobra
 # cost table; the Auchan import injects Tobra->Auchan invoices as Torb sales
 # (client 732, agent Oana Filip) and overrides pret_cumparare with the true
 # Torb cost averaged over TOBRA_COST_WINDOW_DAYS. Details:

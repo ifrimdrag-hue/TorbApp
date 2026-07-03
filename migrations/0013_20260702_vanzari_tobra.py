@@ -1,5 +1,5 @@
 """
-Migration 0013 -- vanzari_tobra cost table.
+Migration 0013 -- corr_vanzari_tobra cost table.
 
 Torb->Tobra invoice lines (cod_client=719) are diverted here by
 etl/import_vanzari_erp.py instead of being dropped. Holds Torb's true
@@ -14,7 +14,7 @@ NAME = "0013_20260702_vanzari_tobra"
 
 def up(conn):
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS vanzari_tobra (
+        CREATE TABLE IF NOT EXISTS corr_vanzari_tobra (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
             data_dl        TEXT,
             nr_dl          TEXT,
@@ -28,6 +28,6 @@ def up(conn):
         )
     """)
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vanzari_tobra_cod_data"
-        " ON vanzari_tobra(cod_produs, data_dl)"
+        "CREATE INDEX IF NOT EXISTS idx_corr_vanzari_tobra_cod_data"
+        " ON corr_vanzari_tobra(cod_produs, data_dl)"
     )

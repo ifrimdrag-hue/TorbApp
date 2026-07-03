@@ -10,8 +10,8 @@ Setup, run, and project-structure basics are in `README.md`; directory placement
 
 `data/torb.db` — 131,898 transaction rows, 2024-01-03 → 2026-03-31.
 Main table: `tranzactii` (31 columns). Useful views: `v_vanzari_an_furnizor`, `v_vanzari_luna_agent`, `v_vanzari_luna_client`, `v_top_sku`, `v_clienti`.
-To rebuild: `python etl/import_to_sqlite.py`
-Cost table: `vanzari_tobra` — Torb→Tobra invoice lines (true acquisition cost),
+To rebuild from source Excel: `python etl/update_data.py` — see **Rebuild pipeline** below. (`etl/import_to_sqlite.py` is a legacy one-shot Baza-sheet loader, kept for reference only.)
+Cost table: `corr_vanzari_tobra` — Torb→Tobra invoice lines (true acquisition cost),
 diverted at ERP import; consumed by the Auchan-import cost override
 (`docs/BUSINESS_LOGIC.md` §3, migration 0013).
 
@@ -24,6 +24,19 @@ so imported order lines resolve to the correct Torb product
 (`docs/BUSINESS_LOGIC.md` §8).
 
 Migrations are versioned in `migrations/` (`NNNN_YYYYMMDD_description.py`), applied automatically on Flask startup and explicitly in CI before service restart. `schema_version` table tracks applied versions; the runner is idempotent.
+
+### Rebuild pipeline (`etl/rebuild_db.py`)
+
+**What** — `rebuild_db.main()` is a *partial* rebuild, not a full wipe:
+1. Backs up `torb.db` (`.bak.<ts>`, keeps 3), then drops & recreates **only** `tranzactii`, `stoc`, and the 6 views. All config/correction tables (`corr_vanzari_tobra`, `produse`, `preturi_vanzare`, `conditii_comerciale`, KPI/echipă tables, `corr_leonex_cod_mapping`, …) are preserved — `CREATE IF NOT EXISTS`, and seeds use `INSERT OR IGNORE`.
+2. Re-imports in order: Vânzări ERP → Tobra/Auchan cost override → Profi→Mega merge → stoc → config tables + seeds → echipă+KPI → comenzi în tranzit → gama assignment + stock reconciliation.
+
+So a rebuild refreshes sales/stock from the current Excel sources while keeping manually-maintained config and the accumulated `corr_vanzari_tobra` cost history.
+
+**When** — three entry points, all reaching the same code:
+- `python etl/update_data.py` — CLI wrapper; auto-detects the latest `Vanzari*.xlsx` (also accepts `--vanzari <file>` / `--folder <name>`).
+- `python etl/rebuild_db.py [--vanzari <file>]` — direct CLI.
+- `POST /api/actualizare-date` → spawns `update_data.py` in a background thread (`app/blueprints/forecast.py`). **Note:** this endpoint is currently **not wired to any UI button**. The only reachable data-update UI is the `/actualizare` page, whose drag-and-drop zones each run a *single* import script (e.g. `import_vanzari_erp.py`) — **not** the full rebuild.
 
 **Reading Excel files** — use `openpyxl` with `read_only=True` for large files:
 ```python

@@ -897,16 +897,6 @@ const MONTHS = {{ months_json | safe }};
 let suggestData = [];
 let currentBrand = '';
 
-// ── Tab switching ────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  const tabs = document.querySelectorAll('#forecastTabs .nav-link');
-  tabs.forEach(t => t.addEventListener('click', e => {
-    const url = new URL(t.href);
-    const tabId = url.searchParams.get('tab');
-    // Use native navigation (href already set)
-  }));
-});
-
 // ── Brand selector (multi-select) ────────────────────────────────────────────
 function selectedBrands() {
   return Array.from(document.getElementById('suggestBrand').selectedOptions);
@@ -972,53 +962,6 @@ async function loadSuggestion() {
     alert('Eroare: ' + e.message);
   } finally {
     document.getElementById('suggestLoading').style.display = 'none';
-  }
-}
-
-async function actualizareDate(event) {
-  if (!confirm('Se vor importa vânzări + stoc + gama din cel mai recent folder docs_input/. Continuăm?')) return;
-  const btn = event.currentTarget;
-  const orig = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Se actualizează...';
-  try {
-    const r = await fetch('/api/actualizare-date', {method: 'POST'});
-    const d = await r.json();
-    if (d.ok) {
-      alert('Date actualizate cu succes!\n\n' + (d.output || '').split('\n').slice(-6).join('\n'));
-      window.location.reload();
-    } else {
-      alert('Eroare: ' + (d.error || 'necunoscută'));
-    }
-  } catch(e) {
-    alert('Eroare: ' + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = orig;
-  }
-}
-
-async function refreshStoc() {
-  if (!confirm('Se va re-importa cel mai recent fișier stoc din docs_input/. Continuăm?')) return;
-  const btn = event.currentTarget;
-  const orig = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Import...';
-  try {
-    const r = await fetch('/api/forecast/refresh-stoc', {method: 'POST'});
-    const d = await r.json();
-    if (d.ok) {
-      const snap = d.latest && d.latest.data_snapshot;
-      alert(`Stoc actualizat. Snapshot: ${snap || '—'} (${d.latest && d.latest.n || 0} poziții).`);
-      window.location.reload();
-    } else {
-      alert('Eroare: ' + (d.error || 'necunoscută'));
-    }
-  } catch(e) {
-    alert('Eroare: ' + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = orig;
   }
 }
 

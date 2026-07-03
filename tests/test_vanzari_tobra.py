@@ -32,10 +32,10 @@ def test_migration_0013_creates_table_and_is_idempotent():
     assert mig.VERSION == 13
     mig.up(conn)
     mig.up(conn)  # IF NOT EXISTS -- safe to re-apply
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(vanzari_tobra)")}
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(corr_vanzari_tobra)")}
     assert cols == EXPECTED_COLS
-    idx = {r[1] for r in conn.execute("PRAGMA index_list(vanzari_tobra)")}
-    assert "idx_vanzari_tobra_cod_data" in idx
+    idx = {r[1] for r in conn.execute("PRAGMA index_list(corr_vanzari_tobra)")}
+    assert "idx_corr_vanzari_tobra_cod_data" in idx
 
 
 def test_rebuild_db_schema_matches_migration():
@@ -43,7 +43,7 @@ def test_rebuild_db_schema_matches_migration():
     conn = sqlite3.connect(":memory:")
     conn.execute(rebuild.CREATE_VANZARI_TOBRA)
     conn.execute(rebuild.VANZARI_TOBRA_INDEX)
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(vanzari_tobra)")}
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(corr_vanzari_tobra)")}
     assert cols == EXPECTED_COLS
 
 
@@ -93,5 +93,5 @@ def test_insert_tobra_rows_is_idempotent():
            "pret_cumparare": 3.5, "pret_vanzare": 6.0}
     assert erp.insert_tobra_rows(conn, [rec]) == 1
     assert erp.insert_tobra_rows(conn, [rec]) == 0
-    assert conn.execute("SELECT COUNT(*) FROM vanzari_tobra").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM corr_vanzari_tobra").fetchone()[0] == 1
     assert erp.insert_tobra_rows(conn, []) == 0

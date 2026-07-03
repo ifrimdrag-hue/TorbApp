@@ -138,13 +138,13 @@ def lookup_tobra_cost(conn, cod_produs, data_dl_str):
     Returns (cost, source): "window" = simple avg over the last
     TOBRA_COST_WINDOW_DAYS days (exclusive start, inclusive end);
     "last_known" = avg of entries on the most recent data_dl <= date.
-    (None, None) when vanzari_tobra has no usable entry.
+    (None, None) when corr_vanzari_tobra has no usable entry.
     """
     d = datetime.strptime(data_dl_str, "%Y-%m-%d").date()
     window_start = (d - timedelta(days=TOBRA_COST_WINDOW_DAYS)).strftime("%Y-%m-%d")
     cur = conn.cursor()
     cur.execute(
-        "SELECT AVG(pret_cumparare) FROM vanzari_tobra"
+        "SELECT AVG(pret_cumparare) FROM corr_vanzari_tobra"
         " WHERE cod_produs = ? AND pret_cumparare IS NOT NULL"
         " AND data_dl > ? AND data_dl <= ?",
         (cod_produs, window_start, data_dl_str),
@@ -153,9 +153,9 @@ def lookup_tobra_cost(conn, cod_produs, data_dl_str):
     if avg is not None:
         return round(avg, 4), "window"
     cur.execute(
-        "SELECT AVG(pret_cumparare) FROM vanzari_tobra"
+        "SELECT AVG(pret_cumparare) FROM corr_vanzari_tobra"
         " WHERE cod_produs = ? AND pret_cumparare IS NOT NULL"
-        " AND data_dl = (SELECT MAX(data_dl) FROM vanzari_tobra"
+        " AND data_dl = (SELECT MAX(data_dl) FROM corr_vanzari_tobra"
         "  WHERE cod_produs = ? AND pret_cumparare IS NOT NULL"
         "  AND data_dl <= ?)",
         (cod_produs, cod_produs, data_dl_str),
@@ -167,7 +167,7 @@ def lookup_tobra_cost(conn, cod_produs, data_dl_str):
 
 
 def apply_cost_override(conn, records):
-    """Override pret_cumparare with the true Torb cost from vanzari_tobra
+    """Override pret_cumparare with the true Torb cost from corr_vanzari_tobra
     and recompute val_achizitie + marja_bruta. Rows without a known cost
     keep the value from the Tobra file. Mutates records; returns counts."""
     cache = {}

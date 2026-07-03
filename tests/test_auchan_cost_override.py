@@ -17,7 +17,7 @@ def _conn(cost_rows):
     """cost_rows: list of (data_dl, cod_produs, pret_cumparare)."""
     conn = sqlite3.connect(":memory:")
     conn.execute(
-        "CREATE TABLE vanzari_tobra ("
+        "CREATE TABLE corr_vanzari_tobra ("
         " id INTEGER PRIMARY KEY AUTOINCREMENT,"
         " data_dl TEXT, nr_dl TEXT, nr_factura TEXT,"
         " cod_produs TEXT, sku TEXT,"
@@ -25,7 +25,7 @@ def _conn(cost_rows):
         " UNIQUE(nr_dl, cod_produs, nr_factura, pret_vanzare))"
     )
     conn.executemany(
-        "INSERT INTO vanzari_tobra (data_dl, nr_dl, cod_produs, pret_cumparare)"
+        "INSERT INTO corr_vanzari_tobra (data_dl, nr_dl, cod_produs, pret_cumparare)"
         " VALUES (?, ?, ?, ?)",
         [(d, f"DL{i}", cod, p) for i, (d, cod, p) in enumerate(cost_rows)],
     )

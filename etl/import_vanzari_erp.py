@@ -34,7 +34,7 @@ AGENT_NAME_MAP = {
 }
 
 # Torb->Tobra invoice lines (cod_client=TOBRA_COD_CLIENT) are diverted to
-# the vanzari_tobra cost table (true Torb acquisition cost per product),
+# the corr_vanzari_tobra cost table (true Torb acquisition cost per product),
 # consumed by import_vanzari_tobra_auchan.py. They never enter tranzactii.
 TOBRA_COLS = [
     "data_dl", "nr_dl", "nr_factura", "cod_produs", "sku",
@@ -330,7 +330,7 @@ def process_rows(rows_raw, cp_lookup):
         records.append(record)
 
     if tobra_records:
-        print(f"    -> Deviate in vanzari_tobra: {len(tobra_records):,} randuri (cod_client={TOBRA_COD_CLIENT})")
+        print(f"    -> Deviate in corr_vanzari_tobra: {len(tobra_records):,} randuri (cod_client={TOBRA_COD_CLIENT})")
     return records, tobra_records
 
 
@@ -403,7 +403,7 @@ def insert_tobra_rows(conn, tobra_records):
         return 0
     placeholders = ", ".join(["?" for _ in TOBRA_COLS])
     cols = ", ".join(TOBRA_COLS)
-    sql = f"INSERT OR IGNORE INTO vanzari_tobra ({cols}) VALUES ({placeholders})"
+    sql = f"INSERT OR IGNORE INTO corr_vanzari_tobra ({cols}) VALUES ({placeholders})"
     data = [[r[c] for c in TOBRA_COLS] for r in tobra_records]
     cursor = conn.cursor()
     cursor.executemany(sql, data)
@@ -433,7 +433,7 @@ def run(filepath=None):
 
     n_tobra = insert_tobra_rows(conn, tobra_records)
     if tobra_records:
-        print(f"    -> Inserate in vanzari_tobra: {n_tobra:,} | Duplicate ignorate: {len(tobra_records) - n_tobra:,}")
+        print(f"    -> Inserate in corr_vanzari_tobra: {n_tobra:,} | Duplicate ignorate: {len(tobra_records) - n_tobra:,}")
 
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*), MIN(data_dl), MAX(data_dl) FROM tranzactii")

@@ -362,26 +362,6 @@ def api_upload_status(job_id):
     return jsonify({'ok': True, **job})
 
 
-@forecast_bp.route('/api/forecast/refresh-stoc', methods=['POST'])
-def api_forecast_refresh_stoc():
-    """Run import_stoc.py to pick up the latest stock file from docs_input/."""
-    try:
-        import subprocess
-        proj_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        result = subprocess.run(
-            [sys.executable, 'etl/import_stoc.py'],
-            cwd=proj_root, capture_output=True, text=True, timeout=120,
-        )
-        if result.returncode != 0:
-            return jsonify({'error': result.stderr or result.stdout}), 500
-        from db import query_one
-        latest = query_one("SELECT MAX(data_snapshot) AS data_snapshot, COUNT(*) AS n FROM stoc WHERE data_snapshot=(SELECT MAX(data_snapshot) FROM stoc)")
-        return jsonify({'ok': True, 'output': result.stdout[-500:], 'latest': dict(latest) if latest else None})
-    except Exception as exc:
-        logger.exception("api_forecast_refresh_stoc failed")
-        return jsonify({'error': str(exc)}), 500
-
-
 @forecast_bp.route('/api/forecast/sku-clients/<path:sku>')
 def api_forecast_sku_clients(sku):
     data = queries.sku_clients_monthly(sku)
