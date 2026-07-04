@@ -3,7 +3,6 @@ import os
 import json
 import datetime
 import logging
-import logging.handlers
 
 # Keep sys.path insert at module level so blueprint files can import db, queries, etc.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -36,17 +35,8 @@ def create_app(test_config=None):
     from blueprints.pachete import pachete_bp
 
     # ── Logging ──────────────────────────────────────────────────────────────
-    _log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
-    os.makedirs(_log_dir, exist_ok=True)
-    _file_handler = logging.handlers.RotatingFileHandler(
-        os.path.join(_log_dir, "app.log"), maxBytes=5 * 1024 * 1024,
-        backupCount=3, encoding="utf-8",
-    )
-    _file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
-    if not logging.root.handlers:
-        logging.root.addHandler(_file_handler)
-    _log_level = getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
-    logging.root.setLevel(_log_level)
+    from logging_config import setup_logging
+    setup_logging()
     logger = logging.getLogger(__name__)
 
     # ── Secret key ───────────────────────────────────────────────────────────
