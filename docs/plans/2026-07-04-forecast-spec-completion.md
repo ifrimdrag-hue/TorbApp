@@ -2,7 +2,7 @@
 
 Source of truth: owner docs `Brief Modul Aprovizionare Torb.docx` + `Specificatie Forecast Torb.docx`
 (the docx files are deleted after this session — their essential rules are digested below).
-Owner decisions: `docs/decision_torb.html`. Prior audit: `docs/analysis/forecast_page_analysis.md`.
+Owner decisions: `app/templates/decision_torb.html`. Prior audit: `docs/analysis/forecast_page_analysis.md`.
 
 Owner answers this session: **scope = lowest-risk subset only**; **keep RO/Export split**;
 **OOS = Level-1 heuristic now + start capturing** (DB is rebuilt ~daily — snapshot capture must

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Testare — Forecast client × articol · Torb</title>
+<style>
+  :root {
+    --bg: #f6f7f8; --surface: #ffffff; --ink: #1b2430; --muted: #5b6673;
+    --line: #e3e7eb; --accent: #0f6e6a; --accent-soft: #e5f0ef;
+    --rec-bg: #eef6f5; --rec-line: #bcdedb; --crit: #b5382b; --warn: #9a6c07;
+    --ok: #2f7d57;
+    --shadow: 0 1px 2px rgba(20,30,45,.05), 0 8px 24px rgba(20,30,45,.05);
+    --serif: Georgia, Cambria, "Times New Roman", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10151b; --surface: #171e26; --ink: #e8edf1; --muted: #98a3b0;
+      --line: #262f3a; --accent: #3fb3ac; --accent-soft: #16302e;
+      --rec-bg: #142624; --rec-line: #21453f; --crit: #e8776b; --warn: #e0b24d;
+      --ok: #63b98a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans);
+    font-size: 17px; line-height: 1.62; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; padding: clamp(1.4rem,4vw,3rem) clamp(1.1rem,4vw,2rem) 4rem; }
+  .back { display: inline-block; margin-bottom: 1.4rem; color: var(--accent); text-decoration: none; font-size: .9rem; font-weight: 600; }
+  .back:hover { text-decoration: underline; }
+  .masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.6rem; margin-bottom: 2.2rem; }
+  .kicker { font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin: 0 0 .9rem; }
+  .kicker .dev { color: var(--warn); border: 1px solid var(--warn); border-radius: 5px; padding: .05rem .4rem; margin-left: .5rem; letter-spacing: .08em; }
+  h1 { font-family: var(--serif); font-weight: 700; font-size: clamp(1.8rem,5vw,2.6rem); line-height: 1.12; letter-spacing: -.01em; text-wrap: balance; margin: 0 0 .7rem; }
+  .lede { color: var(--muted); font-size: 1.05rem; max-width: 46ch; margin: 0; }
+  h2.sec { font-family: var(--serif); font-weight: 700; font-size: clamp(1.35rem,4vw,1.8rem); line-height: 1.15; margin: 3.2rem 0 1.1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--line); scroll-margin-top: 1rem; }
+  h2.sec .n { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: .5rem; }
+  h3 { font-family: var(--serif); font-size: 1.2rem; margin: 1.8rem 0 .6rem; font-weight: 700; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  thead th { text-align: left; font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: .75rem .9rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  tbody td { padding: .75rem .9rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  code { background: var(--accent-soft); color: var(--accent); padding: .05rem .35rem; border-radius: 4px; font-size: .86em; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: clamp(1.1rem,3vw,1.6rem); box-shadow: var(--shadow); margin: 1.1rem 0; }
+  .card h3 { margin-top: 0; }
+
+  /* checklist */
+  .chk { list-style: none; padding: 0; margin: 1rem 0; display: grid; gap: .5rem; }
+  .chk li { display: grid; grid-template-columns: 1.5rem 1fr; gap: .7rem; align-items: start; padding: .7rem .85rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .chk input { width: 1.15rem; height: 1.15rem; margin-top: .18rem; accent-color: var(--accent); cursor: pointer; }
+  .chk .step-t { font-weight: 600; }
+  .chk .step-d { color: var(--muted); font-size: .92rem; display: block; margin-top: .15rem; }
+  .step-group { font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--muted); margin: 1.6rem 0 .3rem; }
+
+  .callout { border-left: 3px solid var(--warn); background: rgba(154,108,7,.08); padding: .8rem 1rem; border-radius: 0 8px 8px 0; margin: 1.1rem 0; font-size: .95rem; }
+  .callout b { color: var(--warn); }
+  .pass { border-left: 3px solid var(--ok); background: var(--rec-bg); padding: .8rem 1rem; border-radius: 0 8px 8px 0; margin: 1.1rem 0; font-size: .95rem; }
+  .pass b { color: var(--ok); }
+
+  .two { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; margin: 1.1rem 0; }
+  @media (max-width: 560px) { .two { grid-template-columns: 1fr; } }
+  .col { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.1rem; background: var(--surface); }
+  .col.gone { border-color: var(--crit); }
+  .col.stay { border-color: var(--rec-line); }
+  .col h3 { margin: 0 0 .6rem; font-size: 1.05rem; }
+  .col.gone h3 { color: var(--crit); }
+  .col.stay h3 { color: var(--ok); }
+  .col ul { margin: 0; padding-left: 1.1rem; }
+  .col li { margin: .35rem 0; font-size: .93rem; }
+
+  .badge { display: inline-block; font-size: .72rem; font-weight: 700; padding: .05rem .5rem; border-radius: 20px; vertical-align: middle; }
+  .badge.warn { color: var(--warn); border: 1px solid var(--warn); }
+  .badge.crit { color: var(--crit); border: 1px solid var(--crit); }
+  .badge.ok { color: var(--ok); border: 1px solid var(--ok); }
+
+  p { margin: .7rem 0; }
+  ul.plain { padding-left: 1.15rem; }
+  ul.plain li { margin: .4rem 0; }
+  .foot { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← Înapoi la aplicație</a>
+
+  <header class="masthead">
+    <p class="kicker">Torb · Modul Aprovizionare<span class="dev">Mediu de test — dev</span></p>
+    <h1>Testare — modelul de forecast client × articol</h1>
+    <p class="lede">Această pagină adună tot ce e nevoie pentru testarea noului model de prognoză pe dev. Noul model rulează momentan „în spatele unui buton" (<code>?model=nou</code>) — modelul actual rămâne cel implicit până confirmați cifrele. Scopul testării: să validați că sugestiile noului model sunt corecte înainte să-l facem implicit.</p>
+  </header>
+
+  <!-- ============ PE SCURT ============ -->
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Ce s-a livrat</th><th>Ce face</th></tr></thead>
+      <tbody>
+        <tr><td><b>Model client × articol</b></td><td>Calcul pe fiecare pereche client-articol, nu media pe SKU — delistările ies imediat din prognoză</td></tr>
+        <tr><td><b>Luni neutre</b></td><td>Lună în care ≥70% dintre clienții articolului au 0 vânzări = lipsă de ofertă, se exclude din medie</td></tr>
+        <tr><td><b>Tăiere INACTIV</b></td><td>Articol cu 0 vânzări în ultimele 6 luni → prognoză 0, iese din sugestii</td></tr>
+        <tr><td><b>DELISTAT</b></td><td>Client „suspect" de peste 90 de zile suplimentare → etichetă DELISTAT (efect identic cu Suspect)</td></tr>
+        <tr><td><b>Prag MOQ</b></td><td>Mecanism gata; inactiv până ne dați lista de cantități minime de comandă</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============ A. CHECKLIST ============ -->
+  <h2 class="sec"><span class="n">A.</span>Checklist de testare</h2>
+  <p>Bifați pe măsură ce parcurgeți. Bifele se resetează la reîncărcarea paginii — sunt doar pentru sesiunea curentă.</p>
+
+  <p class="step-group">1 · Pornire &amp; acces</p>
+  <ul class="chk">
+    <li><input type="checkbox"><span><span class="step-t">Deschideți comparația pe Basilur.</span><span class="step-d">Accesați <code>/forecast?tab=stoc&amp;brand=Basilur&amp;compare=1</code> (sau: tab <b>Stoc</b> → Brand = Basilur → butonul <b>Comparație</b>).</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Confirmați butoanele de model.</span><span class="step-d">Vedeți grupul <b>Model actual</b> / <b>Model nou (client × articol)</b> și butonul <b>Comparație</b> lângă Export.</span></span></li>
+  </ul>
+
+  <p class="step-group">2 · Citirea cifrelor (mod Comparație)</p>
+  <ul class="chk">
+    <li><input type="checkbox"><span><span class="step-t">Comparați coloanele.</span><span class="step-d"><code>Sug. RO</code> = modelul actual · <code>Sug. RO nou</code> = modelul nou · <code>Δ RO</code> = diferența (roșu când noul model comandă mai puțin).</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Identificați rândurile cu Δ RO mare, roșu.</span><span class="step-d">Acolo unde actualul sugera o cantitate iar noul model dă 0 — acelea sunt articolele „tăiate" de noul model.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Distingeți cauza tăierii.</span><span class="step-d">Rând cu badge <span class="badge warn">Suspect delistare</span> → cauza e delistarea unor clienți (treceți cu mouse-ul: câți clienți au fost excluși). Rând fără badge, dar cu <code>Sug. RO nou = 0</code> → e tăierea <b>INACTIV</b> (6 luni fără vânzări).</span></span></li>
+  </ul>
+
+  <p class="step-group">3 · Verificarea agresivității (cel mai important)</p>
+  <div class="callout"><b>⚠ De urmărit:</b> pe Basilur, noul model marchează <b>205 din 473 SKU-uri ca INACTIV</b>. Poate fi corect (coadă lungă de produse moarte) sau prea agresiv pentru un brand cu livrare lentă (16 săptămâni), unde un articol viu poate sta 6 luni fără vânzare. Verificați-l.</div>
+  <ul class="chk">
+    <li><input type="checkbox"><span><span class="step-t">Comutați pe „90 zile".</span><span class="step-d">Butonul de sus schimbă <code>Vânz./lună</code> pe viteza recentă.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Pe rândurile tăiate (nou = 0), verificați semnele de viață.</span><span class="step-d">Dacă <code>Vânz./lună (90 zile)</code> este &gt; 0 sau <code>Zile stoc</code> e mic/critic → articolul e <b>viu</b>, tăierea e prea agresivă. Dacă <code>Vânz./lună</code> ≈ 0 și stă stoc mult → corect marcat mort.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Notați câte din eșantion sunt „vii dar tăiate".</span><span class="step-d">Dacă sunt multe, ridicăm pragul <code>taiere_inactiv_luni</code> (6 → 9–12) pentru brandurile lente.</span></span></li>
+  </ul>
+
+  <p class="step-group">4 · Verificări de corectitudine (cazuri din specificație)</p>
+  <ul class="chk">
+    <li><input type="checkbox"><span><span class="step-t">Client trimestrial, ultima comandă acum ~5 luni → rămâne ACTIV.</span><span class="step-d">Pragul se adaptează la ritmul clientului (<code>max(180, 3× intervalul mediu)</code>), deci nu e alarmat fals.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Articol listat acum ~4 luni → media pe 4 luni, fără penalizare.</span><span class="step-d">Nu i se numără luni de zero dinainte de listare.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Stoc care acoperă necesarul → sugestie 0.</span><span class="step-d">Dacă stocul + comenzile în curs depășesc necesarul (prognoză × (lead + acoperire) + stoc de siguranță), sugestia e 0.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Transparența sugestiei.</span><span class="step-d">Pe tab <b>Sugestie</b>, deschideți un SKU: apare descompunerea (prognoză / sezonalitate / stoc de siguranță) și defalcarea pe 6 luni.</span></span></li>
+  </ul>
+
+  <p class="step-group">5 · Reglaj live (fără cod)</p>
+  <ul class="chk">
+    <li><input type="checkbox"><span><span class="step-t">Ajustați parametrii pe Setări Forecast.</span><span class="step-d">Pe <code>/forecast/setari</code>, cardul „Parametri forecast": modificați <code>taiere_inactiv_luni</code>, <code>prag_neutru_multi_client</code> etc., salvați și reluați pasul 3. Nu se schimbă modelul implicit — puteți experimenta liniștiți.</span></span></li>
+  </ul>
+
+  <div class="pass"><b>Criterii de acceptare:</b> (1) articolele tăiate de noul model sunt, la verificare, chiar moarte/delistate; (2) articolele vii rămân cu sugestii rezonabile; (3) diferențele Δ față de modelul actual sunt explicabile, nu aleatorii. Dacă toate trei sunt îndeplinite → dați GO pentru trecerea la modelul nou ca implicit.</div>
+
+  <!-- ============ B. FUNCTIONALITATI ============ -->
+  <h2 class="sec"><span class="n">B.</span>Descrierea funcționalităților</h2>
+
+  <div class="card">
+    <h3>Model client × articol</h3>
+    <p>Modelul vechi făcea media unui articol peste toți clienții. Cel nou calculează cererea pe fiecare pereche <b>client × articol</b> și adună doar perechile active. Astfel, când un client mare delistează un produs, contribuția lui iese <b>imediat</b> din prognoză, nu se diluează lent cu zerouri luni la rând.</p>
+  </div>
+  <div class="card">
+    <h3>Luni neutre (corecția rupturilor de stoc)</h3>
+    <p>O lună în care ≥ <b>70%</b> dintre clienții care cumpără în mod normal articolul au avut <b>0 vânzări simultan</b> este citită ca lipsă de ofertă (ruptură/gap de aprovizionare), nu ca lipsă de cerere — și se exclude din medie. Un singur client care lipsește nu declanșează asta (e nevoie de cel puțin 2 clienți). Așa nu penalizăm greșit articolele pe care doar n-am reușit să le ținem pe stoc.</p>
+  </div>
+  <div class="card">
+    <h3>Tăiere INACTIV</h3>
+    <p>Un articol cu <b>0 vânzări totale în ultimele 6 luni</b> (pe toți clienții) este marcat INACTIV: prognoza devine 0 și iese din sugestii (nu se șterge, doar se marchează). Lunile neutre nu contează ca dovadă, iar articolele puternic sezoniere (indice de sezon ≥ 3,0) sunt exceptate ca să nu fie tăiate în extrasezon.</p>
+  </div>
+  <div class="card">
+    <h3>Suspect delistare → DELISTAT</h3>
+    <p>Dacă o pereche client-articol depășește pragul adaptiv <code>max(180 zile, 3× intervalul mediu de comandă)</code>, e marcată <span class="badge warn">Suspect delistare</span> și contribuția ei devine 0. După încă <b>90 de zile</b> fără comandă, primește eticheta <b>DELISTAT</b> (același efect — 0 în prognoză — doar o etichetă mai clară pentru raportare).</p>
+  </div>
+  <div class="card">
+    <h3>Prag MOQ (cantitate minimă de comandă)</h3>
+    <p>Sugestia se rotunjește deja în sus la bax. Mecanismul de MOQ (ridicarea sugestiei la cantitatea minimă a furnizorului) este implementat, dar <b>inactiv</b> — se activează când ne dați lista de MOQ pe furnizor/articol.</p>
+  </div>
+  <div class="card">
+    <h3>Captură zilnică de stoc (ETL)</h3>
+    <p>Un script rulează zilnic și salvează o „fotografie" a stocului, ca istoricul de rupturi să se construiască singur în timp (pentru nivelul 2 al corecției de luni neutre). Nu afectează cifrele de azi.</p>
+  </div>
+
+  <!-- ============ C. UI DUPA FLIP ============ -->
+  <h2 class="sec"><span class="n">C.</span>Interfața după trecerea la modelul nou</h2>
+  <p>Astăzi, în perioada de testare, aveți <b>ambele modele</b> și le puteți compara. După ce dați GO și facem noul model implicit, pagina se simplifică — nu mai e nevoie de comparație:</p>
+
+  <div class="two">
+    <div class="col gone">
+      <h3>Ce dispare</h3>
+      <ul>
+        <li>Butoanele de comutare <b>Model actual / Model nou</b> (rămâne un singur model).</li>
+        <li>Butonul <b>Comparație</b> și coloanele <b>Sug. RO nou</b> + <b>Δ RO</b>.</li>
+        <li>Cifrele modelului <b>„actual"</b> (media pe SKU) nu mai apar nicăieri.</li>
+        <li>Parametrul <code>?model=nou</code> din URL nu mai e necesar (devine comportamentul normal).</li>
+      </ul>
+    </div>
+    <div class="col stay">
+      <h3>Ce rămâne (neschimbat vizual)</h3>
+      <ul>
+        <li>Pagina <code>/forecast</code> cu aceleași tab-uri: Stoc, Sugestie, Comenzi, Setări, Export.</li>
+        <li>Coloanele <b>Sug. RO</b> / <b>Sug. HU</b> — dar calculate cu noul model.</li>
+        <li>Badge-urile <span class="badge warn">Suspect delistare</span> și marcajele de urgență (<span class="badge crit">Critic</span> / <span class="badge warn">Atenție</span> / <span class="badge ok">OK</span>).</li>
+        <li>Coloanele de stoc, zile de stoc, în tranzit, vechime, clienți.</li>
+        <li>Comutatorul <b>3 ani / 90 zile</b>, exportul Excel și tab-ul <b>Setări</b> cu parametrii reglabili.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="lede" style="max-width:none">Pe scurt: <b>trecerea la modelul nou nu mută butoane și nu schimbă felul de a lucra</b> — doar cifrele din spate devin cele ale modelului client × articol, iar instrumentele de comparație folosite la testare se retrag.</p>
+
+  <!-- ============ NOTE ============ -->
+  <h2 class="sec"><span class="n">D.</span>Note &amp; ce urmează</h2>
+
+  <h3>Ce NU e încă implementat (deferat)</h3>
+  <ul class="plain">
+    <li><b>Ramp-up pentru listări noi</b> — estimare inițială pentru o pereche client-articol fără istoric (analogie + creștere graduală pe 3 luni).</li>
+    <li><b>Confirmarea manuală a delistării</b> — ecran de excepții cu butoane „Confirmă delistarea" / „Fals pozitiv" + revenirea la activ.</li>
+    <li><b>Vederea „an curent vs. an trecut"</b> — a treia bază de afișare a vânzărilor.</li>
+    <li><b>Componentele extinse F2/F3/F4</b> — ciclul de viață al comenzilor, managementul documentelor, stocul pe loturi cu termen de valabilitate.</li>
+  </ul>
+
+  <h3>Decizii care mai așteaptă răspuns de la proprietar</h3>
+  <ul class="plain">
+    <li><b>6</b> — lista de cantități minime de comandă (MOQ).</li>
+    <li><b>9</b> — păstrăm sugestia separată RO / Export HU (proprietarul a confirmat: <b>da</b>).</li>
+    <li><b>11</b> — pragul (%) de la care alertăm diferența de preț la achiziție.</li>
+    <li><b>12</b> — valoarea (lei) de la care semnalăm „stoc mort".</li>
+    <li><b>13</b> — raportul din ERP defalcat pe loturi cu termen de valabilitate (precondiție F4).</li>
+    <li><b>14</b> — canalul de notificare (în aplicație / e-mail).</li>
+  </ul>
+  <div class="callout" style="border-left-color:var(--accent);background:var(--accent-soft)">
+    <b style="color:var(--accent)">Documentul complet de decizii:</b>
+    <a href="/decizii" style="color:var(--accent);font-weight:700">deschideți „Decizii de validat" →</a>
+    — toate cele 14 puncte, cu rezoluția fiecăruia (1–10 rezolvate de documentele proprietarului) și opțiunile pentru cele deschise.
+  </div>
+
+  <h3>Trecerea la modelul nou (GO)</h3>
+  <p>Modelul nou stă în spatele butonului până când, în urma acestei testări, dați GO. Atunci îl facem implicit (păstrând <code>?model=actual</code> ca portiță de siguranță) și retragem instrumentele de comparație. Dacă la testare pragul INACTIV pare prea agresiv, îl reglăm întâi din Setări, apoi facem trecerea.</p>
+
+  <p class="foot">Pagină internă de testare · vizibilă doar pe mediul de dev, ascunsă programatic în producție · sursă: modelul forecast client × articol (2026-07-04)</p>
+</div>
+</body>
+</html>

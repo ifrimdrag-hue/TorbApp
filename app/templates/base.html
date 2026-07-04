@@ -44,6 +44,13 @@
 
   <div class="sidebar-body">
 
+    {% if show_testing %}
+    <a class="sidebar-link {% if request.path == '/testare' %}active{% endif %}"
+       href="{{ url_for('forecast.testare') }}" data-label="Testare">
+      <i class="bi bi-exclamation-circle" style="color:#d4a02a"></i><span class="link-text"> Testare</span>
+    </a>
+    {% endif %}
+
     <div class="sidebar-section"><span class="link-text">Analiză</span></div>
     <a class="sidebar-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
        href="{{ url_for('analytics.dashboard') }}" data-label="Dashboard">

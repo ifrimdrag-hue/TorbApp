@@ -65,9 +65,9 @@ Both entry points default to the unchanged legacy behaviour; the new model is op
 - `/forecast?compare=1` — validation view: renders the **old** model as the base rows, then runs the new model alongside and attaches `suggested_ro_nou`/`suggested_hu_nou` per SKU so old-vs-new can be diffed on screen before flipping the default. Use this to validate before changing the `model` default in `app/blueprints/forecast.py`.
 - UI (`forecast.html`): model toggle control, "Suspect delistare" badge (from `n_suspect`/`suspects`), a "fără ajustare (<24 luni)" seasonality marker when the gate hasn't opened yet, and a suggestion-transparency popover showing the demand/safety-stock breakdown.
 
-### Deferred spec items — need owner decisions (`docs/decision_torb.html`, items 5–10)
+### Deferred spec items — need owner decisions (`app/templates/decision_torb.html`, items 5–10)
 
-Not implemented; blocked on data availability or a product decision. Each maps to a numbered card in `docs/decision_torb.html` ("Runda 2 · Noul model de forecast"):
+Not implemented; blocked on data availability or a product decision. Each maps to a numbered card in `app/templates/decision_torb.html` ("Runda 2 · Noul model de forecast"):
 
 | # | Spec ref | Status |
 |---|---|---|
@@ -78,6 +78,6 @@ Not implemented; blocked on data availability or a product decision. Each maps t
 | 9 | — | RO/Export HU split — owner confirmed **keep** (2026-07-04); still kept in the new model |
 | 10 | §10 | Nightly batch recalculation vs. on-demand (currently on-demand, same as legacy) |
 
-Owner decisions log: `docs/decision_torb.html` (1–10 resolved by the owner brief/spec; 6/9/11–14 open). Plan + spec digest: `docs/plans/2026-07-04-forecast-spec-completion.md`.
+Owner decisions log: `app/templates/decision_torb.html` (1–10 resolved by the owner brief/spec; 6/9/11–14 open). Plan + spec digest: `docs/plans/2026-07-04-forecast-spec-completion.md`.
 
 Tests: `tests/test_pair_engine.py`, `tests/test_forecast_reorder.py`, `tests/test_forecast_config.py`, `tests/test_forecast_routes.py`.

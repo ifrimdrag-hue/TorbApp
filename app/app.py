@@ -198,12 +198,14 @@ def create_app(test_config=None):
     # ── Context processor ────────────────────────────────────────────────────
     @app.context_processor
     def inject_globals():
+        from feature_flags import SHOW_TESTING
         cy = datetime.date.today().year
         return {
             'current_year': cy,
             'today': datetime.date.today(),
             'display_years': [cy - 2, cy - 1, cy],
             'sku_cod_mare': queries.get_sku_cod_mare_map(),
+            'show_testing': SHOW_TESTING,
         }
 
     # ── Error handlers ───────────────────────────────────────────────────────

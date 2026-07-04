@@ -79,6 +79,22 @@ def forecast():
     )
 
 
+@forecast_bp.route('/testare')
+def testare():
+    from feature_flags import SHOW_TESTING
+    if not SHOW_TESTING:
+        abort(404)
+    return render_template('testing_checklist.html')
+
+
+@forecast_bp.route('/decizii')
+def decizii():
+    from feature_flags import SHOW_TESTING
+    if not SHOW_TESTING:
+        abort(404)
+    return render_template('decision_torb.html')
+
+
 @forecast_bp.route('/forecast/setari')
 def forecast_setari():
     from forecast import config as fc_config

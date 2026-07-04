@@ -29,6 +29,30 @@ def test_forecast_compare_adds_delta_columns(client):
     assert 'Δ RO' in html
 
 
+def test_testare_page_and_flag_gate(client):
+    import feature_flags
+    # Flag ON: page renders, sidebar shows the Testare link.
+    feature_flags.SHOW_TESTING = True
+    resp = client.get('/testare')
+    assert resp.status_code == 200
+    html = resp.data.decode('utf-8')
+    assert 'Checklist de testare' in html
+    assert 'href="/decizii"' in html   # links to the decision doc
+    assert 'data-label="Testare"' in client.get('/').data.decode('utf-8')
+    # Decision doc is served from templates and gated by the same flag.
+    dec = client.get('/decizii')
+    assert dec.status_code == 200
+    assert 'Decizii de validat' in dec.data.decode('utf-8')
+    # Flag OFF: both routes 404 and the sidebar link is hidden.
+    feature_flags.SHOW_TESTING = False
+    try:
+        assert client.get('/testare').status_code == 404
+        assert client.get('/decizii').status_code == 404
+        assert 'data-label="Testare"' not in client.get('/').data.decode('utf-8')
+    finally:
+        feature_flags.SHOW_TESTING = True
+
+
 def test_forecast_default_page_has_no_compare_columns(client):
     resp = client.get('/forecast?tab=stoc')
     assert resp.status_code == 200
