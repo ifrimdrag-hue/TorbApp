@@ -355,6 +355,19 @@ function editTara(id, tara, piata) {
   document.getElementById('modalTaraTitle').textContent = 'Editează: ' + tara;
   new bootstrap.Modal(document.getElementById('modalTara')).show();
 }
+// Reîncarcă doar la succes; altfel afișează eroarea API-ului (înainte, un
+// răspuns 400 era înghițit și pagina doar se reîncărca fără nicio schimbare).
+async function _postAndReload(url, opts, failMsg) {
+  try {
+    const r = await fetch(url, opts);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.error) { AppError.show(null, j.error || failMsg); return; }
+    location.reload();
+  } catch (e) {
+    AppError.show(null, failMsg + ' (' + e.message + ')');
+  }
+}
+
 function saveTara() {
   const id = document.getElementById('taraId').value;
   const data = {
@@ -364,16 +377,16 @@ function saveTara() {
   };
   if (!data.tara || !data.piata) { AppError.show(null, 'Completează denumirea țării și codul de piață.'); return; }
   if (id) data.id = parseInt(id);
-  fetch('/api/forecast/tari', {
+  _postAndReload('/api/forecast/tari', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(data)
-  }).then(() => location.reload());
+  }, 'Salvarea țării a eșuat.');
 }
 function deleteTara(id, tara) {
   if (!confirm('Șterge țara "' + tara + '" și toți clienții din ea?')) return;
-  fetch('/api/forecast/tari/' + id, {method: 'DELETE'})
-    .then(() => location.reload());
+  _postAndReload('/api/forecast/tari/' + id, {method: 'DELETE'},
+                 'Ștergerea țării a eșuat.');
 }
 
 function showAddClient(taraId, taraNume) {
@@ -441,15 +454,19 @@ function saveClient() {
     nume_client: document.getElementById('clientNume').value.trim(),
     activ: 1,
   };
-  fetch('/api/forecast/clienti', {
+  if (!data.cod_client || !data.nume_client) {
+    AppError.show(null, 'Completează codul și denumirea clientului (caută după nume ca să se completeze automat).');
+    return;
+  }
+  _postAndReload('/api/forecast/clienti', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(data)
-  }).then(() => location.reload());
+  }, 'Salvarea clientului a eșuat.');
 }
 function toggleClient(id) {
-  fetch('/api/forecast/clienti/' + id + '/toggle', {method: 'POST'})
-    .then(() => location.reload());
+  _postAndReload('/api/forecast/clienti/' + id + '/toggle', {method: 'POST'},
+                 'Schimbarea stării clientului a eșuat.');
 }
 
 document.querySelectorAll('.cfg-param').forEach(el => {

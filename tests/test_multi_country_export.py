@@ -96,6 +96,29 @@ def test_split_zero_country_demand_gives_zero():
     assert s["suggested_export"] == 0
 
 
+def test_tari_export_accepts_any_market_code(db_path):
+    """Migration 0020: the CHECK(piata IN ('RO','HU')) from 0001 is gone —
+    adding a country with any short code (BG, AT, MD...) must work, and
+    existing rows/ids must survive the table rebuild."""
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    try:
+        # Seeded 'Ungaria' survived the rebuild with its id/piata intact.
+        assert conn.execute(
+            "SELECT piata FROM tari_export WHERE tara='Ungaria'"
+        ).fetchone()[0] == 'HU'
+        conn.execute(
+            "INSERT INTO tari_export (tara, piata) VALUES ('Bulgaria', 'BG')")
+        conn.commit()
+        assert conn.execute(
+            "SELECT piata FROM tari_export WHERE tara='Bulgaria'"
+        ).fetchone()[0] == 'BG'
+    finally:
+        conn.execute("DELETE FROM tari_export WHERE tara='Bulgaria'")
+        conn.commit()
+        conn.close()
+
+
 def test_order_line_piete_roundtrip(client, db_path):
     """Per-country order quantities persist via comenzi_linii_piete (mig 0019)."""
     import queries
