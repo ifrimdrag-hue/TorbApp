@@ -163,14 +163,21 @@ def forecast_stoc_brand(furnizor=None, gama=None, urgenta=None, search=None):
     return rows
 
 
-def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, vel='3ani'):
+def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, vel='3ani',
+                            model='actual'):
     """Ca forecast_stoc_brand + avg RO/HU + sugestii de comandă per SKU.
 
     `vel` controlează baza pentru coloanele afișate Vânz./lună + Zile stoc:
       '3ani'   → media sezonieră pe 3 ani (implicit, netezește vârfurile);
       '90zile' → viteza recentă pe ultimele 90 de zile (valorile brute din SQL).
     Sugestiile Sug. RO/HU rămân mereu pe modelul sezonier, indiferent de `vel`.
+
+    `model` alege sursa cererii lunare: 'actual' (implicit, comportament
+    neschimbat) folosește `_monthly_sales_by_sku`; 'nou' folosește modelul
+    client×articol (`pair_engine.article_monthly_profiles`) + sugestii cu
+    coeficient de siguranță (`split_with_safety`) și expune `n_suspect`.
     """
+    model = 'nou' if model == 'nou' else 'actual'
     vel = '90zile' if vel == '90zile' else '3ani'
     filters, params = [], {}
     if furnizor:
@@ -253,8 +260,23 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
     # Construiește istoricul lunar (3 ani) per furnizor, o singură interogare per brand
     furnizori_in_rows = list({r['furnizor'] for r in rows})
     monthly_cache = {}
-    for f in furnizori_in_rows:
-        monthly_cache[f] = forecast_logic._monthly_sales_by_sku(f)
+    bax_cache = {}
+    nou_params = None
+    if model == 'nou':
+        from forecast import pair_engine, config as fc_config
+        nou_params = fc_config.get_params()
+        for f in furnizori_in_rows:
+            monthly_cache[f] = pair_engine.article_monthly_profiles(f, nou_params)
+    else:
+        for f in furnizori_in_rows:
+            monthly_cache[f] = forecast_logic._monthly_sales_by_sku(f)
+
+    def _bax_map(f):
+        if f not in bax_cache:
+            bax_cache[f] = {r['sku']: r['buc_cutie']
+                             for r in query("SELECT sku, buc_cutie FROM produse WHERE furnizor=:f",
+                                            {'f': f})}
+        return bax_cache[f]
 
     for r in rows:
         orders = transit_by_sku.get(r['sku'], [])
@@ -271,7 +293,18 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
         monthly_total = sku_data.get('total', {})
 
         available = float(r['stoc_total'] or 0) + float(r['in_tranzit_qty'] or 0)
-        split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, available)
+        if model == 'nou':
+            base_ro = sum(monthly_ro.values()) / 12 if monthly_ro else 0
+            base_export = sum(monthly_hu.values()) / 12 if monthly_hu else 0
+            bax = _bax_map(r['furnizor'])
+            split = forecast_logic.split_with_safety(
+                monthly_ro, monthly_hu, lead, available,
+                base_ro, base_export, nou_params['coef_siguranta'],
+                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n))
+            r['n_suspect'] = sku_data.get('n_suspect', 0)
+        else:
+            split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, available)
+            r['n_suspect'] = 0
         r['suggested_ro'] = int(round(split['suggested_ro']))
         r['suggested_hu'] = int(round(split['suggested_export']))
         r['lead_time_days'] = lead
@@ -357,6 +390,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
             'suggested_ro':      int(round(sug_ro)),
             'suggested_hu':      int(round(sug_hu)),
             'lead_time_days':    lead,
+            'n_suspect':         0,
         })
 
     # Adaugă produse cu vânzări recente (90 zile) dar fără stoc și fără tranzit activ
@@ -417,6 +451,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
             'suggested_ro':      int(round(split['suggested_ro'])),
             'suggested_hu':      int(round(split['suggested_export'])),
             'lead_time_days':    lead,
+            'n_suspect':         0,
         })
         existing_skus.add(sku)
 
