@@ -357,7 +357,10 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
         if not sku_data:
             # furnizor-ul poate să nu fie în monthly_cache dacă nu era în rows
             if furn not in monthly_cache:
-                monthly_cache[furn] = forecast_logic._monthly_sales_by_sku(furn)
+                if model == 'nou':
+                    monthly_cache[furn] = pair_engine.article_monthly_profiles(furn, nou_params)
+                else:
+                    monthly_cache[furn] = forecast_logic._monthly_sales_by_sku(furn)
             sku_data = monthly_cache.get(furn, {}).get(sku_n, {})
         monthly_ro = sku_data.get('ro', {})
         monthly_hu = sku_data.get('export', {})
@@ -427,7 +430,10 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
         if search and search.lower() not in sku.lower():
             continue
         if furn not in monthly_cache:
-            monthly_cache[furn] = forecast_logic._monthly_sales_by_sku(furn)
+            if model == 'nou':
+                monthly_cache[furn] = pair_engine.article_monthly_profiles(furn, nou_params)
+            else:
+                monthly_cache[furn] = forecast_logic._monthly_sales_by_sku(furn)
         sku_n = forecast_logic._normalize_sku(sku)
         sku_data = monthly_cache.get(furn, {}).get(sku_n, {})
         monthly_ro = sku_data.get('ro', {})
