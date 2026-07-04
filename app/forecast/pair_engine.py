@@ -37,3 +37,20 @@ def monthly_mean_with_zeros(pair_months, window):
         return 0.0
     total = sum(pair_months.get(ym, 0.0) for ym in window)
     return total / len(window)
+
+
+def seasonal_index(article_month_qty, min_history_months, cap_lo, cap_hi):
+    if len(article_month_qty) < min_history_months:
+        return {m: 1.0 for m in range(1, 13)}
+    by_month = {m: [] for m in range(1, 13)}
+    for (_, m), q in article_month_qty.items():
+        by_month[m].append(q)
+    month_mean = {m: (sum(v) / len(v) if v else 0.0) for m, v in by_month.items()}
+    overall = sum(month_mean.values()) / 12
+    if overall <= 0:
+        return {m: 1.0 for m in range(1, 13)}
+    out = {}
+    for m in range(1, 13):
+        idx = month_mean[m] / overall
+        out[m] = min(cap_hi, max(cap_lo, idx))
+    return out

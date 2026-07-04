@@ -28,3 +28,22 @@ def test_mean_with_zeros_declines_toward_zero():
 
 def test_mean_empty_window_is_zero():
     assert pe.monthly_mean_with_zeros({(2026, 3): 5}, []) == 0.0
+
+
+def test_seasonality_flat_below_min_history():
+    # 12 months of data < 24 -> no adjustment.
+    qty = {(2025, m): 10.0 for m in range(1, 13)}
+    idx = pe.seasonal_index(qty, min_history_months=24, cap_lo=0.2, cap_hi=5.0)
+    assert set(idx.values()) == {1.0}
+
+
+def test_seasonality_peaks_and_caps():
+    # 36 months: Nov huge, rest ~1. Index for Nov must be capped at 5.0.
+    qty = {}
+    for y in (2023, 2024, 2025):
+        for m in range(1, 13):
+            qty[(y, m)] = 1.0
+        qty[(y, 11)] = 1000.0
+    idx = pe.seasonal_index(qty, min_history_months=24, cap_lo=0.2, cap_hi=5.0)
+    assert idx[11] == 5.0
+    assert 0.2 <= idx[1] <= 1.0
