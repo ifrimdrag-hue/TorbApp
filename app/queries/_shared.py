@@ -1,4 +1,5 @@
 import datetime
+import re
 from functools import lru_cache
 from db import query, query_one, get_db
 
@@ -39,6 +40,60 @@ def get_sku_cod_mare_map() -> dict:
     ):
         result[r['sku']] = r['cod_mare']
     return result
+
+
+# ── Transaction SKU → catalog (produse.sku) resolver ───────────────────────
+# Supplier catalogs use mixed key formats: some produse.sku values are
+# verbatim transaction SKUs (Cosmetice), some are '<code>-00' catalog codes
+# while transactions end in '<code>-<EAN>' (Basilur), others only match via
+# the stoc cod_mare map or a bare trailing EAN. A plain p.sku NOT IN
+# (SELECT sku FROM tranzactii ...) join therefore matches (almost) nothing.
+
+_CODE_EAN_RE = re.compile(r'(\d{4,6})-(\d{8,13})\)?\s*$')
+_TRAILING_EAN_RE = re.compile(r'\(?(\d{8,13})\)?\s*$')
+
+
+def resolve_catalog_sku(sku, catalog_skus, ean_to_sku, cod_mare_map):
+    """Map one tranzactii/stoc-style SKU to its produse.sku catalog key.
+
+    Pure function (unit-testable). Strategies, in priority order:
+    verbatim match → stoc/comenzi cod_mare → '<code>-<EAN>' tail
+    ('70197-4792252...' → '70197-00' or '70197') → bare trailing EAN.
+    Returns None when unresolved (unknown/legacy product).
+    """
+    if not sku:
+        return None
+    s = sku.strip()
+    if s in catalog_skus:
+        return s
+    cm = cod_mare_map.get(s) or cod_mare_map.get(sku)
+    if cm and cm in catalog_skus:
+        return cm
+    m = _CODE_EAN_RE.search(s)
+    if m:
+        code, ean = m.group(1), m.group(2)
+        if f'{code}-00' in catalog_skus:
+            return f'{code}-00'
+        if code in catalog_skus:
+            return code
+        if ean in ean_to_sku:
+            return ean_to_sku[ean]
+    m2 = _TRAILING_EAN_RE.search(s)
+    if m2 and m2.group(1) in ean_to_sku:
+        return ean_to_sku[m2.group(1)]
+    return None
+
+
+def get_catalog_resolver():
+    """Build a resolve(sku) callable bound to the current catalog data."""
+    catalog_skus = {r['sku'] for r in query("SELECT sku FROM produse WHERE activ = 1")}
+    ean_to_sku = {str(r['ean']).strip(): r['sku'] for r in query(
+        "SELECT sku, ean FROM produse WHERE activ = 1 AND ean IS NOT NULL AND ean != ''")}
+    cod_mare_map = get_sku_cod_mare_map()
+
+    def _resolve(sku):
+        return resolve_catalog_sku(sku, catalog_skus, ean_to_sku, cod_mare_map)
+    return _resolve
 
 
 # ── Materialized condition costs ────────────────────────────────────────────

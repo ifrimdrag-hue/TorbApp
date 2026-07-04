@@ -248,7 +248,15 @@ def client_products_full(cod_client, an, luna=None, max_luna=None):
 def _client_produse_nelistate(cod_client, an, luna, max_luna, all_time_exclusion):
     """Shared query for client_produse_nelistate_perioada/_istoric.
     Company-wide Val Netă/Nr. Clienți always reflect the selected an/perioada;
-    only the exclusion list (products the client already bought) changes scope."""
+    only the exclusion list (products the client already bought) changes scope.
+
+    Exclusion AND company stats both resolve transaction SKUs to catalog keys
+    via get_catalog_resolver() — produse.sku formats differ per supplier, so
+    the previous plain `p.sku NOT IN (SELECT sku FROM tranzactii ...)` join
+    excluded (almost) nothing and the company signal columns stayed 0."""
+    from queries._shared import get_catalog_resolver
+    resolve = get_catalog_resolver()
+
     if luna:
         stats_filter = 'AND luna = :luna'
     elif max_luna:
@@ -256,37 +264,74 @@ def _client_produse_nelistate(cod_client, an, luna, max_luna, all_time_exclusion
     else:
         stats_filter = ''
     exclusion_filter = '' if all_time_exclusion else f'AND an = :an {stats_filter}'
-
-    sql = f"""
-        WITH cod_map AS (
-            SELECT sku, MIN(cod_produs) AS cod_produs FROM tranzactii GROUP BY sku
-        ),
-        stats AS (
-            SELECT sku, SUM(val_neta) AS val_neta, COUNT(DISTINCT cod_client) AS nr_clienti
-            FROM tranzactii WHERE an = :an {stats_filter}
-            GROUP BY sku
-        )
-        SELECT p.sku, cm.cod_produs, p.descriere, p.furnizor AS brand, p.categorie,
-            pv.pret_vanzare_ron AS pret_lista,
-            ROUND(COALESCE(s.val_neta, 0), 0) AS val_neta_companie,
-            COALESCE(s.nr_clienti, 0) AS nr_clienti
-        FROM produse p
-        LEFT JOIN cod_map cm ON cm.sku = p.sku
-        LEFT JOIN preturi_vanzare pv
-            ON pv.sku = p.sku AND pv.an = :an AND pv.cod_client IS NULL AND pv.activ = 1
-        LEFT JOIN stats s ON s.sku = p.sku
-        WHERE p.activ = 1
-          AND p.sku NOT IN (
-              SELECT sku FROM tranzactii WHERE cod_client = :cod {exclusion_filter}
-          )
-        ORDER BY val_neta_companie DESC
-    """
     params = {'cod': cod_client, 'an': an}
     if luna:
         params['luna'] = luna
     elif max_luna:
         params['max_luna'] = max_luna
-    return query(sql, params)
+
+    # Company-wide signal per catalog key for the selected period.
+    stats = {}
+    for r in query(f"""
+        SELECT sku, cod_client, SUM(val_neta) AS v
+        FROM tranzactii WHERE an = :an {stats_filter}
+        GROUP BY sku, cod_client
+    """, params):
+        key = resolve(r['sku'])
+        if not key:
+            continue
+        cur = stats.setdefault(key, {'v': 0.0, 'clients': set()})
+        cur['v'] += r['v'] or 0
+        if r['cod_client']:
+            cur['clients'].add(r['cod_client'])
+
+    # Display code per catalog key (short ERP code from transactions).
+    cod_map = {}
+    for r in query("SELECT sku, MIN(cod_produs) AS cod FROM tranzactii GROUP BY sku"):
+        key = resolve(r['sku'])
+        if key and key not in cod_map and r['cod']:
+            cod_map[key] = r['cod']
+
+    # Catalog keys the client already bought (period or all-time scope).
+    bought = set()
+    for r in query(f"""
+        SELECT DISTINCT sku FROM tranzactii
+        WHERE cod_client = :cod {exclusion_filter}
+    """, params):
+        key = resolve(r['sku'])
+        if key:
+            bought.add(key)
+
+    # Active catalog with one list price per SKU (the join used to duplicate
+    # rows when several active price entries existed for the same sku/an).
+    rows = []
+    for p in query("""
+        SELECT p.sku, p.descriere, p.furnizor AS brand, p.categorie,
+               pv.pret_lista
+        FROM produse p
+        LEFT JOIN (
+            SELECT sku, MAX(pret_vanzare_ron) AS pret_lista
+            FROM preturi_vanzare
+            WHERE an = :an AND cod_client IS NULL AND activ = 1
+            GROUP BY sku
+        ) pv ON pv.sku = p.sku
+        WHERE p.activ = 1
+    """, params):
+        if p['sku'] in bought:
+            continue
+        s = stats.get(p['sku'])
+        rows.append({
+            'sku': p['sku'],
+            'cod_produs': cod_map.get(p['sku']),
+            'descriere': p['descriere'],
+            'brand': p['brand'],
+            'categorie': p['categorie'],
+            'pret_lista': p['pret_lista'],
+            'val_neta_companie': round(s['v']) if s else 0,
+            'nr_clienti': len(s['clients']) if s else 0,
+        })
+    rows.sort(key=lambda r: r['val_neta_companie'], reverse=True)
+    return rows
 
 
 def client_produse_nelistate_perioada(cod_client, an, luna=None, max_luna=None):
