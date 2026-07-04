@@ -4,6 +4,7 @@ Procurement forecast logic — seasonality-adjusted order suggestions.
 import calendar
 import datetime
 import logging
+import math
 import re
 from collections import defaultdict
 
@@ -125,13 +126,14 @@ def _seasonality_index(monthly_avg: dict) -> dict:
     return {m: round((monthly_avg.get(m, 0) / avg), 2) for m in range(1, 13)}
 
 
-def _coverage_demand(monthly_avg: dict, lead_time_days: int) -> float:
+def _coverage_demand(monthly_avg: dict, lead_time_days: int,
+                     coverage_days: int = SAFETY_DAYS) -> float:
     """
-    Sum of expected demand from today through (today + lead_time + SAFETY_DAYS).
+    Sum of expected demand from today through (today + lead_time + coverage_days).
     Uses per-month daily rates adjusted for the fraction of each month covered.
     """
     today = datetime.date.today()
-    end = today + datetime.timedelta(days=lead_time_days + SAFETY_DAYS)
+    end = today + datetime.timedelta(days=lead_time_days + coverage_days)
     total = 0.0
     cur = today
     while cur <= end:
@@ -379,6 +381,33 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
         'xmas_window': is_xmas_window(),
         'delivery_date': delivery_date.isoformat(),
         'snapshot_date': _latest_snapshot(),
+    }
+
+
+def round_up_to_bax(qty: float, buc_cutie) -> int:
+    if not buc_cutie or buc_cutie <= 0:
+        return int(round(qty))
+    return int(math.ceil(qty / buc_cutie) * buc_cutie)
+
+
+def split_with_safety(monthly_ro, monthly_export, lead_days, available,
+                      base_ro, base_export, coef, coverage_days, buc_cutie):
+    """Like _ro_hu_split, but adds a coef x forecast safety stock to each
+    market's demand before subtracting available stock, then rounds each
+    suggestion up to the next full bax (case) size."""
+    demand_ro = _coverage_demand(monthly_ro, lead_days, coverage_days)
+    demand_export = _coverage_demand(monthly_export, lead_days, coverage_days)
+    safety_ro = coef * base_ro
+    safety_export = coef * base_export
+    need_ro = demand_ro + safety_ro
+    raw_ro = max(0.0, need_ro - available)
+    surplus = max(0.0, available - need_ro)
+    raw_export = max(0.0, (demand_export + safety_export) - surplus)
+    return {
+        'demand_ro': demand_ro, 'demand_export': demand_export,
+        'safety_ro': safety_ro, 'safety_export': safety_export,
+        'suggested_ro': round_up_to_bax(raw_ro, buc_cutie),
+        'suggested_export': round_up_to_bax(raw_export, buc_cutie),
     }
 
 
