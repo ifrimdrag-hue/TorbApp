@@ -67,3 +67,42 @@ def test_delisting_quarterly_client_stays_active():
     r = pe.delisting_status(dates, today, min_days=180, mult=3)
     assert r["status"] == "ACTIV"
     assert r["prag"] == 307.5
+
+
+def test_article_profile_new_listing_uses_short_window(monkeypatch):
+    today = date(2026, 7, 15)
+    params = {"fereastra_luni": 36, "sezonalitate_min_luni": 24,
+              "indice_sezonier_min": 0.2, "indice_sezonier_max": 5.0,
+              "prag_delistare_zile": 180, "prag_delistare_mult": 3}
+    # One RO client, first sale 4 closed months ago, 100/mo each of 4 months.
+    rows = []
+    for (y, m) in [(2026, 3), (2026, 4), (2026, 5), (2026, 6)]:
+        rows.append({"cod_client": "C1", "client": "Client 1", "sku": "S",
+                     "cod_produs": "100", "market": "ro",
+                     "d": date(y, m, 10), "qty": 100.0})
+    prof = pe.article_monthly_profiles("X", params, today=today, _rows=rows)
+    # <24 mo history -> seasonal index 1.0; base = 400/4 = 100.
+    assert round(prof["S"]["ro"][7], 1) == 100.0
+    assert prof["S"]["n_active"] == 1
+
+
+def test_article_profile_excludes_suspect_client(monkeypatch):
+    today = date(2026, 7, 15)
+    params = {"fereastra_luni": 36, "sezonalitate_min_luni": 24,
+              "indice_sezonier_min": 0.2, "indice_sezonier_max": 5.0,
+              "prag_delistare_zile": 180, "prag_delistare_mult": 3}
+    rows = []
+    # Active client, monthly Jan-Jun 2026.
+    for m in range(1, 7):
+        rows.append({"cod_client": "A", "client": "Activ", "sku": "S",
+                     "cod_produs": "100", "market": "ro",
+                     "d": date(2026, m, 10), "qty": 50.0})
+    # Suspect client, last buy 2025-01 (>>270d ago).
+    rows.append({"cod_client": "B", "client": "Plecat", "sku": "S",
+                 "cod_produs": "100", "market": "ro",
+                 "d": date(2025, 1, 10), "qty": 999.0})
+    prof = pe.article_monthly_profiles("X", params, today=today, _rows=rows)
+    assert prof["S"]["n_suspect"] == 1
+    # Suspect contributes 0 -> only client A's base counts.
+    assert prof["S"]["ro"][7] > 0
+    assert prof["S"]["suspects"][0]["cod_client"] == "B"
