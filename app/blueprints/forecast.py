@@ -149,7 +149,9 @@ def api_forecast_suggest(furnizor):
     try:
         min_velocity = float(request.args.get('min_velocity', 1))
         only_needed = request.args.get('only_needed', '1') == '1'
-        result = forecast_logic.build_suggestion(furnizor, min_velocity=min_velocity, only_needed=only_needed)
+        model = 'nou' if request.args.get('model') == 'nou' else 'actual'
+        result = forecast_logic.build_suggestion(furnizor, min_velocity=min_velocity,
+                                                 only_needed=only_needed, model=model)
         return jsonify({'ok': True, **result})
     except Exception as exc:
         logger.exception("api_forecast_suggest failed for %s", furnizor)

@@ -212,11 +212,15 @@ def is_xmas_window() -> bool:
     return datetime.date.today().month in (4, 5)
 
 
-def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool = True) -> dict:
+def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool = True,
+                     model: str = "actual") -> dict:
     """
     Build order suggestion for a brand.
     min_velocity : ignore SKUs with avg monthly sales below this threshold
     only_needed  : if True, return only SKUs where suggested > 0
+    model        : "actual" (default, current SKU-level logic) or "nou"
+                   (client x article model — see pair_engine.article_monthly_profiles
+                   and split_with_safety)
     """
     lt = get_lead_time(furnizor)
     lead_days = lt['zile_livrare']
@@ -225,7 +229,17 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
     today = datetime.date.today()
     delivery_date = today + datetime.timedelta(days=lead_days)
 
-    monthly_data = _monthly_sales_by_sku(furnizor)
+    nou_params = None
+    bax = {}
+    if model == "nou":
+        from forecast import config, pair_engine
+        nou_params = config.get_params()
+        monthly_data = pair_engine.article_monthly_profiles(furnizor, nou_params)
+        bax = {r['sku']: r['buc_cutie']
+               for r in query("SELECT sku, buc_cutie FROM produse WHERE furnizor=:f",
+                              {'f': furnizor})}
+    else:
+        monthly_data = _monthly_sales_by_sku(furnizor)
     if not monthly_data:
         return {'items': [], 'lead_time': lt, 'xmas_window': is_xmas_window(),
                 'delivery_date': delivery_date.isoformat(),
@@ -310,13 +324,23 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
             zile_stoc = int(total_available / (avg_monthly / 30))
 
         # Stocul comun + tranzitul acopera intai cererea RO; surplusul
-        # ramane disponibil pentru export (vezi _ro_hu_split).
+        # ramane disponibil pentru export (vezi _ro_hu_split / split_with_safety).
         available = stoc_qty + transit_qty
-        split = _ro_hu_split(sku_monthly_ro, sku_monthly_export, lead_days, available)
+        if model == "nou":
+            base_ro = sum(sku_monthly_ro.values()) / 12
+            base_export = sum(sku_monthly_export.values()) / 12
+            split = split_with_safety(
+                sku_monthly_ro, sku_monthly_export, lead_days, available,
+                base_ro, base_export, nou_params["coef_siguranta"],
+                int(nou_params["perioada_acoperire_luni"] * 30), bax.get(sku))
+            suggested_ro = split['suggested_ro']
+            suggested_export = split['suggested_export']
+        else:
+            split = _ro_hu_split(sku_monthly_ro, sku_monthly_export, lead_days, available)
+            suggested_ro = round(split['suggested_ro'])
+            suggested_export = round(split['suggested_export'])
         demand_ro = split['demand_ro']
         demand_export = split['demand_export']
-        suggested_ro = round(split['suggested_ro'])
-        suggested_export = round(split['suggested_export'])
         suggested_total = suggested_ro + suggested_export
 
         is_xmas = bool(sezon_c) and (s_idx.get(10, 0) > 1.3 or s_idx.get(11, 0) > 1.3)
@@ -367,6 +391,10 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
             'months': months_detail,
             'new_clients': chg['new'],
             'lost_clients': chg['lost'],
+            'n_suspect': sku_data.get('n_suspect', 0),
+            'suspects': sku_data.get('suspects', []),
+            'safety_ro': split.get('safety_ro', 0),
+            'safety_export': split.get('safety_export', 0),
         })
 
     if only_needed:
