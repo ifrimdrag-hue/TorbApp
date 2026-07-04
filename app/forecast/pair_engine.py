@@ -54,3 +54,21 @@ def seasonal_index(article_month_qty, min_history_months, cap_lo, cap_hi):
         idx = month_mean[m] / overall
         out[m] = min(cap_hi, max(cap_lo, idx))
     return out
+
+
+def delisting_status(purchase_dates, today, min_days, mult):
+    if not purchase_dates:
+        return {"status": "ACTIV", "days_since_last": None,
+                "mean_interval": None, "prag": float(min_days)}
+    ordered = sorted(purchase_dates)
+    days_since_last = (today - ordered[-1]).days
+    if len(ordered) >= 2:
+        gaps = [(ordered[i] - ordered[i - 1]).days for i in range(1, len(ordered))]
+        mean_interval = sum(gaps) / len(gaps)
+        prag = max(float(min_days), mult * mean_interval)
+    else:
+        mean_interval = None
+        prag = float(min_days)
+    status = "SUSPECT" if days_since_last > prag else "ACTIV"
+    return {"status": status, "days_since_last": days_since_last,
+            "mean_interval": mean_interval, "prag": prag}

@@ -47,3 +47,23 @@ def test_seasonality_peaks_and_caps():
     idx = pe.seasonal_index(qty, min_history_months=24, cap_lo=0.2, cap_hi=5.0)
     assert idx[11] == 5.0
     assert 0.2 <= idx[1] <= 1.0
+
+
+def test_delisting_monthly_client_stops_becomes_suspect():
+    # Ordered monthly, last purchase 7 months ago -> SUSPECT (case #3).
+    today = date(2026, 7, 15)
+    dates = [date(2025, m, 1) for m in range(1, 13)]  # last = 2025-12-01
+    r = pe.delisting_status(dates, today, min_days=180, mult=3)
+    assert r["status"] == "SUSPECT"
+
+
+def test_delisting_quarterly_client_stays_active():
+    # Quarterly buyer, last purchase 5 months ago -> ACTIV (case #4).
+    # Real calendar gaps (90, 91, 92, 137d) -> mean_interval=102.5,
+    # prag = max(180, 3*102.5=307.5) = 307.5; 150d < 307.5.
+    today = date(2026, 7, 15)
+    dates = [date(2025, 1, 1), date(2025, 4, 1), date(2025, 7, 1),
+             date(2025, 10, 1), date(2026, 2, 15)]
+    r = pe.delisting_status(dates, today, min_days=180, mult=3)
+    assert r["status"] == "ACTIV"
+    assert r["prag"] == 307.5
