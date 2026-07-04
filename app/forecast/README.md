@@ -55,6 +55,22 @@ The "Parametri forecast" card on `/forecast/setari` edits these live via `GET`/`
 
 `forecast_logic.split_with_safety(monthly_ro, monthly_export, lead_days, available, base_ro, base_export, coef, coverage_days, buc_cutie)` — like the existing `_ro_hu_split` (stock covers RO demand first, surplus goes to export), but adds `safety = coef × monthly_forecast` to each market's demand before subtracting available stock, then lifts the raw need to the supplier MOQ (`max(brut, MOQ)`, never from 0) via `_moq_floor` and rounds each suggestion up to the next full bax via `produse.buc_cutie` (`round_up_to_bax`). The MOQ floor is wired but **inert** — `produse` has no MOQ column yet, so callers pass `moq=None` (decision 6).
 
+### Multi-country export (2026-07-04)
+
+The old binary RO/export(HU) split is now data-driven multi-country: each active
+`tari_export` row with `piata != 'RO'` is a separate market (piata = free short
+code set in `/forecast/setari`; RO = domestic bucket). Clients allocated via
+`clienti_export` count under their country and are excluded from the RO
+suggestion. `pair_engine` profiles gain `piete: {piata: {month: qty}}` ('export'
+stays the cross-country sum for compat); `split_with_safety(monthly_piete=...)`
+gives every country its full coverage demand + safety with **no stock offset**
+(owner decision — stock covers RO only; legacy surplus-offset kept for
+`model=actual`). Per-country order quantities persist in `comenzi_linii_piete`
+(migration 0019) via `comanda_line_upsert(cantitati_piete=...)`. UI: dynamic
+"Sug. <țară>" columns in the Stoc tab, per-country breakdown in the Sugestie
+export cells, one quantity field per country in the add-to-order modal.
+Tests: `tests/test_multi_country_export.py`.
+
 ### Wiring — `?model=nou` / `?compare=1`
 
 Both entry points default to the unchanged legacy behaviour; the new model is opt-in only:
