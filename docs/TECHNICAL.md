@@ -15,7 +15,11 @@ Cost table: `corr_vanzari_tobra` — Torb→Tobra invoice lines (true acquisitio
 diverted at ERP import; consumed by the Auchan-import cost override
 (`docs/BUSINESS_LOGIC.md` §3, migration 0013).
 
-Forecast tables live here too — see `app/forecast/README.md`.
+Forecast tables live here too — see `app/forecast/README.md`. The `forecast_config`
+key/value table (migration 0017) holds the tunable parameters of the client × article
+forecast model — window, seasonality gate/caps, delisting threshold, safety coefficient,
+coverage — read via `app/forecast/config.py` and edited on `/forecast/setari`
+(`docs/BUSINESS_LOGIC.md` §7.1).
 
 Correction/lookup tables use a `corr_` prefix. `corr_leonex_cod_mapping`
 (migration 0014) maps Leonex supplier article codes (`MK…`) to Torb internal
@@ -378,6 +382,17 @@ VPS glue:
 
 > Setup history, fixes, and the security lockdown narrative are in `docs/TECHNICAL_history.md`
 > (load-on-demand archive — only open it if investigating a past change).
+
+### Application logging
+
+`app/logging_config.py` (`setup_logging()`, idempotent) centralises logging; `create_app()`
+routes through it. Two rotating file handlers on the root logger:
+- **`logs/app.log`** — all levels per `LOG_LEVEL` (default INFO), 2 MB × 5 backups.
+- **`logs/errors.log`** — ERROR-only, 1 MB × 3 backups, for fast triage.
+
+Noisy third-party loggers (`werkzeug`, `httpx`, `urllib3`) are raised to WARNING so `app.log`
+isn't flooded with per-request `200 -` access lines; genuine 4xx/5xx still surface. Console
+echo only when `FLASK_DEBUG` is set.
 
 ### Useful one-liners
 

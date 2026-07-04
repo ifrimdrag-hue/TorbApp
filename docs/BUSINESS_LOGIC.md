@@ -282,6 +282,19 @@ Quick orientation:
 - Results tables: `forecasts`, `reorder_suggestions`, `forecast_runs`, `forecast_backtests`; per-brand business rules (lead times, safety stock, seasonal restrictions) in `brands_config`
 - Full page audit (architecture, suggestion algorithm, column-by-column reference, API, 20 ranked issues): `docs/analysis/forecast_page_analysis.md` (2026-07-02); open findings tracked in `docs/BACKLOG.md`
 
+### 7.1 Client × article demand model (2026-07-04, behind `?model=nou`)
+
+A second demand model computes the forecast per **(client, article)** pair instead of averaging a SKU across all clients, so a delisting or decline at one client is removed immediately rather than diluting slowly through a global average. It ships behind a toggle — the default stays the legacy per-SKU model (`?model=actual`); `?compare=1` shows both side by side for owner validation before the default flips.
+
+- **Per-pair window** — history counts only from the pair's first sale, capped at 36 months, through the last closed month (a newly listed pair isn't penalised with pre-listing zeros).
+- **Mean with zeros** — months on stock but without a sale count as 0, so a pair that stopped selling decays toward 0 on its own.
+- **Seasonality** (article level) — monthly index = calendar-month mean ÷ overall monthly mean, applied only with ≥24 months of history, clamped to `[0.2, 5.0]`.
+- **Delisting `SUSPECT`** — if a pair's days since last purchase exceed `max(180, 3× its own mean order interval)`, it is flagged SUSPECT and its contribution drops to 0 (advisory only; the full DELISTAT/REACTIVAT lifecycle is deferred — `docs/decision.html` item 7).
+- **Article demand** = Σ over active pairs of (mean × seasonal index), with the RO and Export HU markets kept separate as today.
+- **Order suggestion** — `necesar = forecast × (lead + coverage) + safety`, where `safety = coef × monthly forecast` (default 0.25), rounded up to the supplier bax (`produse.buc_cutie`); MOQ floor not yet applied (`docs/decision.html` item 6).
+
+Parameters (window, seasonality gate, index caps, delisting threshold, safety coefficient, coverage period) live in the `forecast_config` table and are editable on `/forecast/setari`. Spec: `docs/Specificatie Forecast Torb.docx`; deferred items → `docs/decision.html` (Runda 2, items 5–10). Technical detail: `app/forecast/README.md`.
+
 ---
 
 ## 8. Supplier order imports — code mapping (Leonex)

@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Forecast: client × article demand model, behind a toggle (2026-07-04)
+
+- New `app/forecast/pair_engine.py` computes demand per `(client, article)` pair instead of averaging a SKU across all clients: adaptive per-pair window (first sale → 36 months), monthly mean with zero-filled no-sale months (declining pairs decay to 0), article-level seasonal index gated at ≥24 months of history and clamped to `[0.2, 5.0]`, and an adaptive delisting `SUSPECT` flag when a pair's gap since last purchase exceeds `max(180 days, 3× its mean order interval)` (its contribution then drops to 0). Directly addresses backlog **B4** (delisted/declining SKUs kept being reordered).
+- Order formula (partial): `forecast_logic.split_with_safety` adds `safety = coef × monthly forecast` (default 0.25) and rounds up to the supplier bax (`produse.buc_cutie`); MOQ floor deferred (`docs/decision.html` item 6).
+- Tunable parameters in a new `forecast_config` table (migration `0017`) + `app/forecast/config.py`, edited on a "Parametri forecast" card at `/forecast/setari`.
+- Wired behind `?model=nou` in `build_suggestion` (Suggest tab) and `forecast_stoc_extended` (Stoc tab); the default `?model=actual` path is unchanged. `?compare=1` shows both models side by side (Δ columns) for owner validation before the default flips. UI: model toggle, "Suspect delistare" badge, seasonality "fără ajustare (<24 luni)" marker, suggestion-breakdown popover.
+- Deferred spec items (§4.4 out-of-stock months, §5 full DELISTAT/REACTIVAT lifecycle, §6 new-listing ramp-up, §8 MOQ, §10 recompute cadence) await owner decisions — `docs/decision.html` items 5–10.
+- Spec: `docs/Specificatie Forecast Torb.docx`. Documented in `app/forecast/README.md`, `docs/BUSINESS_LOGIC.md` §7.1, `docs/TECHNICAL.md` §Data. Tests: `tests/test_pair_engine.py`, `test_forecast_reorder.py`, `test_forecast_config.py`, `test_forecast_routes.py`.
+
+### Central logging config — rotating app + error logs, quieter werkzeug (2026-07-04)
+
+- New `app/logging_config.py` (`setup_logging()`, idempotent) attaches two rotating file handlers to the root logger: `logs/app.log` (all levels per `LOG_LEVEL`, default INFO; 2 MB × 5) and `logs/errors.log` (ERROR-only; 1 MB × 3). `create_app()` routes through it.
+- Noisy third-party loggers (`werkzeug`, `httpx`, `urllib3`) raised to WARNING so `app.log` isn't flooded with per-request `200 -` access lines; genuine 4xx/5xx still surface. Console echo only when `FLASK_DEBUG` is set.
+- Documented in `docs/TECHNICAL.md` §Application logging.
+
+### Forecast page — velocity-basis toggle aligning screen ↔ Excel (2026-07-03)
+
+- `/forecast` Stoc tab: a `3 ani / 90 zile` segmented toggle next to Export switches the basis for the displayed `Vânz./lună` + `Zile stoc` columns (urgency badge + sort follow from `Zile stoc`); `Sug. RO/HU` stay on the seasonal model. Excel export now runs off the same `forecast_stoc_extended(vel=)` data as the page (and honours the search filter), so screen and Excel match for the selected mode. Default `3 ani` (prior behaviour). Resolves the page-vs-Excel velocity divergence as a runtime choice.
+
+### Forecast page — order-status vocabulary, FK cascade, re-importable export (2026-07-03)
+
+- Order-status vocabulary normalised (migration `0016`): legacy capitalised statuses folded (`Emisa`/`Confirmata`→`confirmata`, `In tranzit`→`in_tranzit`, `Receptionata`→`livrata`); `comanda_update` rejects an empty/whitespace status (still applies other fields) so the modal can't write `status=''`; all transit `IN(...)` lists standardised to `('confirmata','in_tranzit')`.
+- `PRAGMA foreign_keys=ON` on app connections so `ON DELETE CASCADE` works (deleting an order removes its lines instead of orphaning them).
+- New `— Cantitate comandată` column in the order Excel export so the export → edit → re-import round-trip works.
+- Removed dead `forecast_stoc()`; extracted the shared `_ro_hu_split()` used by `build_suggestion` + `forecast_stoc_extended` (numerically identical before/after). Tests: `test_order_status.py`, `test_comanda_excel_roundtrip.py`, `test_ro_hu_split.py`.
+
+### Forecast page — 10 P0/P1 fixes (2026-07-03)
+
+- Restored the dead Export HU split (`clienti_export.cod_client` `BRANDMIX`→`1429`, `HUNTRADE`→`1430`, + validation when adding a client code); KPI cards count distinct SKUs not lots; `Zile stoc` excludes in-transit stock; transit ETA prefers `costuri_landing.eta`; export-code query made SQL-injection-safe; `_listing_changes()` keys normalised to match `build_suggestion()`; "Confirmă Comanda" excludes filter-hidden rows; `escapeHtml()` applied across client-side HTML building; removed dead `/api/comenzi/<id>/avanseaza`. Plan: `docs/plans/2026-07-03-forecast-p0-p1-fixes.md`. Tests: `test_forecast_queries.py` + 3 in `test_flask_routes.py`.
+
 ### Leonex order import — map supplier codes to Cod TORB (2026-07-03)
 
 - New `corr_leonex_cod_mapping` table (migration 0014, mirrored in `etl/rebuild_db.py`) mapping Leonex supplier codes (`MK…`) to Torb internal codes (`cod_mare`), seeded with 10 pairs
@@ -26,6 +56,30 @@ All notable changes to this project will be documented in this file.
 - Compiled manual PDFs moved from `docs/` root to `docs/manuals/*.pdf` (flat); Typst sources remain in gitignored per-manual subfolders — compile convention updated in `docs/TECHNICAL.md` §Typst
 - `docs/superpowers/` dissolved: plans → `docs/plans/`, specs → `docs/specs/` (still gitignored); AI-workflow outputs now go directly under `docs/` (rule added to `CLAUDE.md`)
 
+### Business constants centralised + true Torb cost on Auchan sales (2026-07-02)
+
+- New `app/business_constants.py` (Auchan/Tobra exception: agent, client codes, invoice prefix, 30-day cost window), used by `import_vanzari_erp.py` + `import_vanzari_tobra_auchan.py`. New `corr_vanzari_tobra` table (migration 0013): Torb→Tobra lines (code 719) are diverted there at ERP import instead of dropped. The Auchan import overrides `pret_cumparare` with the 30-day simple mean per `cod_produs` at each row's date and recomputes `val_achizitie`/`marja_bruta`. Load order: ERP sales before Auchan sales.
+
+### Forecast page audit — analysis only (2026-07-02)
+
+- `docs/analysis/forecast_page_analysis.md`: architecture of the 5 tabs + AI agent, both suggestion algorithms, a column-by-column Stoc-tab reference, the full API, and 20 ranked issues — fed the P0/P1 and second-wave fix batches above.
+
+### Organsia — fourth Basilur virtual brand (2026-07-01)
+
+- `B.ECO ORGANSIA*` (ERP) / `ORGANSIA - …` (price list) products, previously mislabelled `Basilur`, get a prefix-derivation rule in the three ETL modules + a `produse` override in `import_preturi.py`, plus a 120-day lead-time seed (migration `0012`) with historical backfill (~20 stock, ~718 transactions, 11 products). Organsia now appears as the fourth brand in the Basilur report (Excel + PPT, colour `#6f42c1`), the bonus/post dropdowns, and AI prompts. Virtual-brand logic in `docs/BUSINESS_LOGIC.md`. Test: `test_derive_furnizor.py`.
+
+### Monthly bonus engine redesign (2026-06-16)
+
+- Config-driven bonus module (`feat/bonus-redesign`): per-agent monthly targets (sales, margin, 9 individual ranges, client count, new-clients-per-range, collections, scriptic), configurable weights + bonus value, a payout grid with thresholds (80% gate), a default +20% vs the same month last year, a month-close flow with a frozen snapshot, and agent management from the UI. Tables `bonus_config`, `bonus_lunar_config`, `bonus_obiective_strategice`, `bonus_payout_grid`, `bonus_istoric` (migration 0011). Pages: `/bonus`, `/bonus/obiective`, `/bonus/inchidere`, `/bonus/config`, `/bonus/clienti-noi-gama`.
+
+### Database backup & restore — production (2026-06-11)
+
+- `app/backup_db.py` (SQLite online-backup API, gzip, retention 15 days / min 3) + CLI `etl/backup_db.py` (backup/list/restore). Trigger: daily cron 02:30 on the prod VPS + automatic pre-deploy backup in CI before migrations. Admin page `/admin/db`: list, manual backup, download, restore with a typed "RESTORE" confirmation (auto safety backup + re-apply migrations). `PRAGMA busy_timeout=5000` added to `app/db.py`.
+
+### Connection status served from server-side cache (2026-06-11)
+
+- `connection_status` table (migration 0010) + `app/connection_cache.py` (3-min TTL) — at most one external eMAG/Shopify API call per platform per window, shared across all users. `connection-test` routes unchanged in URL/shape (new fields `cached`, `checked_at`); the connDot tooltip shows the check time.
+
 ## [0.6.0] - 2026-06-10
 
 ### Stock sync — history and eMAG sync
@@ -34,6 +88,8 @@ All notable changes to this project will be documented in this file.
 - Sync history panel on `/stocuri` shows last 10 sessions per platform (date + filename); clicking a session and pressing *Incarca date istorice* loads a read-only historical view of that sync
 - eMAG sync history endpoints: `GET /api/stocuri/emag/sync-history` and `GET /api/stocuri/emag/sync-history/<id>`
 - eMAG sync now persists session + row results identically to Shopify
+- User audit on stock syncs: `sync_sessions.user_id` (migration 0008) records who ran each eMAG/Shopify sync (shown in the `/stocuri` history); tables renamed `shopify_sync_*` → `sync_sessions`/`sync_rows` (migration 0009, prefix obsolete now that sync is multi-platform)
+- Shopify stock sync integration (GraphQL Admin API 2025-04, OAuth client credentials); unified `/stocuri` page with an eMAG/Shopify radio switch (delivered 2026-06-03)
 
 ### Project structure
 
@@ -60,6 +116,10 @@ All notable changes to this project will be documented in this file.
 - Refactored `app/queries.py` (3,236 lines) into `app/queries/` package with 9 domain modules (`_shared`, `analytics`, `clients`, `products`, `pricing`, `orders`, `forecast`, `bonus`, `export`); `__init__.py` re-exports all names — zero callsite changes required
 - DB cleanup (earlier in session): deleted orphan `clienti_export_old` table (migration 0005), moved forecast tables to migration 0004, removed dead `db_stock.py` + `data/stock.db`
 - Documentation: corrected `CLAUDE.md` file paths (STATUS.md, plan_strategic_5ani.md moved to `docs/`), updated `README.md` test count, refreshed `docs/STATUS.md` (45 days stale), updated `context/project_ai_opportunities.md` (Shopify delivered)
+
+### Comprehensive code audit (2026-05-28)
+
+- Four parallel audit agents (backend, frontend, infrastructure, AI modules). Applied: env-controlled `SESSION_COOKIE_SECURE` + `LOG_LEVEL`, a 500 error handler, auth-gate fix for blueprint statics, open-redirect mitigation, `import_stoc.py` path fix, 10 MB upload check, dynamic filenames in the orchestrator, `BadRequestError`/`APIStatusError` handling in `ai_suggestions`, JSON error logging in the campaign/auto-post generators, light theme with dark sidebar, collapsible nav (localStorage), Trendyol packages template.
 
 ## [0.4.0] - 2026-05-23
 
