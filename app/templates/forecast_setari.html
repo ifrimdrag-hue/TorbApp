@@ -369,7 +369,7 @@ document.querySelectorAll('.cfg-param').forEach(el => {
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({cheie: el.dataset.cheie, valoare: parseFloat(el.value)})})
       .then(r => r.json())
-      .then(j => { if (!j.ok) AppError.show(j.error || 'Salvare eșuată'); });
+      .then(j => { if (!j.ok) AppError.show(null, j.error || 'Salvare eșuată'); });
   });
 });
 </script>
