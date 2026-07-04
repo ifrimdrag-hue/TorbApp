@@ -288,12 +288,14 @@ A second demand model computes the forecast per **(client, article)** pair inste
 
 - **Per-pair window** — history counts only from the pair's first sale, capped at 36 months, through the last closed month (a newly listed pair isn't penalised with pre-listing zeros).
 - **Mean with zeros** — months on stock but without a sale count as 0, so a pair that stopped selling decays toward 0 on its own.
+- **Neutral months** — a month where ≥ `prag_neutru_multi_client`% (default 70) of the article's covering clients sold zero simultaneously is read as a supply-gap, not lost demand, and is excluded from every pair's mean (Brief §4.1, level 1). Needs ≥2 covering clients. Levels 2–3 (daily stock snapshot, manual events journal) are deferred — `docs/decision_torb.html` item 5.
 - **Seasonality** (article level) — monthly index = calendar-month mean ÷ overall monthly mean, applied only with ≥24 months of history, clamped to `[0.2, 5.0]`.
-- **Delisting `SUSPECT`** — if a pair's days since last purchase exceed `max(180, 3× its own mean order interval)`, it is flagged SUSPECT and its contribution drops to 0 (advisory only; the full DELISTAT/REACTIVAT lifecycle is deferred — `docs/decision.html` item 7).
+- **Delisting `SUSPECT` → `DELISTAT`** — a pair whose days since last purchase exceed `max(180, 3× its own mean order interval)` is flagged SUSPECT and its contribution drops to 0; past a further `confirmare_delistare_zile` (90) with no purchase it auto-labels DELISTAT (same zero effect, reporting label only). The manual confirmation UI + REACTIVAT flow are still deferred — `docs/decision_torb.html` item 7.
+- **INACTIV cut** — an article with zero total sales across the last `taiere_inactiv_luni` (6) closed months is marked INACTIV (forecast 0, drops out of suggestions); neutral months don't count as evidence and strongly seasonal articles (peak index ≥ 3.0) are exempt (Spec §7).
 - **Article demand** = Σ over active pairs of (mean × seasonal index), with the RO and Export HU markets kept separate as today.
-- **Order suggestion** — `necesar = forecast × (lead + coverage) + safety`, where `safety = coef × monthly forecast` (default 0.25), rounded up to the supplier bax (`produse.buc_cutie`); MOQ floor not yet applied (`docs/decision.html` item 6).
+- **Order suggestion** — `necesar = forecast × (lead + coverage) + safety`, where `safety = coef × monthly forecast` (default 0.25); the raw need is lifted to the supplier MOQ (`max(brut, MOQ)`, never from 0) then rounded up to the supplier bax (`produse.buc_cutie`). MOQ is inert until the owner supplies the list (`docs/decision_torb.html` item 6).
 
-Parameters (window, seasonality gate, index caps, delisting threshold, safety coefficient, coverage period) live in the `forecast_config` table and are editable on `/forecast/setari`. Spec: `docs/Specificatie Forecast Torb.docx`; deferred items → `docs/decision.html` (Runda 2, items 5–10). Technical detail: `app/forecast/README.md`.
+Parameters (window, seasonality gate, index caps, delisting threshold + auto-confirm days, 6-month cut, multi-client neutral threshold, safety coefficient, coverage period) live in the `forecast_config` table and are editable on `/forecast/setari`. Owner decisions: `docs/decision_torb.html` (1–10 resolved by the owner brief/spec; 6/9/11–14 still open). Technical detail: `app/forecast/README.md`; plan + spec digest: `docs/plans/2026-07-04-forecast-spec-completion.md`.
 
 ---
 

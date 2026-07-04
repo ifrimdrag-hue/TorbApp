@@ -86,6 +86,74 @@ def test_article_profile_new_listing_uses_short_window(monkeypatch):
     assert prof["S"]["n_active"] == 1
 
 
+def test_delisting_delistat_after_confirm_window():
+    # Single purchase ~560d ago: past prag(180)+confirm(90)=270 -> DELISTAT.
+    today = date(2026, 7, 15)
+    r = pe.delisting_status([date(2025, 1, 1)], today, min_days=180, mult=3,
+                            confirm_days=90)
+    assert r["status"] == "DELISTAT"
+
+
+def test_delisting_suspect_within_confirm_window():
+    # ~200d ago: past prag(180) but < prag+confirm(270) -> still SUSPECT.
+    today = date(2026, 7, 15)
+    r = pe.delisting_status([date(2025, 12, 27)], today, min_days=180, mult=3,
+                            confirm_days=90)
+    assert r["status"] == "SUSPECT"
+
+
+def test_neutral_months_supply_gap():
+    # 3 clients active Jan-Jun; all zero in April -> April neutral.
+    win = [(2026, m) for m in range(1, 7)]
+    cmq = {c: {(2026, m): 10.0 for m in range(1, 7) if m != 4}
+           for c in ("A", "B", "C")}
+    neutral = pe.neutral_months(cmq, win, threshold_pct=70)
+    assert (2026, 4) in neutral
+    assert (2026, 1) not in neutral
+
+
+def test_neutral_months_single_client_ignored():
+    # One client skipping a month is churn, not a supply gap -> never neutral.
+    win = [(2026, m) for m in range(1, 7)]
+    cmq = {"A": {(2026, m): 10.0 for m in range(1, 7) if m != 4}}
+    assert pe.neutral_months(cmq, win, threshold_pct=70) == set()
+
+
+def test_is_inactive_six_months_zero():
+    # Last sale 2025-11; last 6 closed months all zero -> INACTIV.
+    assert pe.is_inactive({(2025, 11): 100.0}, date(2026, 7, 15), months=6) is True
+
+
+def test_is_inactive_recent_sale_active():
+    assert pe.is_inactive({(2026, 5): 100.0}, date(2026, 7, 15), months=6) is False
+
+
+def test_is_inactive_seasonal_protected():
+    # Strongly seasonal (Nov peak >=3.0) is never auto-inactivated in extrasezon.
+    s_idx = {m: (5.0 if m == 11 else 0.5) for m in range(1, 13)}
+    assert pe.is_inactive({(2025, 11): 100.0}, date(2026, 7, 15), months=6,
+                          seasonal_idx=s_idx) is False
+
+
+def test_neutral_month_excluded_from_mean():
+    # 2 clients, both zero in April -> April neutral, dropped from the mean:
+    # 5 sales of 100 over 5 eligible months = 100/client, x2 = base 200.
+    today = date(2026, 7, 15)
+    params = {"fereastra_luni": 36, "sezonalitate_min_luni": 24,
+              "indice_sezonier_min": 0.2, "indice_sezonier_max": 5.0,
+              "prag_delistare_zile": 180, "prag_delistare_mult": 3,
+              "prag_neutru_multi_client": 70, "taiere_inactiv_luni": 6}
+    rows = []
+    for c in ("A", "B"):
+        for m in (1, 2, 3, 5, 6):   # April missing for both clients
+            rows.append({"cod_client": c, "client": c, "sku": "S",
+                         "cod_produs": "100", "market": "ro",
+                         "d": date(2026, m, 10), "qty": 100.0})
+    prof = pe.article_monthly_profiles("X", params, today=today, _rows=rows)
+    assert round(prof["S"]["ro"][7], 1) == 200.0
+    assert prof["S"]["inactive"] is False
+
+
 def test_article_profile_excludes_suspect_client(monkeypatch):
     today = date(2026, 7, 15)
     params = {"fereastra_luni": 36, "sezonalitate_min_luni": 24,

@@ -4,13 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Forecast: spec-completion engine pieces (neutral months, INACTIV, DELISTAT, MOQ floor) (2026-07-04)
+
+Low-risk, fully-specified parts of the owner spec/brief, all pure + unit-tested and wired only into the `?model=nou` path (default stays legacy — validate via `?compare=1` before flipping).
+
+- **Neutral months (Brief §4.1, level 1)** — `pair_engine.neutral_months`: a month where ≥ `prag_neutru_multi_client`% (default 70) of an article's covering clients sold zero is treated as a supply-gap and excluded from every pair's mean (distinguishes "nobody could buy" from "demand fell"). Requires ≥2 covering clients so single-client churn can't trip it.
+- **Global INACTIV cut (Spec §7)** — `pair_engine.is_inactive`: zero total sales across the last `taiere_inactiv_luni` (6) closed months → article forecast 0; neutral months don't count as evidence, and strongly seasonal articles (peak seasonal index ≥ 3.0) are never auto-inactivated.
+- **DELISTAT label (Spec §5.2)** — `delisting_status` gains `confirm_days`: a SUSPECT pair auto-labels DELISTAT past `prag + confirmare_delistare_zile` (90). Same numeric effect as SUSPECT (contribution 0) — label only, for reporting (`n_delistat`).
+- **MOQ floor (Spec §8)** — `forecast_logic.split_with_safety(..., moq=None)` applies `max(brut, MOQ)` before bax rounding, never lifting a zero need into an order. Inert until MOQ data exists (`produse` has no MOQ column).
+- **Daily stock-snapshot capture** — new `etl/snapshot_stoc.py` copies the latest `stoc` snapshot into `stock_snapshot` (idempotent per date) so OOS history accrues for level-2 later. `stock_snapshot` survives the partial rebuild; open item is wiring the run into `rebuild_db.main()` / a scheduled job.
+- Config: migration `0018` seeds `prag_neutru_multi_client` (70). Owner decisions cross-referenced in `docs/decision_torb.html` (1–10 resolved by the docs; 6/9/11–14 open). Plan + spec digest: `docs/plans/2026-07-04-forecast-spec-completion.md`. Tests: `tests/test_pair_engine.py`, `test_forecast_reorder.py` (+8).
+
 ### Forecast: client × article demand model, behind a toggle (2026-07-04)
 
 - New `app/forecast/pair_engine.py` computes demand per `(client, article)` pair instead of averaging a SKU across all clients: adaptive per-pair window (first sale → 36 months), monthly mean with zero-filled no-sale months (declining pairs decay to 0), article-level seasonal index gated at ≥24 months of history and clamped to `[0.2, 5.0]`, and an adaptive delisting `SUSPECT` flag when a pair's gap since last purchase exceeds `max(180 days, 3× its mean order interval)` (its contribution then drops to 0). Directly addresses backlog **B4** (delisted/declining SKUs kept being reordered).
-- Order formula (partial): `forecast_logic.split_with_safety` adds `safety = coef × monthly forecast` (default 0.25) and rounds up to the supplier bax (`produse.buc_cutie`); MOQ floor deferred (`docs/decision.html` item 6).
+- Order formula (partial): `forecast_logic.split_with_safety` adds `safety = coef × monthly forecast` (default 0.25) and rounds up to the supplier bax (`produse.buc_cutie`); MOQ floor deferred (`docs/decision_torb.html` item 6).
 - Tunable parameters in a new `forecast_config` table (migration `0017`) + `app/forecast/config.py`, edited on a "Parametri forecast" card at `/forecast/setari`.
 - Wired behind `?model=nou` in `build_suggestion` (Suggest tab) and `forecast_stoc_extended` (Stoc tab); the default `?model=actual` path is unchanged. `?compare=1` shows both models side by side (Δ columns) for owner validation before the default flips. UI: model toggle, "Suspect delistare" badge, seasonality "fără ajustare (<24 luni)" marker, suggestion-breakdown popover.
-- Deferred spec items (§4.4 out-of-stock months, §5 full DELISTAT/REACTIVAT lifecycle, §6 new-listing ramp-up, §8 MOQ, §10 recompute cadence) await owner decisions — `docs/decision.html` items 5–10.
+- Deferred spec items (§4.4 out-of-stock months, §5 full DELISTAT/REACTIVAT lifecycle, §6 new-listing ramp-up, §8 MOQ, §10 recompute cadence) await owner decisions — `docs/decision_torb.html` items 5–10.
 - Spec: `docs/Specificatie Forecast Torb.docx`. Documented in `app/forecast/README.md`, `docs/BUSINESS_LOGIC.md` §7.1, `docs/TECHNICAL.md` §Data. Tests: `tests/test_pair_engine.py`, `test_forecast_reorder.py`, `test_forecast_config.py`, `test_forecast_routes.py`.
 
 ### Central logging config — rotating app + error logs, quieter werkzeug (2026-07-04)

@@ -1,0 +1,566 @@
+<style>
+  :root {
+    --bg: #f6f7f8;
+    --surface: #ffffff;
+    --ink: #1b2430;
+    --muted: #5b6673;
+    --line: #e3e7eb;
+    --accent: #0f6e6a;
+    --accent-soft: #e5f0ef;
+    --rec-bg: #eef6f5;
+    --rec-line: #bcdedb;
+    --crit: #b5382b;
+    --warn: #9a6c07;
+    --ok: #2f7d57;
+    --shadow: 0 1px 2px rgba(20,30,45,.05), 0 8px 24px rgba(20,30,45,.05);
+    --serif: Georgia, Cambria, "Times New Roman", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10151b;
+      --surface: #171e26;
+      --ink: #e8edf1;
+      --muted: #98a3b0;
+      --line: #262f3a;
+      --accent: #3fb3ac;
+      --accent-soft: #16302e;
+      --rec-bg: #142624;
+      --rec-line: #21453f;
+      --crit: #e8776b;
+      --warn: #e0b24d;
+      --ok: #63b98a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f7f8; --surface: #ffffff; --ink: #1b2430; --muted: #5b6673;
+    --line: #e3e7eb; --accent: #0f6e6a; --accent-soft: #e5f0ef;
+    --rec-bg: #eef6f5; --rec-line: #bcdedb; --crit: #b5382b; --warn: #9a6c07;
+    --ok: #2f7d57; --shadow: 0 1px 2px rgba(20,30,45,.05), 0 8px 24px rgba(20,30,45,.05);
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151b; --surface: #171e26; --ink: #e8edf1; --muted: #98a3b0;
+    --line: #262f3a; --accent: #3fb3ac; --accent-soft: #16302e;
+    --rec-bg: #142624; --rec-line: #21453f; --crit: #e8776b; --warn: #e0b24d;
+    --ok: #63b98a; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 2rem) 4rem;
+  }
+
+  /* ---- Header ---- */
+  .masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.6rem; margin-bottom: 2.2rem; }
+  .kicker {
+    font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 .9rem;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 700;
+    font-size: clamp(1.9rem, 5vw, 2.7rem); line-height: 1.12;
+    letter-spacing: -.01em; text-wrap: balance; margin: 0 0 .7rem;
+  }
+  .lede { color: var(--muted); font-size: 1.06rem; max-width: 40ch; margin: 0; }
+
+  /* ---- Summary ---- */
+  .summary { margin: 0 0 3.4rem; }
+  .summary h2 { font-family: var(--serif); font-size: 1.15rem; margin: 0 0 .9rem; font-weight: 700; }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+  thead th {
+    text-align: left; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 700; padding: .8rem 1rem; border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody td { padding: .85rem 1rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  .num-cell { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; width: 2rem; }
+  .rec-cell { color: var(--ink); font-weight: 600; }
+  .rec-cell.resolved::before {
+    content: "✓"; color: var(--ok); font-weight: 700; margin-right: .4rem;
+  }
+  .rec-cell.pending::before {
+    content: "●"; color: var(--warn); font-weight: 700; margin-right: .4rem; font-size: .7em; vertical-align: middle;
+  }
+  .status-tag {
+    display: inline-block; font-size: .6rem; letter-spacing: .09em; text-transform: uppercase;
+    font-weight: 700; padding: .12rem .45rem; border-radius: 5px; margin-right: .5rem; vertical-align: middle;
+  }
+  .status-tag.res { color: var(--ok); border: 1px solid var(--ok); }
+  .status-tag.open { color: var(--warn); border: 1px solid var(--warn); }
+
+  /* ---- Decision cards ---- */
+  .decisions { display: grid; gap: 2.2rem; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: clamp(1.3rem, 3.5vw, 2rem); box-shadow: var(--shadow);
+  }
+  .eyebrow-row { display: flex; align-items: baseline; gap: .7rem; margin-bottom: .5rem; }
+  .index {
+    font-family: var(--serif); font-size: 1rem; font-weight: 700; color: var(--accent);
+    background: var(--accent-soft); width: 1.9rem; height: 1.9rem; border-radius: 7px;
+    display: grid; place-items: center; flex: none; font-variant-numeric: tabular-nums;
+  }
+  .eyebrow {
+    font-size: .7rem; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--muted); font-weight: 700;
+  }
+  .status-done, .status-open {
+    margin-left: auto; font-size: .64rem; letter-spacing: .1em; text-transform: uppercase;
+    font-weight: 700; padding: .18rem .55rem; border-radius: 20px; align-self: center;
+  }
+  .status-done { color: #fff; background: var(--ok); }
+  .status-open { color: #fff; background: var(--warn); }
+  :root[data-theme="dark"] .status-done, :root[data-theme="dark"] .status-open { color: #0c1418; }
+  @media (prefers-color-scheme: dark) { .status-done, .status-open { color: #0c1418; } }
+  .card.done { border-color: var(--rec-line); }
+  .card.open { border-color: var(--warn); }
+  .eyebrow-row { width: 100%; }
+  .card h3 {
+    font-family: var(--serif); font-size: 1.4rem; line-height: 1.2; font-weight: 700;
+    margin: .1rem 0 .9rem; text-wrap: balance; letter-spacing: -.01em;
+  }
+  .card p { margin: 0 0 1rem; }
+  .card p:last-child { margin-bottom: 0; }
+
+  .example {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    padding: .75rem 1rem; border-radius: 0 8px 8px 0; margin: 0 0 1.2rem;
+    font-size: .92rem; color: var(--ink);
+  }
+  .example b { color: var(--accent); }
+
+  .resolution {
+    border-left: 3px solid var(--ok); background: var(--rec-bg);
+    padding: .8rem 1rem; border-radius: 0 8px 8px 0; margin: 0 0 1rem;
+    font-size: .93rem; color: var(--ink);
+  }
+  .resolution .res-label {
+    display: block; font-size: .66rem; letter-spacing: .1em; text-transform: uppercase;
+    font-weight: 700; color: var(--ok); margin-bottom: .3rem;
+  }
+  .resolution b { color: var(--ink); }
+  .source {
+    font-size: .78rem; color: var(--muted); margin: 0; font-style: italic;
+  }
+
+  .qlabel {
+    font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; font-weight: 700;
+    color: var(--muted); margin: 1.3rem 0 .55rem;
+  }
+  .question { font-weight: 600; margin: 0 0 1.1rem; }
+
+  .options { list-style: none; padding: 0; margin: 0 0 1.2rem; display: grid; gap: .6rem; }
+  .opt {
+    display: grid; grid-template-columns: 1.7rem 1fr; gap: .75rem; align-items: start;
+    padding: .8rem .9rem; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg);
+  }
+  .opt.rec { border-color: var(--rec-line); background: var(--rec-bg); }
+  .opt-badge {
+    font-weight: 700; font-family: var(--serif); font-size: .95rem;
+    width: 1.7rem; height: 1.7rem; border-radius: 6px; display: grid; place-items: center;
+    background: var(--surface); border: 1px solid var(--line); color: var(--muted);
+  }
+  .opt.rec .opt-badge { background: var(--accent); border-color: var(--accent); color: #fff; }
+  :root[data-theme="dark"] .opt.rec .opt-badge { color: #0c1418; }
+  @media (prefers-color-scheme: dark) { .opt.rec .opt-badge { color: #0c1418; } }
+  .opt-body { font-size: .93rem; }
+  .opt-body .tag {
+    display: inline-block; font-size: .64rem; letter-spacing: .08em; text-transform: uppercase;
+    font-weight: 700; color: var(--accent); background: var(--surface);
+    border: 1px solid var(--rec-line); padding: .1rem .45rem; border-radius: 5px;
+    margin-left: .5rem; vertical-align: middle;
+  }
+  .opt-body .otitle { font-weight: 600; color: var(--ink); }
+
+  .why {
+    border-top: 1px solid var(--line); padding-top: 1rem; margin-top: .3rem;
+    font-size: .93rem; display: flex; gap: .6rem;
+  }
+  .why .why-label { color: var(--accent); font-weight: 700; flex: none; }
+
+  /* semantic chips used only in the urgency example */
+  .chip {
+    display: inline-block; font-size: .74rem; font-weight: 700; padding: .05rem .5rem;
+    border-radius: 20px; vertical-align: middle;
+  }
+  .chip.crit { color: var(--crit); border: 1px solid var(--crit); }
+  .chip.ok { color: var(--ok); border: 1px solid var(--ok); }
+
+  /* ---- Closing ---- */
+  .closing {
+    margin-top: 3rem; padding: 1.5rem 1.6rem; border-radius: 14px;
+    background: var(--ink); color: var(--bg);
+  }
+  :root[data-theme="dark"] .closing { background: var(--accent-soft); color: var(--ink); border: 1px solid var(--rec-line); }
+  @media (prefers-color-scheme: dark) { .closing { background: var(--accent-soft); color: var(--ink); border: 1px solid var(--rec-line); } }
+  .closing h2 { font-family: var(--serif); margin: 0 0 .5rem; font-size: 1.2rem; }
+  .closing p { margin: 0; opacity: .92; font-size: .96rem; }
+
+  .foot { margin-top: 2rem; color: var(--muted); font-size: .8rem; text-align: center; }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="kicker">Torb Logistic · Modulul de Aprovizionare</p>
+    <h1>Decizii de validat</h1>
+    <p class="lede">Cele două documente pe care ni le-ați trimis (Brief-ul modulului și Specificația de forecast) răspund la majoritatea întrebărilor de mai jos — le-am marcat <b>Rezolvat</b> cu decizia din document. Mai rămân câteva puncte care depind de datele sau de alegerea dvs.: acelea sunt marcate <b>De decis</b> și au nevoie de un răspuns înainte să le implementăm.</p>
+  </header>
+
+  <section class="summary">
+    <h2>Pe scurt — ce s-a închis și ce mai așteaptă răspuns</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Subiectul</th><th>Statut &amp; rezoluție</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="num-cell">1</td><td>Produse în declin</td><td class="rec-cell resolved">Media coboară spre zero, cu condiții (Brief §3)</td></tr>
+          <tr><td class="num-cell">2</td><td>Comenzi în tranzit întârziate</td><td class="rec-cell resolved">„Pe drum" doar prin eveniment; alarme 45/10/45 zile</td></tr>
+          <tr><td class="num-cell">3</td><td>Definiția „Critic"</td><td class="rec-cell resolved">Zile stoc &lt; lead time (pe prognoză sezonieră)</td></tr>
+          <tr><td class="num-cell">4</td><td>Baza de vânzări afișată</td><td class="rec-cell resolved">3 vizualizări, implicit „3 ani"</td></tr>
+          <tr><td class="num-cell">5</td><td>Luni fără stoc (rupturi)</td><td class="rec-cell resolved">„Luni neutre" pe 3 niveluri — <b>de confirmat datele</b></td></tr>
+          <tr><td class="num-cell">6</td><td>Cantitate minimă de comandă (MOQ)</td><td class="rec-cell pending">Așteptăm lista MOQ de la dvs.</td></tr>
+          <tr><td class="num-cell">7</td><td>Confirmarea delistării</td><td class="rec-cell resolved">Auto la +90 zile, cu confirmare manuală</td></tr>
+          <tr><td class="num-cell">8</td><td>Estimare pentru articol nou-listat</td><td class="rec-cell resolved">Analogie × factor de mărime + ramp-up 3 luni</td></tr>
+          <tr><td class="num-cell">9</td><td>Sugestie separată RO vs Export HU</td><td class="rec-cell pending">Documentele nu o menționează — o păstrăm?</td></tr>
+          <tr><td class="num-cell">10</td><td>Momentul recalculării</td><td class="rec-cell resolved">Job programat, noaptea</td></tr>
+          <tr><td class="num-cell">11</td><td>Prag alertă diferență de preț</td><td class="rec-cell pending">Ce abatere (%) declanșează alerta?</td></tr>
+          <tr><td class="num-cell">12</td><td>Prag valoric „stoc mort"</td><td class="rec-cell pending">De la ce valoare (lei) alertăm?</td></tr>
+          <tr><td class="num-cell">13</td><td>Raport ERP pe loturi + valabilitate</td><td class="rec-cell pending">Precondiție F4 — îl obțineți din ERP</td></tr>
+          <tr><td class="num-cell">14</td><td>Cum vă anunțăm (notificări)</td><td class="rec-cell pending">În aplicație / e-mail / ambele?</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="masthead" style="border-bottom:1px solid var(--line); margin:0 0 2.2rem; padding-bottom:1.3rem;">
+    <p class="kicker">Închise prin documentele dvs.</p>
+    <h2 style="font-family:var(--serif); font-weight:700; font-size:clamp(1.5rem,4vw,2rem); line-height:1.15; margin:.2rem 0 .6rem;">Deciziile 1–10 — rezolvate în Brief &amp; Specificație</h2>
+    <p class="lede" style="max-width:48ch;">Le păstrăm în document ca să existe o urmă clară a ce s-a decis și de unde. Nu e nevoie de niciun răspuns la ele — doar o confirmare dacă ceva nu reflectă intenția dvs.</p>
+  </div>
+
+  <div class="decisions">
+
+    <!-- 1 -->
+    <article class="card done">
+      <div class="eyebrow-row">
+        <span class="index">1</span>
+        <span class="eyebrow">Produse în declin</span>
+        <span class="status-done">Rezolvat</span>
+      </div>
+      <h3>Produse care nu mai vând, dar sistemul le comandă în continuare</h3>
+      <div class="resolution">
+        <span class="res-label">Decizia din Brief §3</span>
+        <b>Opțiunea A</b> — lunile fără vânzări contează ca zero, media coboară singură spre zero — <b>cu trei condiții obligatorii</b>: (1) media pornește de la prima vânzare/listare, nu de la începutul istoricului; (2) lunile fără stoc (out-of-stock) se exclud; (3) tăiere la <b>6 luni consecutive</b> fără vânzări → articolul devine INACTIV. Ponderarea recentă (opțiunea B) poate fi adăugată ulterior peste A, dacă reacția la trend se dovedește lentă.
+      </div>
+      <p class="source">Sursă: Specificatie_Forecast §4.1–4.2, §7. Nucleul (fereastră de la prima vânzare + medie cu zerouri) e deja implementat; excluderea OOS și tăierea la 6 luni sunt pe listă (vezi §5 și lista de verificat).</p>
+    </article>
+
+    <!-- 2 -->
+    <article class="card done">
+      <div class="eyebrow-row">
+        <span class="index">2</span>
+        <span class="eyebrow">Comenzi în tranzit</span>
+        <span class="status-done">Rezolvat</span>
+      </div>
+      <h3>Comenzi „pe drum" care de fapt au întârziat de mult</h3>
+      <div class="resolution">
+        <span class="res-label">Decizia din Brief §3 &amp; §5</span>
+        O comandă e „pe drum" <b>doar printr-un eveniment explicit</b> (documente de transport încărcate sau status schimbat manual), niciodată prin presupunere. Alarme: <b>45 zile</b> de la plasare fără încărcare confirmată, <b>10 zile</b> în tranzit rutier, <b>45 zile</b> în tranzit maritim (Basilur). Alarma <b>doar marchează</b> — o comandă iese din „cantitatea în curs" exclusiv prin decizia dvs. în lista de excepții (Anulată / Termen nou), cu istoricul păstrat integral.
+      </div>
+      <p class="source">Sursă: Brief §5.1–5.6. Aceasta devine componenta F2 (ciclul de viață al comenzilor), mai amplă decât pragul simplu de 30 de zile propus inițial — se livrează în Faza 1 împreună cu forecast-ul.</p>
+    </article>
+
+    <!-- 3 -->
+    <article class="card done">
+      <div class="eyebrow-row">
+        <span class="index">3</span>
+        <span class="eyebrow">Semnalul de urgență</span>
+        <span class="status-done">Rezolvat</span>
+      </div>
+      <h3>Ce înseamnă „Critic" pe toată pagina</h3>
+      <div class="resolution">
+        <span class="res-label">Decizia din Brief §3</span>
+        <b>Critic = stocul se termină înainte ca o comandă plasată azi să apuce să sosească</b>: zile_de_stoc &lt; lead time, calculat pe prognoza sezonieră (nu pe media simplă). <b>Atenție</b> = zile_de_stoc &lt; lead time + perioada de acoperire. În plus se construiește un <b>Centru de alerte</b> cu 7 tipuri de semnale de reacție imediată (Brief §8).
+      </div>
+      <p class="source">Sursă: Brief §3, §8. Definiția unică (bazată pe lead time) înlocuiește pragul fix de 30 de zile pe ambele vederi.</p>
+    </article>
+
+    <!-- 4 -->
+    <article class="card done">
+      <div class="eyebrow-row">
+        <span class="index">4</span>
+        <span class="eyebrow">Coerența cifrelor</span>
+        <span class="status-done">Rezolvat</span>
+      </div>
+      <h3>Aceleași cifre pe ecran și în Excel</h3>
+      <div class="resolution">
+        <span class="res-label">Decizia din Brief §3 &amp; §9</span>
+        <b>Trei vizualizări comutabile cu un click</b>: (1) implicit — <b>media sezonieră 3 ani</b>, aceeași bază pe care se calculează sugestia de comandă; (2) ultimele 90 de zile — tendința recentă; (3) <b>an curent vs. an trecut</b> (aceeași perioadă) — esențială la produsele sezoniere. A treia vedere ține cont de lunile neutre (§5), ca o comparație an-la-an să nu fie citită greșit din cauza unei rupturi de stoc.
+      </div>
+      <p class="source">Sursă: Brief §3, §9. Butonul „3 ani / 90 zile" e deja livrat; se adaugă a treia vedere „an curent vs. an trecut".</p>
+    </article>
+
+    <!-- 5 -->
+    <article class="card done">
+      <div class="eyebrow-row">
+        <span class="index">5</span>
+        <span class="eyebrow">Rupturi de stoc</span>
+        <span class="status-done">Rezolvat ca design</span>
+      </div>
+      <h3>Luni în care nu s-a vândut din lipsă de stoc, nu din lipsă de cerere</h3>
+      <div class="resolution">
+        <span class="res-label">Decizia din Brief §4.1</span>
+        Conceptul de <b>„luni neutre"</b>: o lună în care vânzarea a lipsit din alt motiv decât lipsa cererii nu se numără nici ca vânzare, nici ca zero — iese din medie și oprește ceasul de delistare. Trei surse: <b>Nivel 1</b> — euristică automată, retroactivă: dacă ≥ <b>70%</b> din clienții activi ai unui articol au zero într-o lună, luna e neutră pentru tot articolul; <b>Nivel 2</b> — snapshot zilnic de stoc din sincronizarea ERP existentă (lună indisponibilă ≥ 50% din zile → neutră); <b>Nivel 3</b> — jurnal manual minimal pentru blocaje financiare/logistice per client.
+      </div>
+      <p class="qlabel">Ce mai avem nevoie de la dvs.</p>
+      <p class="question">Două confirmări, ca Nivelul 2 și 3 să funcționeze:</p>
+      <ul class="options">
+        <li class="opt">
+          <span class="opt-badge">a</span>
+          <span class="opt-body"><span class="otitle">Sincronizarea cu ERP-ul poate livra un snapshot zilnic de stoc?</span><br>Dacă da, istoricul de rupturi se construiește singur de la lansare, fără efort de operare. Confirmați frecvența reală de sincronizare a stocului.</span>
+        </li>
+        <li class="opt">
+          <span class="opt-badge">b</span>
+          <span class="opt-body"><span class="otitle">Adoptați jurnalul de evenimente pentru blocaje?</span><br>Blocajele financiare/logistice per client nu se pot deduce automat. E de acord echipa să le noteze într-un jurnal simplu (client, tip, interval)? De explorat și importul flag-ului de blocare la creditare din ERP.</span>
+        </li>
+      </ul>
+      <p class="source">Sursă: Brief §4.1. Perioada dinainte de lansare rămâne acoperită doar de Nivelul 1 — acceptat; modelul se autocorectează pe măsură ce se acumulează date curate.</p>
+    </article>
+
+    <!-- 7 -->
+    <article class="card done">
+      <div class="eyebrow-row">
+        <span class="index">7</span>
+        <span class="eyebrow">Delistare la client</span>
+        <span class="status-done">Rezolvat</span>
+      </div>
+      <h3>Cine confirmă delistarea unei perechi client × articol</h3>
+      <div class="resolution">
+        <span class="res-label">Decizia din Specificatie §5.2</span>
+        La depășirea pragului adaptiv, perechea trece pe <b>SUSPECT_DELISTARE</b> și contribuția clientului iese <b>imediat și integral</b> din prognoză (nu prin diluare cu zerouri). Devine <b>DELISTAT</b> fie prin confirmare manuală, fie automat după încă <b>90 de zile</b> fără achiziții. O achiziție nouă → <b>REACTIVAT</b>, tratat ca listare nouă. Utilizatorul poate marca oricând „fals pozitiv" (revine pe ACTIV).
+      </div>
+      <p class="source">Sursă: Specificatie §5.1–5.2, §9. Detectarea SUSPECT e deja implementată (prag adaptiv); rămâne de adăugat ciclul complet DELISTAT/REACTIVAT + raportul de excepții cu butoane de confirmare.</p>
+    </article>
+
+    <!-- 8 -->
+    <article class="card done">
+      <div class="eyebrow-row">
+        <span class="index">8</span>
+        <span class="eyebrow">Listări noi</span>
+        <span class="status-done">Rezolvat</span>
+      </div>
+      <h3>Cât estimăm pentru un articol nou, la un client fără istoric</h3>
+      <div class="resolution">
+        <span class="res-label">Decizia din Specificatie §6</span>
+        Estimarea inițială, în ordinea disponibilității: (a) <b>analogie pe articol</b> — media lunară a aceluiași articol la clienții activi, scalată cu <b>factorul de mărime</b> al clientului (plafonat 0,25–4,0); (b) analogie pe categorie la același client; (c) estimare manuală. Apoi <b>ramp-up 3 luni</b> (blending estimare/date reale) și un <b>plafon anti-vârf</b> (2× estimarea) care exclude umplerea inițială de raft din medie.
+      </div>
+      <p class="source">Sursă: Specificatie §6.1–6.3, §9. Notă: specificația definește „comparabil" prin scalarea cu mărimea clientului peste toți clienții activi, nu prin canalul de client — rezolvă altfel decât recomandarea inițială.</p>
+    </article>
+
+    <!-- 10 -->
+    <article class="card done">
+      <div class="eyebrow-row">
+        <span class="index">10</span>
+        <span class="eyebrow">Momentul recalculării</span>
+        <span class="status-done">Rezolvat</span>
+      </div>
+      <h3>Când recalculăm statusurile și prognozele</h3>
+      <div class="resolution">
+        <span class="res-label">Decizia din Specificatie §11 &amp; Brief §11</span>
+        <b>Job programat, recomandat zilnic, noaptea.</b> Pagina afișează instant ultimul recalcul, iar sugestiile de comandă se generează la cerere pe baza lui.
+      </div>
+      <p class="source">Sursă: Specificatie §11 (notă de implementare), Brief §11.</p>
+    </article>
+
+  </div>
+
+  <div class="masthead" style="border-bottom:1px solid var(--warn); margin:3.6rem 0 2.2rem; padding-bottom:1.3rem;">
+    <p class="kicker" style="color:var(--warn);">Rămân de decis</p>
+    <h2 style="font-family:var(--serif); font-weight:700; font-size:clamp(1.5rem,4vw,2rem); line-height:1.15; margin:.2rem 0 .6rem;">Punctele care depind de datele sau de alegerea dvs.</h2>
+    <p class="lede" style="max-width:48ch;">Documentele nu le acoperă — fie ne trebuie o listă/valoare de la dvs., fie o preferință de business. Până la răspuns, implementăm ce nu depinde de ele.</p>
+  </div>
+
+  <div class="decisions">
+
+    <!-- 6 -->
+    <article class="card open">
+      <div class="eyebrow-row">
+        <span class="index">6</span>
+        <span class="eyebrow">Cantitate minimă de comandă</span>
+        <span class="status-open">De decis</span>
+      </div>
+      <h3>Cantitatea minimă de comandă (MOQ) impusă de furnizori</h3>
+      <p>Sugestia se rotunjește în sus la multiplul de <b>bax</b> — asta o facem deja din datele existente. Ce nu avem este <b>MOQ</b>-ul: cantitatea minimă sub care unii furnizori nu acceptă comandă pentru un articol. Specificația o cere în formulă (§8), dar valorile trebuie să vină de la dvs.</p>
+      <p class="example">Exemplu: dacă un furnizor cere minim <b>X cutii</b> per articol, fără MOQ sistemul poate sugera o cantitate pe care furnizorul o refuză.</p>
+
+      <p class="qlabel">Întrebarea</p>
+      <p class="question">Aveți, per furnizor sau per articol, o cantitate minimă de comandă (MOQ) pe care să o respectăm?</p>
+
+      <ul class="options">
+        <li class="opt rec">
+          <span class="opt-badge">A</span>
+          <span class="opt-body"><span class="otitle">Ne dați lista MOQ</span><span class="tag">Recomandat</span><br>Pe furnizor sau pe articol, acolo unde există; o folosim ca prag minim în sugestie. Rotunjirea la bax rămâne oricum din datele existente.</span>
+        </li>
+        <li class="opt">
+          <span class="opt-badge">B</span>
+          <span class="opt-body"><span class="otitle">Rotunjim doar la bax, fără MOQ</span><br>Mai simplu — folosim doar multiplul de bax, fără prag minim de cantitate.</span>
+        </li>
+        <li class="opt">
+          <span class="opt-badge">C</span>
+          <span class="opt-body"><span class="otitle">MOQ implicit, configurabil</span><br>Pornim de la o valoare implicită per furnizor, pe care o ajustați în ecranul de configurare.</span>
+        </li>
+      </ul>
+
+      <div class="why">
+        <span class="why-label">De ce A</span>
+        <span>MOQ-ul, acolo unde furnizorul îl impune, evită comenzi respinse — dar are nevoie de lista dvs. Fără ea, mergem pe B până când o primim.</span>
+      </div>
+    </article>
+
+    <!-- 9 -->
+    <article class="card open">
+      <div class="eyebrow-row">
+        <span class="index">9</span>
+        <span class="eyebrow">Piața RO vs Export</span>
+        <span class="status-open">De decis</span>
+      </div>
+      <h3>Păstrăm sugestia separată pentru RO și pentru Export HU?</h3>
+      <p>Tool-ul actual calculează două sugestii: una pentru piața RO și una pentru clienții de Export HU (Brandmix, Hun-Trade), pentru că se comandă și se facturează diferit. <b>Nici Brief-ul, nici Specificația nu menționează această separare</b> — vorbesc doar de „client × articol". Vrem să știm dacă o păstrăm.</p>
+      <p class="example">Exemplu: azi sistemul arată pe coloane distincte <b>„Sug. RO"</b> și <b>„Sug. Export HU"</b> pentru fiecare articol.</p>
+
+      <p class="qlabel">Întrebarea</p>
+      <p class="question">În noul model, păstrăm sugestia separată RO / Export HU?</p>
+
+      <ul class="options">
+        <li class="opt rec">
+          <span class="opt-badge">A</span>
+          <span class="opt-body"><span class="otitle">Păstrăm separarea, ca acum</span><span class="tag">Recomandat</span><br>Aceleași două coloane, dar cu calcul pe client × articol dedesubt. Vizual nu se schimbă nimic.</span>
+        </li>
+        <li class="opt">
+          <span class="opt-badge">B</span>
+          <span class="opt-body"><span class="otitle">O singură sugestie totală</span><br>Renunțăm la separare. Mai simplu, dar pierdem distincția utilă la comandă și facturare.</span>
+        </li>
+      </ul>
+
+      <div class="why">
+        <span class="why-label">De ce A</span>
+        <span>Separarea reflectă un flux real de business (comandă și facturare diferite); noul model o poate păstra fără efort suplimentar. Confirmați doar că mai e valabilă.</span>
+      </div>
+    </article>
+
+    <!-- 11 -->
+    <article class="card open">
+      <div class="eyebrow-row">
+        <span class="index">11</span>
+        <span class="eyebrow">Diferențe de preț la achiziție</span>
+        <span class="status-open">De decis</span>
+      </div>
+      <h3>De la ce diferență de preț vă alertăm?</h3>
+      <p>La încărcare, prețul final de la furnizor poate diferi de cel din comandă. Sistemul evidențiază diferența într-un raport dedicat și ridică o alertă „Atenție" când abaterea depășește un prag. Pragul e lăsat „de stabilit" în Brief.</p>
+      <p class="example">Exemplu: comandă la 10 lei/buc, factură la 10,80 lei/buc = +8%. Peste pragul ales, comanda apare în Centrul de alerte cu impactul pe costul de achiziție.</p>
+
+      <p class="qlabel">Întrebarea</p>
+      <p class="question">Ce abatere de preț (%) față de comandă declanșează alerta?</p>
+      <div class="why">
+        <span class="why-label">Propunere</span>
+        <span>Un punct de plecare de <b>5%</b>, configurabil. Ne spuneți valoarea pe care o considerați semnificativă în practică — poate fi și pe categorii de furnizori.</span>
+      </div>
+    </article>
+
+    <!-- 12 -->
+    <article class="card open">
+      <div class="eyebrow-row">
+        <span class="index">12</span>
+        <span class="eyebrow">Stoc mort</span>
+        <span class="status-open">De decis</span>
+      </div>
+      <h3>De la ce valoare semnalăm „stoc mort"?</h3>
+      <p>Un articol devenit INACTIV care rămâne cu stoc pe raft imobilizează bani. Sistemul îl semnalează în Centrul de alerte când valoarea stocului rămas (cantitate × cost) depășește un prag. Pragul valoric e „de stabilit" în Brief.</p>
+      <p class="example">Exemplu: un ceai scos din vânzare, cu 400 buc rămase × 12 lei = 4.800 lei imobilizați → alertă „stoc mort".</p>
+
+      <p class="qlabel">Întrebarea</p>
+      <p class="question">De la ce valoare (lei) a stocului rămas pe un articol inactiv vreți să apară alerta?</p>
+      <div class="why">
+        <span class="why-label">Propunere</span>
+        <span>Nu avem o valoare implicită sănătoasă fără să știm ordinele dvs. de mărime. Ne dați o cifră de pornire (ex. 1.000 / 5.000 lei), configurabilă ulterior.</span>
+      </div>
+    </article>
+
+    <!-- 13 -->
+    <article class="card open">
+      <div class="eyebrow-row">
+        <span class="index">13</span>
+        <span class="eyebrow">Precondiție F4 · loturi &amp; valabilitate</span>
+        <span class="status-open">De decis</span>
+      </div>
+      <h3>Raportul de stoc din ERP, defalcat pe loturi cu termen de valabilitate</h3>
+      <p>Componenta F4 (stoc pe loturi, risc de expirare, verificare FEFO, „stoc util" în sugestie) are nevoie de un raport ERP care conține <b>cantitățile pe loturi, cu data de expirare (BBD) per lot</b>. Raportul actual nu are aceste coloane. Noi specificăm formatul dorit (minim: articol_id, lot, cantitate, data expirării, opțional data recepției lotului), dar raportul îl obțineți dvs. din ERP.</p>
+      <p class="example">Fără el, sistemul tratează marfa care va expira ca integral vandabilă și poate bloca reaprovizionarea pe baza ei.</p>
+
+      <p class="qlabel">Ce vă cerem</p>
+      <p class="question">Confirmați că puteți obține din ERP raportul pe loturi cu BBD? Îl comandați în paralel cu Faza 1, ca F4 să nu întârzie.</p>
+      <div class="why">
+        <span class="why-label">De ce acum</span>
+        <span>E singura dependență externă a proiectului. Formatul îl trimitem în primele 2 săptămâni, ca modificarea raportului să fie gata până ajungem la Faza 3 (F4).</span>
+      </div>
+    </article>
+
+    <!-- 14 -->
+    <article class="card open">
+      <div class="eyebrow-row">
+        <span class="index">14</span>
+        <span class="eyebrow">Notificări</span>
+        <span class="status-open">De decis</span>
+      </div>
+      <h3>Cum vreți să fiți anunțați de alertele importante</h3>
+      <p>Alertele critice apar oricum pe dashboard la deschiderea aplicației. Întrebarea e dacă vreți și o notificare <b>împinsă</b> către dvs. pentru: comenzi întârziate, excepții nerezolvate, recepții scadente neoperate, loturi la risc de expirare.</p>
+
+      <p class="qlabel">Întrebarea</p>
+      <p class="question">Ce canal de notificare preferați?</p>
+
+      <ul class="options">
+        <li class="opt rec">
+          <span class="opt-badge">A</span>
+          <span class="opt-body"><span class="otitle">Doar în aplicație (dashboard + Centru de alerte)</span><span class="tag">Cel mai simplu</span><br>Fără dependențe externe; vedeți totul la deschiderea aplicației.</span>
+        </li>
+        <li class="opt">
+          <span class="opt-badge">B</span>
+          <span class="opt-body"><span class="otitle">În aplicație + e-mail zilnic</span><br>Un rezumat pe e-mail cu alertele critice și excepțiile deschise, pentru cine nu intră zilnic în aplicație.</span>
+        </li>
+        <li class="opt">
+          <span class="opt-badge">C</span>
+          <span class="opt-body"><span class="otitle">Altceva</span><br>Dacă folosiți deja un canal (WhatsApp, Teams etc.), ni-l spuneți și evaluăm efortul.</span>
+        </li>
+      </ul>
+
+      <div class="why">
+        <span class="why-label">Notă</span>
+        <span>Nu blochează forecast-ul — ține de F2–F4. O clarificăm acum ca să proiectăm corect Centrul de alerte.</span>
+      </div>
+    </article>
+
+  </div>
+
+  <section class="closing">
+    <h2>Cum răspundeți</h2>
+    <p>La deciziile 1–10 e nevoie doar de o confirmare dacă ceva nu reflectă intenția dvs. Punctele care mai așteaptă răspuns: <b>6</b> (lista MOQ), <b>9</b> (păstrăm split RO/Export?), <b>11</b> (prag % diferență preț), <b>12</b> (prag lei stoc mort), <b>13</b> (confirmarea raportului ERP pe loturi) și <b>14</b> (canal de notificare). Până la răspuns, implementăm tot ce nu depinde de ele; cifrele sugestiei rămân sub control — le comparăm înainte/după.</p>
+  </section>
+
+  <p class="foot">Document intern de decizie · surse: Brief Modul Aprovizionare v1.0 · Specificatie Forecast v1.0 · auditul paginii /forecast</p>
+</div>

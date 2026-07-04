@@ -418,11 +418,25 @@ def round_up_to_bax(qty: float, buc_cutie) -> int:
     return int(math.ceil(qty / buc_cutie) * buc_cutie)
 
 
+def _moq_floor(raw: float, moq) -> float:
+    """Spec §8: final = round_up_bax(max(brut, MOQ)) when brut>0, else 0.
+    A raw need of 0 stays 0 (MOQ never creates an order); a positive need is
+    lifted to at least the supplier's minimum order quantity. `moq` is None
+    until MOQ data exists, in which case this is a no-op."""
+    if raw <= 0:
+        return 0.0
+    if moq and moq > 0:
+        return max(raw, float(moq))
+    return raw
+
+
 def split_with_safety(monthly_ro, monthly_export, lead_days, available,
-                      base_ro, base_export, coef, coverage_days, buc_cutie):
+                      base_ro, base_export, coef, coverage_days, buc_cutie,
+                      moq=None):
     """Like _ro_hu_split, but adds a coef x forecast safety stock to each
-    market's demand before subtracting available stock, then rounds each
-    suggestion up to the next full bax (case) size."""
+    market's demand before subtracting available stock, applies the supplier
+    MOQ floor (spec §8), then rounds each suggestion up to the next full bax
+    (case) size."""
     demand_ro = _coverage_demand(monthly_ro, lead_days, coverage_days)
     demand_export = _coverage_demand(monthly_export, lead_days, coverage_days)
     safety_ro = coef * base_ro
@@ -434,8 +448,8 @@ def split_with_safety(monthly_ro, monthly_export, lead_days, available,
     return {
         'demand_ro': demand_ro, 'demand_export': demand_export,
         'safety_ro': safety_ro, 'safety_export': safety_export,
-        'suggested_ro': round_up_to_bax(raw_ro, buc_cutie),
-        'suggested_export': round_up_to_bax(raw_export, buc_cutie),
+        'suggested_ro': round_up_to_bax(_moq_floor(raw_ro, moq), buc_cutie),
+        'suggested_export': round_up_to_bax(_moq_floor(raw_export, moq), buc_cutie),
     }
 
 

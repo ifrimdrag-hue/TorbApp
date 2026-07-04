@@ -37,6 +37,8 @@ Migrations are versioned in `migrations/` (`NNNN_YYYYMMDD_description.py`), appl
 
 So a rebuild refreshes sales/stock from the current Excel sources while keeping manually-maintained config and the accumulated `corr_vanzari_tobra` cost history.
 
+**Post-rebuild — stock-snapshot capture (forecast OOS history):** `python etl/snapshot_stoc.py` copies the latest `stoc` snapshot into `stock_snapshot` (idempotent per date). `stock_snapshot` is *not* in the partial-rebuild drop set, so it accrues day-over-day history for the forecast out-of-stock correction (level-2). Not yet wired into `rebuild_db.main()` — run it after each rebuild (or schedule it) until it is.
+
 **When** — three entry points, all reaching the same code:
 - `python etl/update_data.py` — CLI wrapper; auto-detects the latest `Vanzari*.xlsx` (also accepts `--vanzari <file>` / `--folder <name>`).
 - `python etl/rebuild_db.py [--vanzari <file>]` — direct CLI.

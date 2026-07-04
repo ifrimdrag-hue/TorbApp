@@ -34,7 +34,7 @@
 - `[x]` **5.** Bonusare automată lunară · *livrat 2026-06-16 (`feat/bonus-redesign`) — modul bonus config-driven cu flux de închidere lună; detalii în CHANGELOG*
 - `[ ]` **6.** Brief intern pentru audit Celmar + Leonex (scope, buget, timeline)
 - `[ ]` **7.** Conversație confidențială de retenție cu Bogdan Dragnea · *deadline: 30 iunie 2026*
-- `[~]` **4b.** Forecast engine MVP (Faza 1) · *modul `forecast/` + pagina `/forecast` + export Excel livrate; nucleul client × articol livrat 2026-07-04 în spatele `?model=nou`; validare owner pe Basilur înainte de rollout complet (Faza 2). Vezi CHANGELOG.*
+- `[~]` **4b.** Forecast engine MVP (Faza 1) · *modul `forecast/` + pagina `/forecast` + export Excel livrate; nucleul client × articol + piesele low-risk din spec (luni neutre, tăiere INACTIV, etichetă DELISTAT, prag MOQ, ETL snapshot stoc) livrate 2026-07-04 în spatele `?model=nou`; validare owner pe Basilur înainte de rollout complet (Faza 2). Vezi CHANGELOG.*
 
 ### Zilele 31–90 — Decizii strategice
 
@@ -55,4 +55,4 @@
 
 ## Next immediate step
 
-**Prioritate #1 — Validare forecast Basilur cu owner-ul** (item 4b), paralel cu margin audit (item 11, deadline 15 iunie — depășit). Nucleul modelului client × articol e livrat (2026-07-04) în spatele toggle-ului `?model=nou` (implicit tot `actual`) — pasul următor e ca owner-ul să valideze cifrele prin `?compare=1` înainte să schimbăm implicitul, plus deciziile 5–10 din `docs/decision.html` (rupturi de stoc §4.4, MOQ §8, ciclu delistare §5, ramp-up listare nouă §6, split RO/Export, momentul recalculării §10). Rămân și B5 (prag „tranzit expirat") și B7 (semantica urgenței per tab) din auditul `/forecast` — vezi `docs/BACKLOG.md` §Forecast (B4 e acum rezolvat de noul model, condiționat de flip-ul de implicit).
+**Prioritate #1 — Validare forecast Basilur cu owner-ul** (item 4b), paralel cu margin audit (item 11, deadline 15 iunie — depășit). Nucleul client × articol + piesele low-risk din spec (luni neutre, tăiere INACTIV, etichetă DELISTAT, prag MOQ inert, ETL snapshot stoc) sunt livrate (2026-07-04) în spatele toggle-ului `?model=nou` (implicit tot `actual`) — pasul următor e ca owner-ul să valideze cifrele prin `?compare=1` înainte să schimbăm implicitul (atenție: pe Basilur noul model marchează 205/473 SKU INACTIV — de verificat dacă e corect sau prea agresiv). Deciziile 1–10 din `docs/decision_torb.html` sunt rezolvate de documentele owner-ului; rămân deschise 6 (listă MOQ), 9 (păstrăm split RO/Export — owner a confirmat *da*), 11–14 (praguri alertă preț/stoc mort, raport ERP loturi, notificări). Deferate (judecată/UI/date): ramp-up listare nouă §6, confirmare manuală delistare §10, vederea „an curent vs. an trecut" §9, F2/F3/F4. Rămân B5 (prag „tranzit expirat") și B7 (semantica urgenței per tab) — vezi `docs/BACKLOG.md` §Forecast și `docs/plans/2026-07-04-forecast-spec-completion.md`.

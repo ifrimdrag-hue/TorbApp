@@ -26,8 +26,10 @@ New procurement-forecast core in `app/forecast/pair_engine.py` — computes dema
 - `build_window(first_sale, today, window_months)` — per-pair history window: `[max(first_sale month, today − window_months), last closed month]` (spec §4.1).
 - `monthly_mean_with_zeros(pair_months, window)` — mean over the window with missing months counted as zero, so pairs with a partial or ended run don't retain their old average forever (spec §4.2).
 - `seasonal_index(article_month_qty, min_history_months, cap_lo, cap_hi)` — article-level seasonal index, gated off (flat 1.0) below `sezonalitate_min_luni` (default 24) months of history, capped to `[indice_sezonier_min, indice_sezonier_max]` (default `[0.2, 5.0]`) (spec §4.3).
-- `delisting_status(purchase_dates, today, min_days, mult)` — marks a pair `SUSPECT` when `days_since_last_purchase > max(min_days, mult × mean_interval_between_purchases)` — an adaptive threshold so a quarterly-ordering client isn't flagged at 5 months (spec §5.1). `SUSPECT` pairs are excluded from the article's forecast (no slow zero-dilution).
-- `article_monthly_profiles(furnizor, params, today=None)` — aggregates all `ACTIVE` (non-suspect) pairs for a supplier into per-article `{ro, export, total}` monthly profiles (12-key dicts) plus `cod_produs`, `suspects` (list of delisting-suspect clients), `n_active`, `n_suspect` (spec §2).
+- `delisting_status(purchase_dates, today, min_days, mult, confirm_days=0)` — marks a pair `SUSPECT` when `days_since_last_purchase > max(min_days, mult × mean_interval_between_purchases)` — an adaptive threshold so a quarterly-ordering client isn't flagged at 5 months (spec §5.1). Past a further `confirm_days` (`confirmare_delistare_zile`, 90) it auto-labels `DELISTAT` (spec §5.2); both are excluded from the article's forecast (no slow zero-dilution). `confirm_days=0` keeps the old two-state behaviour.
+- `neutral_months(client_month_qty, window, threshold_pct, min_clients=2)` — level-1 supply-gap heuristic (Brief §4.1): a month where ≥ `threshold_pct`% of the article's covering clients (active span first…last sale) sold zero is NEUTRAL and excluded from the pair means. Needs ≥ `min_clients` covering clients so single-client churn can't trip it. Levels 2–3 (daily stock snapshot, manual events journal) deferred.
+- `is_inactive(article_month_qty, today, months, seasonal_idx=None, neutral=None, seasonal_cap=3.0)` — global 6-month cut (spec §7): zero total sales across the last `months` closed months → INACTIV (forecast 0). Neutral months are not counted as evidence; strongly seasonal articles (peak index ≥ `seasonal_cap`) are exempt.
+- `article_monthly_profiles(furnizor, params, today=None)` — aggregates all `ACTIVE` (non-suspect) pairs for a supplier into per-article `{ro, export, total}` monthly profiles (12-key dicts) plus `cod_produs`, `suspects` (delisting-suspect/delisted clients, each with `status`), `n_active`, `n_suspect`, `n_delistat`, `inactive` (bool), `neutral_months` (list). Applies neutral-month exclusion and the INACTIV cut (spec §2).
 
 ### Config — `forecast_config` table + `/forecast/setari`
 
@@ -42,13 +44,16 @@ New procurement-forecast core in `app/forecast/pair_engine.py` — computes dema
 | `prag_delistare_mult` | 3 | Multiplier on mean purchase interval for SUSPECT |
 | `coef_siguranta` | 0.25 | Safety-stock coefficient (× monthly forecast) |
 | `perioada_acoperire_luni` | 1 | Coverage period (months) for `split_with_safety` |
-| `confirmare_delistare_zile`, `taiere_inactiv_luni`, `oos_prag_pct`, `rampup_luni`, `plafon_varf_initial`, `factor_marime_min`/`_max` | — | Reserved for deferred lifecycle/ramp-up/OOS logic (see below); not yet consumed by any code path |
+| `confirmare_delistare_zile` | 90 | Extra days after SUSPECT before auto-`DELISTAT` |
+| `taiere_inactiv_luni` | 6 | Consecutive zero-sales months → INACTIV |
+| `prag_neutru_multi_client` | 70 | % of covering clients at zero → neutral month (migration 0018) |
+| `oos_prag_pct`, `rampup_luni`, `plafon_varf_initial`, `factor_marime_min`/`_max` | — | Reserved for deferred level-2 OOS / ramp-up logic; not yet consumed |
 
 The "Parametri forecast" card on `/forecast/setari` edits these live via `GET`/`POST /api/forecast/config`.
 
 ### Order formula (partial — spec §8)
 
-`forecast_logic.split_with_safety(monthly_ro, monthly_export, lead_days, available, base_ro, base_export, coef, coverage_days, buc_cutie)` — like the existing `_ro_hu_split` (stock covers RO demand first, surplus goes to export), but adds `safety = coef × monthly_forecast` to each market's demand before subtracting available stock, then rounds each suggestion up to the next full bax via `produse.buc_cutie` (`round_up_to_bax`). **Not implemented:** MOQ floor (deferred, see decision 6 below).
+`forecast_logic.split_with_safety(monthly_ro, monthly_export, lead_days, available, base_ro, base_export, coef, coverage_days, buc_cutie)` — like the existing `_ro_hu_split` (stock covers RO demand first, surplus goes to export), but adds `safety = coef × monthly_forecast` to each market's demand before subtracting available stock, then lifts the raw need to the supplier MOQ (`max(brut, MOQ)`, never from 0) via `_moq_floor` and rounds each suggestion up to the next full bax via `produse.buc_cutie` (`round_up_to_bax`). The MOQ floor is wired but **inert** — `produse` has no MOQ column yet, so callers pass `moq=None` (decision 6).
 
 ### Wiring — `?model=nou` / `?compare=1`
 
@@ -60,17 +65,19 @@ Both entry points default to the unchanged legacy behaviour; the new model is op
 - `/forecast?compare=1` — validation view: renders the **old** model as the base rows, then runs the new model alongside and attaches `suggested_ro_nou`/`suggested_hu_nou` per SKU so old-vs-new can be diffed on screen before flipping the default. Use this to validate before changing the `model` default in `app/blueprints/forecast.py`.
 - UI (`forecast.html`): model toggle control, "Suspect delistare" badge (from `n_suspect`/`suspects`), a "fără ajustare (<24 luni)" seasonality marker when the gate hasn't opened yet, and a suggestion-transparency popover showing the demand/safety-stock breakdown.
 
-### Deferred spec items — need owner decisions (`docs/decision.html`, items 5–10)
+### Deferred spec items — need owner decisions (`docs/decision_torb.html`, items 5–10)
 
-Not implemented; blocked on data availability or a product decision. Each maps to a numbered card in `docs/decision.html` ("Runda 2 · Noul model de forecast"):
+Not implemented; blocked on data availability or a product decision. Each maps to a numbered card in `docs/decision_torb.html` ("Runda 2 · Noul model de forecast"):
 
-| # | Spec ref | What's blocked |
+| # | Spec ref | Status |
 |---|---|---|
-| 5 | §4.4 | Out-of-stock month exclusion from the mean — needs daily/monthly stock history to detect ruptures; not yet distinguished from genuine zero-demand months |
-| 6 | §8 | MOQ floor per supplier/article (bax rounding is implemented; the minimum-order-quantity floor is not) |
-| 7 | §5 | Full DELISTAT/REACTIVAT lifecycle — who confirms a `SUSPECT` pair is a real delisting vs. a pause (auto-confirm after `confirmare_delistare_zile`, manual override) |
+| 5 | §4.4 / Brief §4.1 | **Level-1 done** (`neutral_months`, multi-client heuristic). Level-2 (daily stock snapshot → `stock_snapshot`, seeded by `etl/snapshot_stoc.py`) and level-3 (manual events journal) still to build |
+| 6 | §8 | **Mechanism done** (`_moq_floor`); inert until owner supplies MOQ data (`produse` has no MOQ column) |
+| 7 | §5 | **Auto-confirm done** (`DELISTAT` after `confirmare_delistare_zile`). Manual confirm UI + exception report + `REACTIVAT`→new-listing still to build |
 | 8 | §6 | New-listing ramp-up — initial estimate for a client×article pair with no history, definition of "comparable clients" |
-| 9 | — | Whether to keep the RO/Export HU suggestion split in the new model (currently kept) |
+| 9 | — | RO/Export HU split — owner confirmed **keep** (2026-07-04); still kept in the new model |
 | 10 | §10 | Nightly batch recalculation vs. on-demand (currently on-demand, same as legacy) |
+
+Owner decisions log: `docs/decision_torb.html` (1–10 resolved by the owner brief/spec; 6/9/11–14 open). Plan + spec digest: `docs/plans/2026-07-04-forecast-spec-completion.md`.
 
 Tests: `tests/test_pair_engine.py`, `tests/test_forecast_reorder.py`, `tests/test_forecast_config.py`, `tests/test_forecast_routes.py`.

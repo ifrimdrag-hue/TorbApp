@@ -29,6 +29,26 @@ def test_safety_adds_to_demand():
     assert 220 <= r["suggested_ro"] <= 232
 
 
+def test_moq_floor_lifts_positive_need():
+    # Need ~200+25=225 but MOQ 500 -> lifted to 500, then bax-rounded.
+    monthly = {m: 100.0 for m in range(1, 13)}
+    r = fl.split_with_safety(
+        monthly_ro=monthly, monthly_export={m: 0 for m in range(1, 13)},
+        lead_days=30, available=0, base_ro=100.0, base_export=0.0,
+        coef=0.25, coverage_days=30, buc_cutie=1, moq=500)
+    assert r["suggested_ro"] == 500
+
+
+def test_moq_floor_never_creates_order():
+    # Zero raw need must stay 0 even with a MOQ set.
+    zero = {m: 0.0 for m in range(1, 13)}
+    r = fl.split_with_safety(
+        monthly_ro=zero, monthly_export=zero, lead_days=30, available=0,
+        base_ro=0.0, base_export=0.0, coef=0.25, coverage_days=30,
+        buc_cutie=1, moq=500)
+    assert r["suggested_ro"] == 0
+
+
 def test_build_suggestion_accepts_model_param(monkeypatch):
     from forecast import forecast_logic as fl
 

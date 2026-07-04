@@ -12,6 +12,7 @@ DEFAULTS = {
     "confirmare_delistare_zile": 90.0, "taiere_inactiv_luni": 6.0,
     "oos_prag_pct": 50.0, "rampup_luni": 3.0, "plafon_varf_initial": 2.0,
     "factor_marime_min": 0.25, "factor_marime_max": 4.0,
+    "prag_neutru_multi_client": 70.0,
 }
 
 
