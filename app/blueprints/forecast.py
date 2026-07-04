@@ -70,6 +70,7 @@ def forecast():
 
 @forecast_bp.route('/forecast/setari')
 def forecast_setari():
+    from forecast import config as fc_config
     tari    = queries.tari_export_list()
     clienti = queries.clienti_export_list()
     termene = queries.termene_aprovizionare_list()
@@ -77,7 +78,26 @@ def forecast_setari():
     for c in clienti:
         clienti_by_tara.setdefault(c['tara_id'], []).append(c)
     return render_template('forecast_setari.html',
-        tari=tari, clienti_by_tara=clienti_by_tara, termene=termene)
+        tari=tari, clienti_by_tara=clienti_by_tara, termene=termene,
+        params=fc_config.get_params())
+
+
+@forecast_bp.route('/api/forecast/config', methods=['GET'])
+def api_forecast_config_get():
+    from forecast import config as fc_config
+    return jsonify({'ok': True, 'params': fc_config.get_params()})
+
+
+@forecast_bp.route('/api/forecast/config', methods=['POST'])
+def api_forecast_config_set():
+    from forecast import config as fc_config
+    d = request.get_json(silent=True) or {}
+    try:
+        fc_config.set_param(d['cheie'], float(d['valoare']))
+        return jsonify({'ok': True})
+    except (KeyError, TypeError, ValueError) as e:
+        logger.exception("api_forecast_config_set failed")
+        return jsonify({'error': str(e)}), 400
 
 
 @forecast_bp.route('/api/forecast/tari', methods=['POST'])

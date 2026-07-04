@@ -20,3 +20,16 @@ def test_set_param_rejects_unknown_key():
     import pytest
     with pytest.raises(KeyError):
         config.set_param("nope", 1)
+
+
+def test_set_param_roundtrip_known_key(monkeypatch):
+    saved = {}
+
+    class FakeConn:
+        def execute(self, *a): saved['args'] = a
+        def commit(self): saved['committed'] = True
+        def close(self): pass
+
+    monkeypatch.setattr(config, "get_db", lambda: FakeConn())
+    config.set_param("coef_siguranta", 0.3)
+    assert saved['committed'] is True

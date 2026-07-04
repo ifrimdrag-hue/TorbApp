@@ -169,6 +169,57 @@
   </div>
 </div>
 
+<!-- Parametri forecast -->
+<div class="card mt-4">
+  <div class="card-header">
+    <strong><i class="bi bi-sliders"></i> Parametri forecast</strong>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label small">Fereastră istorică (luni)</label>
+        <input type="number" step="1" class="form-control form-control-sm cfg-param"
+               data-cheie="fereastra_luni" value="{{ params.fereastra_luni }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">Istoric minim sezonalitate (luni)</label>
+        <input type="number" step="1" class="form-control form-control-sm cfg-param"
+               data-cheie="sezonalitate_min_luni" value="{{ params.sezonalitate_min_luni }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">Plafon indice sezonier min</label>
+        <input type="number" step="0.05" class="form-control form-control-sm cfg-param"
+               data-cheie="indice_sezonier_min" value="{{ params.indice_sezonier_min }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">Plafon indice sezonier max</label>
+        <input type="number" step="0.05" class="form-control form-control-sm cfg-param"
+               data-cheie="indice_sezonier_max" value="{{ params.indice_sezonier_max }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">Prag delistare (zile)</label>
+        <input type="number" step="1" class="form-control form-control-sm cfg-param"
+               data-cheie="prag_delistare_zile" value="{{ params.prag_delistare_zile }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">Multiplicator interval delistare</label>
+        <input type="number" step="0.1" class="form-control form-control-sm cfg-param"
+               data-cheie="prag_delistare_mult" value="{{ params.prag_delistare_mult }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">Coeficient stoc de siguranță</label>
+        <input type="number" step="0.05" class="form-control form-control-sm cfg-param"
+               data-cheie="coef_siguranta" value="{{ params.coef_siguranta }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">Perioadă acoperire (luni)</label>
+        <input type="number" step="0.5" class="form-control form-control-sm cfg-param"
+               data-cheie="perioada_acoperire_luni" value="{{ params.perioada_acoperire_luni }}">
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal țară -->
 <div class="modal fade" id="modalTara" tabindex="-1">
   <div class="modal-dialog modal-sm">
@@ -311,5 +362,15 @@ function toggleClient(id) {
   fetch('/api/forecast/clienti/' + id + '/toggle', {method: 'POST'})
     .then(() => location.reload());
 }
+
+document.querySelectorAll('.cfg-param').forEach(el => {
+  el.addEventListener('change', () => {
+    fetch('/api/forecast/config', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cheie: el.dataset.cheie, valoare: parseFloat(el.value)})})
+      .then(r => r.json())
+      .then(j => { if (!j.ok) AppError.show(j.error || 'Salvare eșuată'); });
+  });
+});
 </script>
 {% endblock %}
