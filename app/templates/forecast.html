@@ -241,8 +241,15 @@
             <th class="text-center" title="Istoric vânzări pe clienți">Clienți</th>
             <th class="text-end" style="background:#1c375e;min-width:90px"
                 title="Sugestie cantitate de comandat piața RO (editabil)">Sug. RO</th>
+            {% if model == 'nou' and piete_active %}
+            {% for p in piete_active %}
+            <th class="text-end" style="background:#594c21;min-width:90px"
+                title="Sugestie cantitate de comandat Export {{ p }} (editabil)">Sug. {{ p }}</th>
+            {% endfor %}
+            {% else %}
             <th class="text-end" style="background:#594c21;min-width:90px"
                 title="Sugestie cantitate de comandat Export HU (editabil)">Sug. HU</th>
+            {% endif %}
             {% if compare %}
             <th class="text-end small" style="background:#25452b"
                 title="Sugestie RO cu modelul nou (client × articol)">Sug. RO nou</th>
@@ -313,9 +320,16 @@
               {% if tranz > 0 and zile_total is not none %}{{ zile_total }}{% else %}<span class="text-muted">—</span>{% endif %}
             </td>
             <td class="text-center">{{ badge | safe }}
+              {% if r.inactive %}
+              <span class="badge bg-secondary ms-1"
+                    title="Articol fără vânzări în ultimele luni — forecast 0 (model nou)">INACTIV</span>
+              {% endif %}
               {% if r.n_suspect and r.n_suspect > 0 %}
-              <span class="badge bg-warning text-dark ms-1"
-                    title="{{ r.n_suspect }} client(i) suspecți de delistare — contribuția lor a fost exclusă din prognoză">Suspect delistare</span>
+              <span class="badge bg-warning text-dark ms-1" role="button"
+                    data-sku="{{ r.sku | e }}"
+                    data-suspects='{{ (r.suspects or []) | tojson }}'
+                    onclick="openSuspects(this.dataset.sku, JSON.parse(this.dataset.suspects))"
+                    title="{{ r.n_suspect }} client(i) suspecți de delistare — click pentru lista clienților excluși din prognoză">Suspect delistare</span>
               {% endif %}
             </td>
             <td class="text-muted small">{{ r.cel_mai_vechi_lot or '—' }}</td>
@@ -337,7 +351,20 @@
                      style="width:78px"
                      title="Avg RO {{ r.avg_monthly_ro }}/lună · termen {{ r.lead_time_days }}z">
             </td>
-            {# Col 15: Sugestie HU (editabil) #}
+            {# Col 15: Sugestie export (editabil) — o coloană per țară în modelul nou #}
+            {% if model == 'nou' and piete_active %}
+            {% set row_idx = loop.index %}
+            {% for p in piete_active %}
+            <td class="text-end" style="background:rgba(255,193,7,.06)">
+              <input type="number" min="0"
+                     value="{{ (r.sug_piete or {}).get(p, 0) }}"
+                     id="stoc-p-{{ p }}-{{ row_idx }}"
+                     class="form-control form-control-sm text-end p-1"
+                     style="width:78px"
+                     title="Avg {{ p }} {{ (r.avg_piete or {}).get(p, 0) }}/lună · termen {{ r.lead_time_days }}z">
+            </td>
+            {% endfor %}
+            {% else %}
             <td class="text-end" style="background:rgba(255,193,7,.06)">
               <input type="number" min="0"
                      value="{{ r.suggested_hu or 0 }}"
@@ -346,6 +373,7 @@
                      style="width:78px"
                      title="Avg HU {{ r.avg_monthly_hu }}/lună · termen {{ r.lead_time_days }}z">
             </td>
+            {% endif %}
             {% if compare %}
             {# Col comparație: sugestie model nou + delta față de modelul curent #}
             {% if r.suggested_ro_nou is none %}
@@ -826,6 +854,22 @@
 
 
 {# ════════════════════════════════════════════════════════════════════
+   MODAL: Clienți suspecți de delistare (excluși din prognoză, model nou)
+   ════════════════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="modalSuspects" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-person-dash me-2"></i>Clienți excluși din prognoză — <span id="suspectsModalTitle">—</span></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-2" id="suspectsBody"></div>
+    </div>
+  </div>
+</div>
+
+
+{# ════════════════════════════════════════════════════════════════════
    MODAL: Adaugă la Comandă (din modulul Stoc & Urgențe)
    ════════════════════════════════════════════════════════════════════ #}
 <div class="modal fade" id="modalAddToOrder" tabindex="-1">
@@ -867,7 +911,7 @@
             <input type="number" id="addOrderQtyRo" class="form-control form-control-sm text-end"
                    min="0" value="0" style="border-color:rgba(13,110,253,.4)">
           </div>
-          <div class="col-6">
+          <div class="col-6" id="addOrderExportCol">
             <label class="form-label small fw-semibold" style="color:rgba(200,150,0,.9)">
               Cantitate HU 🇭🇺
             </label>
@@ -981,6 +1025,7 @@
 {% block scripts %}
 <script>
 window.FORECAST_MODEL = "{{ model|default('actual') }}";
+window.PIETE_ACTIVE = {{ (piete_active or []) | tojson }};
 const MONTHS = {{ months_json | safe }};
 let suggestData = [];
 let currentBrand = '';
@@ -1074,7 +1119,12 @@ function renderSuggestion(data) {
     const listingBadge = (item.new_clients > 0 || item.lost_clients > 0)
       ? `<span class="badge bg-info text-dark ms-1 small">+${item.new_clients}/-${item.lost_clients}</span>` : '';
     const suspectBadge = (item.n_suspect && item.n_suspect > 0)
-      ? ` <span class="badge bg-warning text-dark ms-1" title="${item.n_suspect} client(i) suspecți de delistare — contribuția lor a fost exclusă din prognoză">Suspect delistare</span>`
+      ? ` <span class="badge bg-warning text-dark ms-1" role="button" data-idx="${idx}"
+            onclick="openSuspectsIdx(this.dataset.idx)"
+            title="${item.n_suspect} client(i) suspecți de delistare — click pentru lista clienților excluși din prognoză">Suspect delistare</span>`
+      : '';
+    const inactivBadge = item.inactive
+      ? ' <span class="badge bg-secondary ms-1" title="Articol fără vânzări în ultimele luni — forecast 0 (model nou)">INACTIV</span>'
       : '';
 
     // Seasonality mini bars for next 6 months — dar dacă articolul are <24 luni
@@ -1098,6 +1148,15 @@ function renderSuggestion(data) {
     const sugRo = (item.suggested_ro != null) ? item.suggested_ro : item.suggested;
     const sugExp = item.suggested_export || 0;
     const expRowCls = avgExp > 0 ? '' : 'text-muted';
+    // Defalcare pe țări export (model nou): sub-text în celulele Export.
+    const pieteBreak = obj => {
+      const parts = Object.entries(obj || {}).filter(([, v]) => v > 0)
+        .map(([p, v]) => `${p} ${v}`);
+      return parts.length > 1
+        ? `<div class="text-muted" style="font-size:.68rem">${parts.join(' · ')}</div>` : '';
+    };
+    const avgExpBreak = pieteBreak(item.avg_piete);
+    const sugExpBreak = pieteBreak(item.sug_piete);
 
     // Escape pentru atribute si content HTML — multe SKU-uri Basilur contin
     // ghilimele duble (ex: B."BOUQUET ASSORTED" ...) care altfel sparg DOM-ul.
@@ -1129,9 +1188,9 @@ function renderSuggestion(data) {
       <td class="text-end text-info">${item.in_tranzit || '—'}</td>
       <td class="text-end" style="background:rgba(13,110,253,.07)">${avgRo}</td>
       <td class="text-end fw-semibold" style="background:rgba(13,110,253,.07)">${sugRo}</td>
-      <td class="text-end ${expRowCls}" style="background:rgba(255,193,7,.07)">${avgExp || '—'}</td>
-      <td class="text-end fw-semibold ${expRowCls}" style="background:rgba(255,193,7,.07)">${sugExp || '—'}</td>
-      <td class="text-center">${urgBadge} <span class="small text-muted">${zile}</span>${suspectBadge}</td>
+      <td class="text-end ${expRowCls}" style="background:rgba(255,193,7,.07)">${avgExp || '—'}${avgExpBreak}</td>
+      <td class="text-end fw-semibold ${expRowCls}" style="background:rgba(255,193,7,.07)">${sugExp || '—'}${sugExpBreak}</td>
+      <td class="text-center">${urgBadge} <span class="small text-muted">${zile}</span>${inactivBadge}${suspectBadge}</td>
       <td class="text-center">${sezonHtml}</td>
       <td class="text-end text-muted"${sugTotalTitleAttr}>${item.suggested}</td>
       <td class="text-end" style="background:rgba(13,110,253,.07)">
@@ -1238,7 +1297,7 @@ async function saveOrder(status) {
     const item = suggestData[idx];
     const brand = item._brand || currentBrand;
     if (!linesByBrand[brand]) linesByBrand[brand] = [];
-    linesByBrand[brand].push({
+    const line = {
       sku: item.sku,
       cantitate_sugerat: item.suggested,
       cantitate_comandata: qty,
@@ -1246,7 +1305,16 @@ async function saveOrder(status) {
       cantitate_export: qtyExp,
       pret_valuta: item.pret_valuta || null,
       moneda: item.moneda || 'EUR',
-    });
+    };
+    // Defalcarea pe țări se persistă doar când exportul comandat coincide cu
+    // sugestia (altfel alocarea per țară nu poate fi dedusă din agregat —
+    // ajustarea fină per țară se face din tabul Stoc / modalul de comandă).
+    const sugPiete = item.sug_piete || {};
+    const sugExpTotal = Object.values(sugPiete).reduce((a, b) => a + b, 0);
+    if (Object.keys(sugPiete).length && qtyExp === sugExpTotal) {
+      line.cantitati_piete = sugPiete;
+    }
+    linesByBrand[brand].push(line);
   });
   const brands = Object.keys(linesByBrand);
   if (brands.length === 0) { alert('Nu există cantități de comandat.'); return; }
@@ -1284,6 +1352,39 @@ document.getElementById('btnConfirmOrder').addEventListener('click', () => saveO
 
 
 // ── SKU Clients Modal ─────────────────────────────────────────────────────────
+function openSuspectsIdx(idx) {
+  const item = suggestData[parseInt(idx, 10)];
+  if (item) openSuspects(item.sku, item.suspects || []);
+}
+
+function openSuspects(sku, suspects) {
+  document.getElementById('suspectsModalTitle').textContent = sku;
+  const body = document.getElementById('suspectsBody');
+  const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  if (!suspects || !suspects.length) {
+    body.innerHTML = '<p class="text-muted text-center py-3">Niciun client suspect pentru acest articol.</p>';
+  } else {
+    body.innerHTML = `<table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light"><tr>
+        <th>Client</th><th class="text-muted">Cod</th><th class="text-center">Status</th>
+        <th class="text-end">Zile de la ultima comandă</th>
+        <th class="text-end">Interval mediu între comenzi</th>
+      </tr></thead><tbody>` +
+      suspects.map(s => {
+        const st = s.status === 'DELISTAT'
+          ? '<span class="badge bg-danger">DELISTAT</span>'
+          : '<span class="badge bg-warning text-dark">SUSPECT</span>';
+        const days = (s.days_since_last != null) ? s.days_since_last : '—';
+        const mi = (s.mean_interval != null) ? Math.round(s.mean_interval) + 'z' : '—';
+        return `<tr><td>${esc(s.client)}</td><td class="text-muted small">${esc(s.cod_client)}</td>
+          <td class="text-center">${st}</td>
+          <td class="text-end">${days}</td><td class="text-end">${mi}</td></tr>`;
+      }).join('') + '</tbody></table>' +
+      '<p class="text-muted small mt-2 mb-0 px-1">Contribuția acestor clienți a fost exclusă din prognoză (model client×articol).</p>';
+  }
+  new bootstrap.Modal(document.getElementById('modalSuspects')).show();
+}
+
 async function openSKUClients(sku) {
   document.getElementById('skuModalTitle').textContent = sku;
   document.getElementById('skuClientsBody').innerHTML =
@@ -1759,9 +1860,23 @@ async function openAddToOrder(btn) {
 
   // Pre-populează cantitățile din inputurile editate din tabel
   const roVal = parseInt(document.getElementById('stoc-ro-' + idx)?.value) || 0;
-  const huVal = parseInt(document.getElementById('stoc-hu-' + idx)?.value) || 0;
   document.getElementById('addOrderQtyRo').value = roVal;
-  document.getElementById('addOrderQtyHu').value = huVal;
+  if (window.FORECAST_MODEL === 'nou' && (window.PIETE_ACTIVE || []).length) {
+    // Un câmp per țară export (dinamic, din setări) în locul câmpului HU fix.
+    const col = document.getElementById('addOrderExportCol');
+    col.innerHTML = window.PIETE_ACTIVE.map(p => {
+      const v = parseInt(document.getElementById('stoc-p-' + p + '-' + idx)?.value) || 0;
+      return `<label class="form-label small fw-semibold mb-0" style="color:rgba(200,150,0,.9)">Cantitate ${p}</label>
+        <input type="number" class="form-control form-control-sm text-end addOrderQtyPiata mb-1"
+               data-piata="${p}" min="0" value="${v}" style="border-color:rgba(255,193,7,.6)">`;
+    }).join('');
+    col.querySelectorAll('.addOrderQtyPiata').forEach(i =>
+      i.addEventListener('input', updateAddOrderTotal));
+  } else {
+    const huVal = parseInt(document.getElementById('stoc-hu-' + idx)?.value) || 0;
+    const hu = document.getElementById('addOrderQtyHu');
+    if (hu) hu.value = huVal;
+  }
   updateAddOrderTotal();
 
   // Încarcă comenzile draft pentru brandul respectiv
@@ -1770,10 +1885,22 @@ async function openAddToOrder(btn) {
   new bootstrap.Modal(document.getElementById('modalAddToOrder')).show();
 }
 
+function _addOrderExportQtys() {
+  // {piata: qty} din câmpurile dinamice; null când e câmpul HU fix (legacy).
+  const inputs = document.querySelectorAll('#addOrderExportCol .addOrderQtyPiata');
+  if (!inputs.length) return null;
+  const out = {};
+  inputs.forEach(i => { out[i.dataset.piata] = parseInt(i.value) || 0; });
+  return out;
+}
+
 function updateAddOrderTotal() {
-  const ro  = parseInt(document.getElementById('addOrderQtyRo').value) || 0;
-  const hu  = parseInt(document.getElementById('addOrderQtyHu').value) || 0;
-  document.getElementById('addOrderTotalQty').textContent = ro + hu;
+  const ro = parseInt(document.getElementById('addOrderQtyRo').value) || 0;
+  const piete = _addOrderExportQtys();
+  const exp = piete
+    ? Object.values(piete).reduce((a, b) => a + b, 0)
+    : (parseInt(document.getElementById('addOrderQtyHu')?.value) || 0);
+  document.getElementById('addOrderTotalQty').textContent = ro + exp;
 }
 
 document.getElementById('addOrderQtyRo')?.addEventListener('input', updateAddOrderTotal);
@@ -1813,7 +1940,10 @@ async function saveToOrder() {
   const pretRaw  = document.getElementById('addOrderPretVal').value;
   const moneda   = document.getElementById('addOrderMonedaVal').value || 'EUR';
   const qtyRo    = parseInt(document.getElementById('addOrderQtyRo').value) || 0;
-  const qtyHu    = parseInt(document.getElementById('addOrderQtyHu').value) || 0;
+  const piete    = _addOrderExportQtys();
+  const qtyHu    = piete
+    ? Object.values(piete).reduce((a, b) => a + b, 0)
+    : (parseInt(document.getElementById('addOrderQtyHu')?.value) || 0);
   const qty      = qtyRo + qtyHu;
 
   if (qty <= 0) { alert('Introdu o cantitate mai mare de 0.'); return; }
@@ -1829,6 +1959,7 @@ async function saveToOrder() {
     pret_valuta:         pretRaw ? parseFloat(pretRaw) : null,
     moneda:              moneda,
   };
+  if (piete) line.cantitati_piete = piete;
 
   const btn = document.getElementById('btnSaveToOrder');
   btn.disabled = true;

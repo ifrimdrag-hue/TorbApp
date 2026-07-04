@@ -150,12 +150,21 @@ def is_inactive(article_month_qty, today, months, seasonal_idx=None,
 
 
 def _fetch_rows(furnizor, cutoff_year):
-    export_clause = ("cod_client IN (SELECT cod_client FROM clienti_export "
-                     "WHERE activ = 1)")
-    sql = f"""
+    # Market = the client's allocated export country (piata from tari_export,
+    # via clienti_export; both must be active). Clients without an allocation
+    # — or allocated to a piata='RO' country (domestic bucket) — count as 'ro'.
+    # Fully data-driven: countries and allocations are UI-managed, none are
+    # hardcoded here.
+    sql = """
         SELECT cod_client, MAX(client) AS client, sku,
                MAX(cod_produs) AS cod_produs, data_dl,
-               CASE WHEN {export_clause} THEN 'export' ELSE 'ro' END AS market,
+               COALESCE(
+                   (SELECT UPPER(te.piata) FROM clienti_export ce
+                      JOIN tari_export te ON te.id = ce.tara_id
+                     WHERE ce.cod_client = tranzactii.cod_client
+                       AND ce.activ = 1 AND te.activ = 1
+                     LIMIT 1),
+                   'RO') AS market,
                SUM(cantitate) AS qty
         FROM tranzactii
         WHERE furnizor = :f AND an >= :cutoff AND data_dl IS NOT NULL
@@ -169,9 +178,11 @@ def _fetch_rows(furnizor, cutoff_year):
             d = date(y, m, dd)
         except (ValueError, TypeError):
             continue
+        market = (r["market"] or "RO").strip().upper()
         out.append({"cod_client": r["cod_client"], "client": r["client"],
                     "sku": r["sku"], "cod_produs": r["cod_produs"],
-                    "market": r["market"], "d": d, "qty": r["qty"] or 0.0})
+                    "market": "ro" if market == "RO" else market,
+                    "d": d, "qty": r["qty"] or 0.0})
     return out
 
 
@@ -223,7 +234,8 @@ def article_monthly_profiles(furnizor, params, today=None, _rows=None):
         art_win = build_window(min(first_sale[sku].values()), today, window_months)
         neutral = neutral_months(cmq, art_win, neutru_pct)
 
-        base = {"ro": 0.0, "export": 0.0}
+        base = defaultdict(float)
+        base["ro"] = 0.0
         suspects, n_active = [], 0
         for c, markets in clients.items():
             ds = delisting_status(pdates[sku][c], today,
@@ -238,18 +250,22 @@ def article_monthly_profiles(furnizor, params, today=None, _rows=None):
             n_active += 1
             win = [ym for ym in build_window(first_sale[sku][c], today,
                                              window_months) if ym not in neutral]
-            for mkt in ("ro", "export"):
-                if mkt in markets:
-                    base[mkt] += monthly_mean_with_zeros(markets[mkt], win)
+            for mkt, mm in markets.items():
+                base[mkt] += monthly_mean_with_zeros(mm, win)
 
         inactive = is_inactive(art_month_qty[sku], today, inactiv_luni,
                                s_idx, neutral)
         if inactive:
-            base = {"ro": 0.0, "export": 0.0}
+            base = defaultdict(float)
+            base["ro"] = 0.0
         ro = {m: base["ro"] * s_idx[m] for m in range(1, 13)}
-        exp = {m: base["export"] * s_idx[m] for m in range(1, 13)}
+        # One monthly profile per export country market (dynamic, data-driven);
+        # 'export' stays as the cross-country sum for backward compatibility.
+        piete = {mkt: {m: b * s_idx[m] for m in range(1, 13)}
+                 for mkt, b in base.items() if mkt != "ro"}
+        exp = {m: sum(p[m] for p in piete.values()) for m in range(1, 13)}
         result[sku] = {
-            "ro": ro, "export": exp,
+            "ro": ro, "export": exp, "piete": piete,
             "total": {m: ro[m] + exp[m] for m in range(1, 13)},
             "cod_produs": cod_of.get(sku),
             "suspects": suspects, "n_active": n_active,

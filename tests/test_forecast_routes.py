@@ -11,6 +11,7 @@ FORECAST_ROUTES = [
     '/forecast?model=nou',
     '/forecast?model=nou&compare=1',
     '/forecast?tab=suggest',
+    '/forecast?tab=stoc&model=nou',
     '/forecast/setari',
 ]
 
@@ -19,6 +20,25 @@ def test_forecast_routes_render_200(client):
     for path in FORECAST_ROUTES:
         resp = client.get(path)
         assert resp.status_code == 200, f"{path} returned {resp.status_code}"
+
+
+def test_forecast_page_has_suspects_modal(client):
+    """The omitted-clients modal + handlers ship with the page (items #1/#4)."""
+    html = client.get('/forecast?tab=stoc&model=nou').data.decode('utf-8')
+    assert 'id="modalSuspects"' in html
+    assert 'function openSuspects(' in html
+    assert 'function openSuspectsIdx(' in html
+
+
+def test_setari_page_params_and_typeahead(client):
+    """/forecast/setari: all tunable params editable + client typeahead (items #5/#6)."""
+    html = client.get('/forecast/setari').data.decode('utf-8')
+    for cheie in ('fereastra_luni', 'sezonalitate_min_luni', 'confirmare_delistare_zile',
+                  'taiere_inactiv_luni', 'prag_neutru_multi_client'):
+        assert f'data-cheie="{cheie}"' in html, f"param {cheie} missing from setari"
+    assert 'id="clientSearch"' in html
+    assert 'id="clientSuggest"' in html
+    assert '/api/clienti/search' in html
 
 
 def test_forecast_compare_adds_delta_columns(client):

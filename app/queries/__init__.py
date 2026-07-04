@@ -100,6 +100,7 @@ from queries.forecast import (
     forecast_gama_list as forecast_gama_list,
     forecast_stoc_brand as forecast_stoc_brand,
     forecast_stoc_extended as forecast_stoc_extended,
+    piete_export_active as piete_export_active,
     forecast_brands_list as forecast_brands_list,
     basilur_monthly_per_brand as basilur_monthly_per_brand,
     basilur_kpi_per_brand as basilur_kpi_per_brand,

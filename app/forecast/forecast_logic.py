@@ -332,7 +332,8 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
             split = split_with_safety(
                 sku_monthly_ro, sku_monthly_export, lead_days, available,
                 base_ro, base_export, nou_params["coef_siguranta"],
-                int(nou_params["perioada_acoperire_luni"] * 30), bax.get(_normalize_sku(sku)))
+                int(nou_params["perioada_acoperire_luni"] * 30), bax.get(_normalize_sku(sku)),
+                monthly_piete=sku_data.get('piete'))
             suggested_ro = split['suggested_ro']
             suggested_export = split['suggested_export']
         else:
@@ -393,6 +394,11 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
             'lost_clients': chg['lost'],
             'n_suspect': sku_data.get('n_suspect', 0),
             'suspects': sku_data.get('suspects', []),
+            'inactive': bool(sku_data.get('inactive')),
+            'avg_piete': {p: round(sum(mm.values()) / 12, 1)
+                          for p, mm in (sku_data.get('piete') or {}).items()},
+            'sug_piete': {p: v['suggested']
+                          for p, v in split.get('piete', {}).items()},
             'safety_ro': split.get('safety_ro', 0),
             'safety_export': split.get('safety_export', 0),
         })
@@ -432,25 +438,49 @@ def _moq_floor(raw: float, moq) -> float:
 
 def split_with_safety(monthly_ro, monthly_export, lead_days, available,
                       base_ro, base_export, coef, coverage_days, buc_cutie,
-                      moq=None):
+                      moq=None, monthly_piete=None):
     """Like _ro_hu_split, but adds a coef x forecast safety stock to each
     market's demand before subtracting available stock, applies the supplier
     MOQ floor (spec §8), then rounds each suggestion up to the next full bax
-    (case) size."""
+    (case) size.
+
+    `monthly_piete` ({piata: {month: qty}}) switches on the multi-country
+    mode (owner decision 2026-07-04): available stock covers the RO demand
+    only, and every export country's suggestion is its own full coverage
+    demand + safety — no surplus offset. Without it the legacy two-market
+    behaviour (surplus offsets the export order) is preserved."""
     demand_ro = _coverage_demand(monthly_ro, lead_days, coverage_days)
     demand_export = _coverage_demand(monthly_export, lead_days, coverage_days)
     safety_ro = coef * base_ro
     safety_export = coef * base_export
     need_ro = demand_ro + safety_ro
     raw_ro = max(0.0, need_ro - available)
-    surplus = max(0.0, available - need_ro)
-    raw_export = max(0.0, (demand_export + safety_export) - surplus)
-    return {
+    out = {
         'demand_ro': demand_ro, 'demand_export': demand_export,
         'safety_ro': safety_ro, 'safety_export': safety_export,
         'suggested_ro': round_up_to_bax(_moq_floor(raw_ro, moq), buc_cutie),
-        'suggested_export': round_up_to_bax(_moq_floor(raw_export, moq), buc_cutie),
     }
+    if monthly_piete is None:
+        surplus = max(0.0, available - need_ro)
+        raw_export = max(0.0, (demand_export + safety_export) - surplus)
+        out['suggested_export'] = round_up_to_bax(_moq_floor(raw_export, moq),
+                                                  buc_cutie)
+        out['piete'] = {}
+        return out
+    piete = {}
+    for piata, monthly in monthly_piete.items():
+        demand_p = _coverage_demand(monthly, lead_days, coverage_days)
+        base_p = sum(monthly.values()) / 12 if monthly else 0.0
+        safety_p = coef * base_p
+        raw_p = demand_p + safety_p
+        piete[piata] = {
+            'demand': demand_p, 'safety': safety_p,
+            'suggested': round_up_to_bax(_moq_floor(raw_p, moq), buc_cutie)
+            if raw_p > 0 else 0,
+        }
+    out['piete'] = piete
+    out['suggested_export'] = sum(p['suggested'] for p in piete.values())
+    return out
 
 
 def _latest_snapshot() -> str | None:

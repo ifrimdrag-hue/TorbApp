@@ -53,11 +53,13 @@ def forecast():
     stoc_snapshot = (snap or {}).get('d') if snap else None
 
     lt_map = {r['furnizor']: r for r in lead_times}
+    piete_active = queries.piete_export_active()
 
     return render_template(
         'forecast.html',
         tab=tab,
         rows=rows,
+        piete_active=piete_active,
         summary=summary,
         gama_opts=gama_opts,
         brand_opts=brand_opts,
@@ -237,6 +239,7 @@ def api_comanda_create():
                 cantitate_ro=int(line.get('cantitate_ro', 0)),
                 cantitate_export=int(line.get('cantitate_export', 0)),
                 cod_furnizor=line.get('cod_furnizor'),
+                cantitati_piete=line.get('cantitati_piete'),
             )
         if d.get('status') and d['status'] != 'draft':
             queries.comanda_update(cid, status=d['status'])
@@ -361,6 +364,7 @@ def api_comanda_line_add(cid):
             cantitate_ro=int(d.get('cantitate_ro', 0)),
             cantitate_export=int(d.get('cantitate_export', 0)),
             cod_furnizor=d.get('cod_furnizor'),
+            cantitati_piete=d.get('cantitati_piete'),
         )
         return jsonify({'ok': True, 'id': lid})
     except Exception as exc:

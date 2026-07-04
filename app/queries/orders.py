@@ -65,6 +65,18 @@ def comanda_get(comanda_id: int) -> dict | None:
         LEFT JOIN produse p ON p.sku = l.sku
         WHERE l.comanda_id = :id ORDER BY l.sku
     """, {'id': comanda_id})
+    # Per-country export breakdown (migration 0019) keyed by line id.
+    piete_by_line = {}
+    for r in query("""
+        SELECT lp.linie_id, lp.piata, lp.cantitate
+        FROM comenzi_linii_piete lp
+        JOIN comenzi_furnizori_linii l ON l.id = lp.linie_id
+        WHERE l.comanda_id = :id
+    """, {'id': comanda_id}):
+        piete_by_line.setdefault(r['linie_id'], {})[r['piata']] = r['cantitate']
+    lines = [dict(ln) for ln in lines]
+    for ln in lines:
+        ln['cantitati_piete'] = piete_by_line.get(ln['id'], {})
     return {'header': dict(h), 'lines': lines}
 
 
@@ -119,7 +131,15 @@ def comanda_line_upsert(comanda_id: int, sku: str, cantitate_comandata: int,
                          cantitate_sugerat: int = 0, pret_valuta: float = None,
                          moneda: str = 'EUR', observatii: str = None,
                          cantitate_ro: int = 0, cantitate_export: int = 0,
-                         cod_furnizor: str = None) -> int:
+                         cod_furnizor: str = None,
+                         cantitati_piete: dict = None) -> int:
+    """`cantitati_piete` ({piata: qty}) persists the per-country breakdown of
+    the export quantity (migration 0019, owner decision 2026-07-04). When
+    provided, cantitate_export is kept in sync as the sum across countries."""
+    if cantitati_piete:
+        cantitati_piete = {str(p).strip().upper(): int(q or 0)
+                           for p, q in cantitati_piete.items() if str(p).strip()}
+        cantitate_export = sum(cantitati_piete.values())
     conn = get_db()
     try:
         row = conn.execute(
@@ -149,6 +169,15 @@ def comanda_line_upsert(comanda_id: int, sku: str, cantitate_comandata: int,
                   'qty': cantitate_comandata, 'qro': cantitate_ro, 'qexp': cantitate_export,
                   'pv': pret_valuta, 'm': moneda, 'obs': observatii, 'cf': cod_furnizor})
             lid = cur.lastrowid
+        if cantitati_piete is not None:
+            conn.execute("DELETE FROM comenzi_linii_piete WHERE linie_id=:lid",
+                         {'lid': lid})
+            for piata, qty in cantitati_piete.items():
+                if qty > 0:
+                    conn.execute("""
+                        INSERT INTO comenzi_linii_piete (linie_id, piata, cantitate)
+                        VALUES (:lid, :p, :q)
+                    """, {'lid': lid, 'p': piata, 'q': qty})
         conn.commit()
         return lid
     finally:

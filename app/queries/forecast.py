@@ -163,6 +163,15 @@ def forecast_stoc_brand(furnizor=None, gama=None, urgenta=None, search=None):
     return rows
 
 
+def piete_export_active():
+    """Active export market codes (piata != RO) for the dynamic per-country
+    forecast columns. Purely data-driven: the list is exactly what the owner
+    configured in /forecast/setari (tari_export)."""
+    return [r['piata'] for r in query(
+        "SELECT DISTINCT UPPER(piata) AS piata FROM tari_export "
+        "WHERE activ = 1 AND UPPER(piata) != 'RO' ORDER BY piata")]
+
+
 def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, vel='3ani',
                             model='actual'):
     """Ca forecast_stoc_brand + avg RO/HU + sugestii de comandă per SKU.
@@ -300,11 +309,22 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
             split = forecast_logic.split_with_safety(
                 monthly_ro, monthly_hu, lead, available,
                 base_ro, base_export, nou_params['coef_siguranta'],
-                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n))
+                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n),
+                monthly_piete=sku_data.get('piete'))
             r['n_suspect'] = sku_data.get('n_suspect', 0)
+            r['suspects'] = sku_data.get('suspects', [])
+            r['inactive'] = bool(sku_data.get('inactive'))
+            r['avg_piete'] = {p: round(sum(mm.values()) / 12, 1)
+                              for p, mm in (sku_data.get('piete') or {}).items()}
+            r['sug_piete'] = {p: v['suggested']
+                              for p, v in split.get('piete', {}).items()}
         else:
             split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, available)
             r['n_suspect'] = 0
+            r['suspects'] = []
+            r['inactive'] = False
+            r['avg_piete'] = {}
+            r['sug_piete'] = {}
         r['suggested_ro'] = int(round(split['suggested_ro']))
         r['suggested_hu'] = int(round(split['suggested_export']))
         r['lead_time_days'] = lead
@@ -375,11 +395,22 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
             split = forecast_logic.split_with_safety(
                 monthly_ro, monthly_hu, lead, available,
                 base_ro, base_export, nou_params['coef_siguranta'],
-                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n))
+                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n),
+                monthly_piete=sku_data.get('piete'))
             n_suspect = sku_data.get('n_suspect', 0)
+            suspects = sku_data.get('suspects', [])
+            inactive = bool(sku_data.get('inactive'))
+            avg_piete = {p: round(sum(mm.values()) / 12, 1)
+                         for p, mm in (sku_data.get('piete') or {}).items()}
+            sug_piete = {p: v['suggested']
+                         for p, v in split.get('piete', {}).items()}
         else:
             split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, available)
             n_suspect = 0
+            suspects = []
+            inactive = False
+            avg_piete = {}
+            sug_piete = {}
         sug_ro = split['suggested_ro']
         sug_hu = split['suggested_export']
         zile_stoc = 0 if avg_total > 0 else None
@@ -405,6 +436,10 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
             'suggested_hu':      int(round(sug_hu)),
             'lead_time_days':    lead,
             'n_suspect':         n_suspect,
+            'suspects':          suspects,
+            'inactive':          inactive,
+            'avg_piete':         avg_piete,
+            'sug_piete':         sug_piete,
         })
 
     # Adaugă produse cu vânzări recente (90 zile) dar fără stoc și fără tranzit activ
@@ -449,11 +484,22 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
             split = forecast_logic.split_with_safety(
                 monthly_ro, monthly_hu, lead, 0,
                 base_ro, base_export, nou_params['coef_siguranta'],
-                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n))
+                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n),
+                monthly_piete=sku_data.get('piete'))
             n_suspect = sku_data.get('n_suspect', 0)
+            suspects = sku_data.get('suspects', [])
+            inactive = bool(sku_data.get('inactive'))
+            avg_piete = {p: round(sum(mm.values()) / 12, 1)
+                         for p, mm in (sku_data.get('piete') or {}).items()}
+            sug_piete = {p: v['suggested']
+                         for p, v in split.get('piete', {}).items()}
         else:
             split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, 0)
             n_suspect = 0
+            suspects = []
+            inactive = False
+            avg_piete = {}
+            sug_piete = {}
         # Derivă cod furnizor din SKU dacă nu e în stoc istoric (ex: "71725" → "71725-00")
         cod_mare = row_s['cod_mare']
         if not cod_mare:
@@ -480,6 +526,10 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
             'suggested_hu':      int(round(split['suggested_export'])),
             'lead_time_days':    lead,
             'n_suspect':         n_suspect,
+            'suspects':          suspects,
+            'inactive':          inactive,
+            'avg_piete':         avg_piete,
+            'sug_piete':         sug_piete,
         })
         existing_skus.add(sku)
 
