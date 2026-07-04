@@ -273,7 +273,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
 
     def _bax_map(f):
         if f not in bax_cache:
-            bax_cache[f] = {r['sku']: r['buc_cutie']
+            bax_cache[f] = {forecast_logic._normalize_sku(r['sku']): r['buc_cutie']
                              for r in query("SELECT sku, buc_cutie FROM produse WHERE furnizor=:f",
                                             {'f': f})}
         return bax_cache[f]
@@ -365,7 +365,18 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
         avg_total = sum(monthly_total.values()) / 12 if monthly_total else 0
 
         available = float(transit_qty)
-        split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, available)
+        if model == 'nou':
+            base_ro = sum(monthly_ro.values()) / 12 if monthly_ro else 0
+            base_export = sum(monthly_hu.values()) / 12 if monthly_hu else 0
+            bax = _bax_map(furn)
+            split = forecast_logic.split_with_safety(
+                monthly_ro, monthly_hu, lead, available,
+                base_ro, base_export, nou_params['coef_siguranta'],
+                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n))
+            n_suspect = sku_data.get('n_suspect', 0)
+        else:
+            split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, available)
+            n_suspect = 0
         sug_ro = split['suggested_ro']
         sug_hu = split['suggested_export']
         zile_stoc = 0 if avg_total > 0 else None
@@ -390,7 +401,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
             'suggested_ro':      int(round(sug_ro)),
             'suggested_hu':      int(round(sug_hu)),
             'lead_time_days':    lead,
-            'n_suspect':         0,
+            'n_suspect':         n_suspect,
         })
 
     # Adaugă produse cu vânzări recente (90 zile) dar fără stoc și fără tranzit activ
@@ -425,7 +436,18 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
         avg_total = sum(monthly_total.values()) / 12 if monthly_total else 0
         lead = lt_map.get(furn, 30)
         # Fără stoc și fără tranzit → available = 0, deci sugestia = cererea completă.
-        split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, 0)
+        if model == 'nou':
+            base_ro = sum(monthly_ro.values()) / 12 if monthly_ro else 0
+            base_export = sum(monthly_hu.values()) / 12 if monthly_hu else 0
+            bax = _bax_map(furn)
+            split = forecast_logic.split_with_safety(
+                monthly_ro, monthly_hu, lead, 0,
+                base_ro, base_export, nou_params['coef_siguranta'],
+                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n))
+            n_suspect = sku_data.get('n_suspect', 0)
+        else:
+            split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, 0)
+            n_suspect = 0
         # Derivă cod furnizor din SKU dacă nu e în stoc istoric (ex: "71725" → "71725-00")
         cod_mare = row_s['cod_mare']
         if not cod_mare:
@@ -451,7 +473,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
             'suggested_ro':      int(round(split['suggested_ro'])),
             'suggested_hu':      int(round(split['suggested_export'])),
             'lead_time_days':    lead,
-            'n_suspect':         0,
+            'n_suspect':         n_suspect,
         })
         existing_skus.add(sku)
 

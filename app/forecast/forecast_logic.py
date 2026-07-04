@@ -235,7 +235,7 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
         from forecast import config, pair_engine
         nou_params = config.get_params()
         monthly_data = pair_engine.article_monthly_profiles(furnizor, nou_params)
-        bax = {r['sku']: r['buc_cutie']
+        bax = {_normalize_sku(r['sku']): r['buc_cutie']
                for r in query("SELECT sku, buc_cutie FROM produse WHERE furnizor=:f",
                               {'f': furnizor})}
     else:
@@ -332,7 +332,7 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
             split = split_with_safety(
                 sku_monthly_ro, sku_monthly_export, lead_days, available,
                 base_ro, base_export, nou_params["coef_siguranta"],
-                int(nou_params["perioada_acoperire_luni"] * 30), bax.get(sku))
+                int(nou_params["perioada_acoperire_luni"] * 30), bax.get(_normalize_sku(sku)))
             suggested_ro = split['suggested_ro']
             suggested_export = split['suggested_export']
         else:

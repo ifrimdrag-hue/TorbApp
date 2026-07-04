@@ -202,10 +202,10 @@
       </div>
       <div class="btn-group btn-group-sm" role="group" aria-label="Model de prognoză">
         <a class="btn {{ 'btn-primary' if model != 'nou' else 'btn-outline-primary' }}"
-           href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='actual', compare=request.args.get('compare')) }}"
+           href="{{ url_for('forecast.forecast', tab=tab, brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='actual', compare=request.args.get('compare')) }}"
            title="Model curent, pe SKU agregat">Model actual</a>
         <a class="btn {{ 'btn-primary' if model == 'nou' else 'btn-outline-primary' }}"
-           href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='nou', compare=request.args.get('compare')) }}"
+           href="{{ url_for('forecast.forecast', tab=tab, brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='nou', compare=request.args.get('compare')) }}"
            title="Model nou, client × articol, cu detectare suspecți delistare">Model nou (client × articol)</a>
       </div>
       {% if compare %}
@@ -980,6 +980,7 @@
 
 {% block scripts %}
 <script>
+window.FORECAST_MODEL = "{{ model|default('actual') }}";
 const MONTHS = {{ months_json | safe }};
 let suggestData = [];
 let currentBrand = '';
@@ -1021,7 +1022,7 @@ async function loadSuggestion() {
     // Fetch in paralel pentru toate brandurile
     const responses = await Promise.all(opts.map(async opt => {
       const brand = opt.value;
-      const url = `/api/forecast/suggest/${encodeURIComponent(brand)}?min_velocity=${minVel}&only_needed=${onlyNeeded}`;
+      const url = `/api/forecast/suggest/${encodeURIComponent(brand)}?min_velocity=${minVel}&only_needed=${onlyNeeded}&model=${encodeURIComponent(window.FORECAST_MODEL)}`;
       const r = await fetch(url);
       const data = await r.json();
       if (!data.ok) throw new Error(`${brand}: ${data.error}`);
@@ -1108,10 +1109,11 @@ function renderSuggestion(data) {
 
     // Transparență sugestie: din ce s-a compus Sug. Total.
     const safetyTotal = (item.safety_ro || 0) + (item.safety_export || 0);
-    const sugTotalTitle = escAttr(
+    const sugTotalTitle = window.FORECAST_MODEL === 'nou' ? escAttr(
       `Prognoză×(lead+acoperire): RO ${item.demand_ro ?? 0} + Exp ${item.demand_export ?? 0} ` +
       `· siguranță ${safetyTotal.toFixed(1)} − stoc ${item.stoc_qty ?? 0} − tranzit ${item.in_tranzit || 0} ` +
-      `→ rotunjit la bax`);
+      `→ rotunjit la bax`) : '';
+    const sugTotalTitleAttr = sugTotalTitle ? ` title="${sugTotalTitle}"` : '';
 
     const row = `<tr class="${urgClass}" data-idx="${idx}"
                      data-cod="${codAttr}" data-sku="${escAttr((item.sku || '').toLowerCase())}"
@@ -1131,7 +1133,7 @@ function renderSuggestion(data) {
       <td class="text-end fw-semibold ${expRowCls}" style="background:rgba(255,193,7,.07)">${sugExp || '—'}</td>
       <td class="text-center">${urgBadge} <span class="small text-muted">${zile}</span>${suspectBadge}</td>
       <td class="text-center">${sezonHtml}</td>
-      <td class="text-end text-muted" title="${sugTotalTitle}">${item.suggested}</td>
+      <td class="text-end text-muted"${sugTotalTitleAttr}>${item.suggested}</td>
       <td class="text-end" style="background:rgba(13,110,253,.07)">
         <input type="number" min="0" value="${sugRo}" class="form-control form-control-sm text-end p-1"
                style="width:80px" oninput="updateTotal()" data-idx="${idx}" data-kind="ro">

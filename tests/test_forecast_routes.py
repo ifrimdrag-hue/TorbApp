@@ -49,3 +49,13 @@ def test_forecast_compare_with_urgenta_filter_renders(client):
     counterpart (None) — the em-dash path must not raise a template error."""
     resp = client.get('/forecast?compare=1&urgenta=critic')
     assert resp.status_code == 200
+
+
+def test_api_forecast_suggest_nou_does_not_500(client):
+    """Exercises the nou server path in api_forecast_suggest; the test DB
+    lacks Basilur data so build_suggestion returns empty items gracefully —
+    we're only checking the nou branch doesn't raise."""
+    resp = client.get('/api/forecast/suggest/Basilur?model=nou')
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data['ok'] is True
