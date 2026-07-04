@@ -200,6 +200,23 @@
                 title="Viteza recentă pe ultimele 90 de zile"
                 onclick="document.getElementById('velInput').value='90zile';this.form.submit()">90 zile</button>
       </div>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Model de prognoză">
+        <a class="btn {{ 'btn-primary' if model != 'nou' else 'btn-outline-primary' }}"
+           href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='actual') }}"
+           title="Model curent, pe SKU agregat">Model actual</a>
+        <a class="btn {{ 'btn-primary' if model == 'nou' else 'btn-outline-primary' }}"
+           href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='nou') }}"
+           title="Model nou, client × articol, cu detectare suspecți delistare">Model nou (client × articol)</a>
+      </div>
+      {% if compare %}
+      <a class="btn btn-sm btn-info text-dark active"
+         href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model=model) }}"
+         title="Ascunde coloanele de comparație">✕ Comparație</a>
+      {% else %}
+      <a class="btn btn-sm btn-outline-info"
+         href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model=model, compare=1) }}"
+         title="Compară sugestiile modelului nou față de cel actual">Comparație</a>
+      {% endif %}
       <a href="{{ url_for('reports.export_excel', report='forecast', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel) }}"
          class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel-fill"></i> Export</a>
     </div>
@@ -226,6 +243,11 @@
                 title="Sugestie cantitate de comandat piața RO (editabil)">Sug. RO</th>
             <th class="text-end" style="background:#594c21;min-width:90px"
                 title="Sugestie cantitate de comandat Export HU (editabil)">Sug. HU</th>
+            {% if compare %}
+            <th class="text-end small" style="background:#25452b"
+                title="Sugestie RO cu modelul nou (client × articol)">Sug. RO nou</th>
+            <th class="text-end small" title="Diferență față de modelul actual">Δ RO</th>
+            {% endif %}
             <th class="text-center" style="min-width:80px">+ Comandă</th>
           </tr>
         </thead>
@@ -290,7 +312,12 @@
             <td class="text-center text-info-emphasis fw-semibold">
               {% if tranz > 0 and zile_total is not none %}{{ zile_total }}{% else %}<span class="text-muted">—</span>{% endif %}
             </td>
-            <td class="text-center">{{ badge | safe }}</td>
+            <td class="text-center">{{ badge | safe }}
+              {% if r.n_suspect and r.n_suspect > 0 %}
+              <span class="badge bg-warning text-dark ms-1"
+                    title="{{ r.n_suspect }} client(i) suspecți de delistare — contribuția lor a fost exclusă din prognoză">Suspect delistare</span>
+              {% endif %}
+            </td>
             <td class="text-muted small">{{ r.cel_mai_vechi_lot or '—' }}</td>
             {# Col 13: Clienți — deschide modal cu istoric lunar #}
             <td class="text-center">
@@ -319,6 +346,12 @@
                      style="width:78px"
                      title="Avg HU {{ r.avg_monthly_hu }}/lună · termen {{ r.lead_time_days }}z">
             </td>
+            {% if compare %}
+            {# Col comparație: sugestie model nou + delta față de modelul curent #}
+            <td class="text-end small" style="background:rgba(25,135,84,.08)">{{ r.suggested_ro_nou if r.suggested_ro_nou is not none else '—' }}</td>
+            <td class="text-end small {{ 'text-danger' if (r.suggested_ro_nou or 0) < (r.suggested_ro or 0) else 'text-success' }}">
+              {{ (r.suggested_ro_nou or 0) - (r.suggested_ro or 0) }}</td>
+            {% endif %}
             {# Col 16: Buton adaugă la comandă draft #}
             <td class="text-center">
               <button class="btn btn-sm btn-outline-primary py-0 px-1"
@@ -335,7 +368,7 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="16" class="text-center text-muted py-4">Nu există date de stoc.</td></tr>
+          <tr><td colspan="{{ 18 if compare else 16 }}" class="text-center text-muted py-4">Nu există date de stoc.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -1034,15 +1067,22 @@ function renderSuggestion(data) {
       ? ' <span class="badge bg-success">🎄</span>' : '';
     const listingBadge = (item.new_clients > 0 || item.lost_clients > 0)
       ? `<span class="badge bg-info text-dark ms-1 small">+${item.new_clients}/-${item.lost_clients}</span>` : '';
+    const suspectBadge = (item.n_suspect && item.n_suspect > 0)
+      ? ` <span class="badge bg-warning text-dark ms-1" title="${item.n_suspect} client(i) suspecți de delistare — contribuția lor a fost exclusă din prognoză">Suspect delistare</span>`
+      : '';
 
-    // Seasonality mini bars for next 6 months
-    const sezonHtml = item.months.map(m => {
-      const pct = Math.min(100, Math.round(m.idx * 50));
-      const color = m.idx > 1.5 ? '#dc3545' : m.idx > 1.0 ? '#fd7e14' : '#198754';
-      return `<span title="${m.label}: avg ${m.avg} buc (idx ${m.idx})"
-        style="display:inline-block;width:14px;height:${8+pct/5}px;
-               background:${color};margin:0 1px;vertical-align:bottom;border-radius:2px"></span>`;
-    }).join('');
+    // Seasonality mini bars for next 6 months — dar dacă articolul are <24 luni
+    // istoric, indicele e plat (1.0 peste tot) și barele n-ar spune nimic util.
+    const flatSeason = item.months.every(m => m.idx === 1.0);
+    const sezonHtml = flatSeason
+      ? '<span class="text-muted small" title="Fără ajustare sezonieră (&lt;24 luni istoric)">fără ajustare</span>'
+      : item.months.map(m => {
+          const pct = Math.min(100, Math.round(m.idx * 50));
+          const color = m.idx > 1.5 ? '#dc3545' : m.idx > 1.0 ? '#fd7e14' : '#198754';
+          return `<span title="${m.label}: avg ${m.avg} buc (idx ${m.idx})"
+            style="display:inline-block;width:14px;height:${8+pct/5}px;
+                   background:${color};margin:0 1px;vertical-align:bottom;border-radius:2px"></span>`;
+        }).join('');
 
     const brand = item._brand || '';
     const brandBadge = brand ? `<span class="badge bg-secondary" style="font-size:.7rem">${brand}</span>` : '';
@@ -1061,6 +1101,13 @@ function renderSuggestion(data) {
     const descHtml = escAttr(item.descriere);
     const codAttr = escAttr(cod);
 
+    // Transparență sugestie: din ce s-a compus Sug. Total.
+    const safetyTotal = (item.safety_ro || 0) + (item.safety_export || 0);
+    const sugTotalTitle = escAttr(
+      `Prognoză×(lead+acoperire): RO ${item.demand_ro ?? 0} + Exp ${item.demand_export ?? 0} ` +
+      `· siguranță ${safetyTotal.toFixed(1)} − stoc ${item.stoc_qty ?? 0} − tranzit ${item.in_tranzit || 0} ` +
+      `→ rotunjit la bax`);
+
     const row = `<tr class="${urgClass}" data-idx="${idx}"
                      data-cod="${codAttr}" data-sku="${escAttr((item.sku || '').toLowerCase())}"
                      data-descriere="${escAttr((item.descriere || '').toLowerCase())}">
@@ -1077,9 +1124,9 @@ function renderSuggestion(data) {
       <td class="text-end fw-semibold" style="background:rgba(13,110,253,.07)">${sugRo}</td>
       <td class="text-end ${expRowCls}" style="background:rgba(255,193,7,.07)">${avgExp || '—'}</td>
       <td class="text-end fw-semibold ${expRowCls}" style="background:rgba(255,193,7,.07)">${sugExp || '—'}</td>
-      <td class="text-center">${urgBadge} <span class="small text-muted">${zile}</span></td>
+      <td class="text-center">${urgBadge} <span class="small text-muted">${zile}</span>${suspectBadge}</td>
       <td class="text-center">${sezonHtml}</td>
-      <td class="text-end text-muted">${item.suggested}</td>
+      <td class="text-end text-muted" title="${sugTotalTitle}">${item.suggested}</td>
       <td class="text-end" style="background:rgba(13,110,253,.07)">
         <input type="number" min="0" value="${sugRo}" class="form-control form-control-sm text-end p-1"
                style="width:80px" oninput="updateTotal()" data-idx="${idx}" data-kind="ro">

@@ -29,9 +29,19 @@ def forecast():
     sel_status = request.args.get('status', '').strip() or None
     vel      = '90zile' if request.args.get('vel') == '90zile' else '3ani'
     model    = 'nou' if request.args.get('model') == 'nou' else 'actual'
+    compare  = request.args.get('compare') == '1'
 
     rows       = queries.forecast_stoc_extended(furnizor=furnizor, gama=gama, urgenta=urgenta, search=search,
                                                  vel=vel, model=model)
+    if compare:
+        rows_nou   = queries.forecast_stoc_extended(furnizor=furnizor, gama=gama, urgenta=urgenta, search=search,
+                                                     vel=vel, model='nou')
+        nou_by_sku = {r['sku']: r for r in rows_nou}
+        for r in rows:
+            o = nou_by_sku.get(r['sku'])
+            r['suggested_ro_nou'] = o['suggested_ro'] if o else None
+            r['suggested_hu_nou'] = o['suggested_hu'] if o else None
+
     summary    = queries.forecast_summary() or {}
     gama_opts  = queries.forecast_gama_list()
     brand_opts = queries.forecast_brands_list()
@@ -61,6 +71,7 @@ def forecast():
         sel_search=search or '',
         sel_vel=vel,
         model=model,
+        compare=compare,
         is_xmas_window=forecast_logic.is_xmas_window(),
         months_json=json.dumps(MONTHS_RO),
         stoc_snapshot=stoc_snapshot,
