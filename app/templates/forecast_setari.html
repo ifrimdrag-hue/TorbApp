@@ -177,46 +177,74 @@
   <div class="card-body">
     <div class="row g-3">
       <div class="col-md-4">
-        <label class="form-label small">Fereastră istorică (luni)</label>
+        <label class="form-label small fw-semibold">Fereastră istorică (luni)</label>
         <input type="number" step="1" class="form-control form-control-sm cfg-param"
                data-cheie="fereastra_luni" value="{{ params.fereastra_luni }}">
+        <div class="form-text small">Câte luni de istoric intră în media de vânzare per client×articol (24 = 2 ani, 36 = 3 ani).</div>
       </div>
       <div class="col-md-4">
-        <label class="form-label small">Istoric minim sezonalitate (luni)</label>
+        <label class="form-label small fw-semibold">Istoric minim sezonalitate (luni)</label>
         <input type="number" step="1" class="form-control form-control-sm cfg-param"
                data-cheie="sezonalitate_min_luni" value="{{ params.sezonalitate_min_luni }}">
+        <div class="form-text small">Articolele cu istoric sub acest prag nu primesc ajustare sezonieră (indice plat 1.0).</div>
       </div>
       <div class="col-md-4">
-        <label class="form-label small">Plafon indice sezonier min</label>
+        <label class="form-label small fw-semibold">Plafon indice sezonier min</label>
         <input type="number" step="0.05" class="form-control form-control-sm cfg-param"
                data-cheie="indice_sezonier_min" value="{{ params.indice_sezonier_min }}">
+        <div class="form-text small">O lună slabă nu poate reduce prognoza sub acest factor (0.2 = −80%).</div>
       </div>
       <div class="col-md-4">
-        <label class="form-label small">Plafon indice sezonier max</label>
+        <label class="form-label small fw-semibold">Plafon indice sezonier max</label>
         <input type="number" step="0.05" class="form-control form-control-sm cfg-param"
                data-cheie="indice_sezonier_max" value="{{ params.indice_sezonier_max }}">
+        <div class="form-text small">O lună de vârf nu poate crește prognoza peste acest factor (5 = ×5).</div>
       </div>
       <div class="col-md-4">
-        <label class="form-label small">Prag delistare (zile)</label>
+        <label class="form-label small fw-semibold">Prag delistare (zile)</label>
         <input type="number" step="1" class="form-control form-control-sm cfg-param"
                data-cheie="prag_delistare_zile" value="{{ params.prag_delistare_zile }}">
+        <div class="form-text small">Zile minime de la ultima comandă a clientului până devine SUSPECT de delistare.</div>
       </div>
       <div class="col-md-4">
-        <label class="form-label small">Multiplicator interval delistare</label>
+        <label class="form-label small fw-semibold">Multiplicator interval delistare</label>
         <input type="number" step="0.1" class="form-control form-control-sm cfg-param"
                data-cheie="prag_delistare_mult" value="{{ params.prag_delistare_mult }}">
+        <div class="form-text small">SUSPECT și când pauza depășește de N ori intervalul mediu dintre comenzile clientului — un client care comandă rar nu e marcat greșit.</div>
       </div>
       <div class="col-md-4">
-        <label class="form-label small">Coeficient stoc de siguranță</label>
+        <label class="form-label small fw-semibold">Confirmare delistare (zile)</label>
+        <input type="number" step="1" class="form-control form-control-sm cfg-param"
+               data-cheie="confirmare_delistare_zile" value="{{ params.confirmare_delistare_zile }}">
+        <div class="form-text small">Zile suplimentare după SUSPECT, fără nicio comandă, până la DELISTAT automat (0 = dezactivat).</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">Tăiere inactiv (luni)</label>
+        <input type="number" step="1" class="form-control form-control-sm cfg-param"
+               data-cheie="taiere_inactiv_luni" value="{{ params.taiere_inactiv_luni }}">
+        <div class="form-text small">Luni consecutive cu vânzări zero pe articol până la INACTIV (prognoză 0). Articolele puternic sezoniere sunt exceptate.</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">Prag lună neutră (%)</label>
+        <input type="number" step="5" class="form-control form-control-sm cfg-param"
+               data-cheie="prag_neutru_multi_client" value="{{ params.prag_neutru_multi_client }}">
+        <div class="form-text small">Dacă cel puțin acest % din clienții activi au vândut zero într-o lună, luna e tratată ca gol de aprovizionare și exclusă din medii.</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">Coeficient stoc de siguranță</label>
         <input type="number" step="0.05" class="form-control form-control-sm cfg-param"
                data-cheie="coef_siguranta" value="{{ params.coef_siguranta }}">
+        <div class="form-text small">Stoc de siguranță adăugat la cerere = coeficient × prognoza lunară (0.25 = un sfert de lună).</div>
       </div>
       <div class="col-md-4">
-        <label class="form-label small">Perioadă acoperire (luni)</label>
+        <label class="form-label small fw-semibold">Perioadă acoperire (luni)</label>
         <input type="number" step="0.5" class="form-control form-control-sm cfg-param"
                data-cheie="perioada_acoperire_luni" value="{{ params.perioada_acoperire_luni }}">
+        <div class="form-text small">Câte luni de vânzare trebuie să acopere comanda sugerată, peste termenul de livrare.</div>
       </div>
     </div>
+    <p class="text-muted small mt-3 mb-0"><i class="bi bi-info-circle"></i>
+      Modificările se salvează automat și afectează doar <strong>modelul nou</strong> de forecast (client×articol).</p>
   </div>
 </div>
 
@@ -235,11 +263,12 @@
           <input type="text" id="taraNume" class="form-control form-control-sm">
         </div>
         <div class="mb-2">
-          <label class="form-label small fw-semibold">Bucket calcul</label>
-          <select id="taraPiata" class="form-select form-select-sm">
-            <option value="RO">RO — gestiune România</option>
-            <option value="HU">HU — gestiune Ungaria</option>
-          </select>
+          <label class="form-label small fw-semibold">Cod piață</label>
+          <input type="text" id="taraPiata" class="form-control form-control-sm text-uppercase"
+                 maxlength="4" placeholder="ex: HU, AT, MD">
+          <div class="form-text small">Cod scurt unic pe țară. <strong>RO</strong> = clienții se calculează
+            în gestiunea România; orice alt cod devine coloană separată de export în tabela de forecast,
+            cu istoric și sugestie de comandă proprii.</div>
         </div>
       </div>
       <div class="modal-footer">
@@ -260,6 +289,14 @@
       </div>
       <div class="modal-body">
         <input type="hidden" id="clientTaraId">
+        <div class="mb-2 position-relative">
+          <label class="form-label small fw-semibold">Caută client (denumire sau cod)</label>
+          <input type="text" id="clientSearch" class="form-control form-control-sm"
+                 placeholder="tastează pentru a căuta..." autocomplete="off">
+          <div id="clientSuggest" class="list-group position-absolute w-100 shadow-sm"
+               style="z-index:1060; max-height:220px; overflow-y:auto; display:none"></div>
+          <div class="form-text small">Selectează din listă — codul ERP se completează automat.</div>
+        </div>
         <div class="mb-2">
           <label class="form-label small fw-semibold">Cod client (din ERP)</label>
           <input type="text" id="clientCod" class="form-control form-control-sm"
@@ -322,9 +359,10 @@ function saveTara() {
   const id = document.getElementById('taraId').value;
   const data = {
     tara:  document.getElementById('taraNume').value.trim(),
-    piata: document.getElementById('taraPiata').value,
+    piata: document.getElementById('taraPiata').value.trim().toUpperCase(),
     activ: 1,
   };
+  if (!data.tara || !data.piata) { AppError.show(null, 'Completează denumirea țării și codul de piață.'); return; }
   if (id) data.id = parseInt(id);
   fetch('/api/forecast/tari', {
     method: 'POST',
@@ -342,9 +380,60 @@ function showAddClient(taraId, taraNume) {
   document.getElementById('clientTaraId').value = taraId;
   document.getElementById('clientCod').value = '';
   document.getElementById('clientNume').value = '';
+  document.getElementById('clientSearch').value = '';
+  hideClientSuggest();
   document.getElementById('modalClientTitle').textContent = 'Adaugă client — ' + taraNume;
   new bootstrap.Modal(document.getElementById('modalClient')).show();
 }
+
+// ── Typeahead clienți existenți (tranzacții) → autocompletează codul ERP ──
+let _searchTimer = null;
+const _escHtml = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function hideClientSuggest() {
+  document.getElementById('clientSuggest').style.display = 'none';
+}
+
+async function _searchClients(q) {
+  const box = document.getElementById('clientSuggest');
+  try {
+    const r = await fetch('/api/clienti/search?q=' + encodeURIComponent(q));
+    const j = await r.json();
+    if (!j.ok || !j.items.length) {
+      box.innerHTML = '<div class="list-group-item small text-muted">Niciun client găsit.</div>';
+      box.style.display = '';
+      return;
+    }
+    box.innerHTML = j.items.map(c =>
+      `<button type="button" class="list-group-item list-group-item-action small py-1"
+               data-cod="${_escHtml(c.cod_client)}" data-nume="${_escHtml(c.client)}">
+         ${_escHtml(c.client)} <span class="text-muted">· ${_escHtml(c.cod_client)}</span>
+       </button>`).join('');
+    box.style.display = '';
+    box.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      document.getElementById('clientCod').value = b.dataset.cod;
+      document.getElementById('clientNume').value = b.dataset.nume;
+      document.getElementById('clientSearch').value = b.dataset.nume;
+      hideClientSuggest();
+    }));
+  } catch (e) {
+    box.innerHTML = '<div class="list-group-item small text-danger">Eroare la căutare.</div>';
+    box.style.display = '';
+  }
+}
+
+document.getElementById('clientSearch').addEventListener('input', ev => {
+  clearTimeout(_searchTimer);
+  const q = ev.target.value.trim();
+  if (q.length < 2) { hideClientSuggest(); return; }
+  _searchTimer = setTimeout(() => _searchClients(q), 250);
+});
+document.getElementById('clientSearch').addEventListener('keydown', ev => {
+  if (ev.key === 'Escape') hideClientSuggest();
+});
+document.addEventListener('click', ev => {
+  if (!ev.target.closest('#clientSuggest') && ev.target.id !== 'clientSearch') hideClientSuggest();
+});
 function saveClient() {
   const data = {
     tara_id:     parseInt(document.getElementById('clientTaraId').value),
