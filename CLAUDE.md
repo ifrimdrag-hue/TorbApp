@@ -18,7 +18,8 @@ CLAUDE.md is injected every turn, so it holds only routing + file-placement rule
 | Working on... | Read first |
 |---------------|-----------|
 | strategy / roadmap / company / risks | `docs/BUSINESS.md` — key facts at the top; §7 = the 2026–2030 plan. Don't reinterpret strategy from scratch; start here. |
-| current state / next step | `context/STATUS.md` — what's delivered / in progress / blocked. **Update it on every state change.** |
+| current state / next step / open decisions | `context/STATUS.md` — in progress / blocked / next step + open strategic decisions & 90-day actions. **Update on every state change.** Delivery summaries live in `CHANGELOG.md`, not here. |
+| what shipped / delivery history / a past change | `CHANGELOG.md` — dated summary of every delivered change (Keep-a-Changelog; `[Unreleased]` accrues until a release). The canonical home for implementation summaries. |
 | domain terms / data model / bonus / virtual brands / stock sync | `docs/BUSINESS_LOGIC.md` |
 | data / SQLite / ETL / Excel / data-file map | `docs/TECHNICAL.md` §Data |
 | forecast / backtest / reorder | `app/forecast/README.md` |
