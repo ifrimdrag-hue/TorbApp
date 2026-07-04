@@ -202,10 +202,10 @@
       </div>
       <div class="btn-group btn-group-sm" role="group" aria-label="Model de prognoză">
         <a class="btn {{ 'btn-primary' if model != 'nou' else 'btn-outline-primary' }}"
-           href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='actual') }}"
+           href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='actual', compare=request.args.get('compare')) }}"
            title="Model curent, pe SKU agregat">Model actual</a>
         <a class="btn {{ 'btn-primary' if model == 'nou' else 'btn-outline-primary' }}"
-           href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='nou') }}"
+           href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='nou', compare=request.args.get('compare')) }}"
            title="Model nou, client × articol, cu detectare suspecți delistare">Model nou (client × articol)</a>
       </div>
       {% if compare %}
@@ -348,9 +348,14 @@
             </td>
             {% if compare %}
             {# Col comparație: sugestie model nou + delta față de modelul curent #}
-            <td class="text-end small" style="background:rgba(25,135,84,.08)">{{ r.suggested_ro_nou if r.suggested_ro_nou is not none else '—' }}</td>
-            <td class="text-end small {{ 'text-danger' if (r.suggested_ro_nou or 0) < (r.suggested_ro or 0) else 'text-success' }}">
-              {{ (r.suggested_ro_nou or 0) - (r.suggested_ro or 0) }}</td>
+            {% if r.suggested_ro_nou is none %}
+            <td class="text-end small text-muted" style="background:rgba(25,135,84,.08)">—</td>
+            <td class="text-end small text-muted">—</td>
+            {% else %}
+            <td class="text-end small" style="background:rgba(25,135,84,.08)">{{ r.suggested_ro_nou }}</td>
+            <td class="text-end small {{ 'text-danger' if (r.suggested_ro_nou) < (r.suggested_ro or 0) else 'text-success' }}">
+              {{ (r.suggested_ro_nou) - (r.suggested_ro or 0) }}</td>
+            {% endif %}
             {% endif %}
             {# Col 16: Buton adaugă la comandă draft #}
             <td class="text-center">

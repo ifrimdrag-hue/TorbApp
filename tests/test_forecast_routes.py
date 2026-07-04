@@ -42,3 +42,10 @@ def test_forecast_model_toggle_present(client):
     html = resp.data.decode('utf-8')
     assert 'Model actual' in html
     assert 'Model nou (client × articol)' in html
+
+
+def test_forecast_compare_with_urgenta_filter_renders(client):
+    """Compare with a narrow urgenta filter can leave rows without a nou
+    counterpart (None) — the em-dash path must not raise a template error."""
+    resp = client.get('/forecast?compare=1&urgenta=critic')
+    assert resp.status_code == 200

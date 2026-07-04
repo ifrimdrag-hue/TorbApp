@@ -32,9 +32,9 @@ def forecast():
     compare  = request.args.get('compare') == '1'
 
     rows       = queries.forecast_stoc_extended(furnizor=furnizor, gama=gama, urgenta=urgenta, search=search,
-                                                 vel=vel, model=model)
+                                                 vel=vel, model='actual' if compare else model)
     if compare:
-        rows_nou   = queries.forecast_stoc_extended(furnizor=furnizor, gama=gama, urgenta=urgenta, search=search,
+        rows_nou   = queries.forecast_stoc_extended(furnizor=furnizor, gama=gama, urgenta=None, search=search,
                                                      vel=vel, model='nou')
         nou_by_sku = {r['sku']: r for r in rows_nou}
         for r in rows:
