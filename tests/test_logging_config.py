@@ -14,10 +14,16 @@ def clean_root():
     saved_handlers = root.handlers[:]
     saved_level = root.level
     had_marker = hasattr(root, logging_config._MARKER)
+    saved_noisy_levels = {
+        name: logging.getLogger(name).level
+        for name in ("werkzeug", "httpx", "urllib3")
+    }
     root.handlers = []
     if had_marker:
         delattr(root, logging_config._MARKER)
     yield root
+    for name, level in saved_noisy_levels.items():
+        logging.getLogger(name).level = level
     for h in root.handlers:
         h.close()
     root.handlers = saved_handlers
