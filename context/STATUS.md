@@ -1,6 +1,6 @@
 # Torb — Status Execuție Plan Strategic 2026–2030
 
-**Ultima actualizare:** 2026-07-04
+**Ultima actualizare:** 2026-07-05
 **Document referință:** `docs/BUSINESS.md` §7 — Plan Strategic 2026–2030 (v1.0)
 **Regulă:** actualizează acest fișier la fiecare schimbare de stare (nu la fiecare discuție). Legend: `[ ]` = neînceput · `[~]` = în lucru · `[x]` = livrat · `[!]` = blocat · `[↑]` = întârziat.
 **Istoric livrări:** rezumatele implementărilor livrate stau în `CHANGELOG.md`, nu aici — acest fișier ține doar starea curentă (decizii deschise, acțiuni 90 de zile, în curs/blocaje, pasul următor).
@@ -46,6 +46,10 @@
 - `[ ]` **13.** Documentare procese critice (comenzi, facturare, listing IKA) · *deadline: 31 iulie 2026*
 
 ---
+
+## Livrat recent (detalii în CHANGELOG)
+
+- `[x]` **Modul Comercial → Solduri neîncasate** (2026-07-05) — upload raport ERP + dashboard aging (carduri Nescadent/Scadent 7/30/60 + catch-all, tabel per client/agent/factură, filtrare pe card, export Excel). Referință = azi. Migrație 0021.
 
 ## În curs / blocaje active
 

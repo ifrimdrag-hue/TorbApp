@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### New module: Solduri neîncasate (accounts-receivable aging) (2026-07-05)
+
+New **Comercial → Solduri** page turning the ERP receivables export into an aging dashboard.
+
+- **Data source** — the consolidated ERP report (`neinc … .xls`, one row per open document; sample `docs_input/rapoarte/neinc 30 06.xls`, 1,683 rows). Outstanding amount is `sumdeincas` (may be negative — advances/credit notes). Due date is **derived** as `datadl + term_pl_cl` (the file's `scadenta` column only holds the term in days), never read from the file.
+- **Ingestion** — reuses the existing async upload pipeline: `tip='solduri'` added to `app/blueprints/actualizare.py` (whitelist + `script_map`); new `etl/import_solduri_neincasate.py` (xlrd) parses and **replace-loads** the new `solduri_neincasate` table (**migration 0021**), stamping `data_raport` = upload date. An upload widget lives on the page (posts to `/api/upload/solduri`, reuses `upload_jobs`/status polling).
+- **Aging math** — reference = today (owner decision). Per row `d = zile până la scadență` (negative = overdue); every row incl. negatives is bucketed by `d` so the cards + catch-all reconcile exactly to Total în piață. Cards: **Nescadent** ≤7/≤30/≤60 (nested), **Scadent** ≤7/≤30/≤60 (nested), **Total scadent** (all overdue), **Total în piață**, and a **Neîncadrate** catch-all (>60 zile viitor / restanță). Verified on real data: total în piață 3,163,823.97 lei, reconciliation exact.
+- **Table** — three view modes (`?view=`): per **client**, per **agent** (both with per-bucket columns, oldest-overdue days, plafon over-ceiling flag), and flat per **factură** (sortable by scadență). Clicking any aging card filters the table to that bucket (`?bucket=`), scoping the shown totals to the clicked card; agent + client-search filters; Excel export of the current view.
+- Files: `app/queries/solduri.py`, `app/blueprints/solduri.py`, `app/templates/solduri_neincasate.html`, nav link in `base.html`. Tests: `tests/test_solduri.py` (ETL parse incl. negatives, bucket sums + boundary + reconciliation identity, view shaping/filter, route+export smoke). 229 passing. Spec `docs/specs/2026-07-05-solduri-neincasate-design.md`, plan `docs/plans/2026-07-05-solduri-neincasate.md`.
+
 ### Forecast finalized: client × article is now the default; legacy model, compare & velocity toggle removed (2026-07-05)
 
 Owner GO after dev validation. The client × article model is now the **only** forecast model; the transitional scaffolding is gone.
