@@ -52,8 +52,8 @@ HEADER_LABELS = {
     "ro_cartons":       ["ro"],
     "export_ctns":      ["export ctns", "export ctns."],
     "no_of_units":      ["no of units"],
-    "unit_price":       ["unit price us$", "unit price fob us$"],
-    "total_price":      ["total price us$", "total price fob us$"],
+    "unit_price":       ["unit price us$", "unit price fob us$", "unit price cif us$"],
+    "total_price":      ["total price us$", "total price fob us$", "total price cif us$"],
     "gross_kgs":        ["gross kgs"],
     "net_kgs":          ["nett kgs", "net kgs"],
 }
