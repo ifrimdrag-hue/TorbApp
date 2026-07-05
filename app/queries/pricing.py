@@ -230,6 +230,158 @@ def termene_delete(id):
     db.commit()
 
 
+# ── Articol nou (creare manuala) ─────────────────────────────────────────────
+
+def produs_create(d):
+    """Insert a new product plus optional logistics/media/landing rows.
+
+    d: dict with produse fields (sku required) and optional keys
+    logistica (dict), poza_url (str), landing (dict with pret_valuta,
+    moneda, curs, transport_pct, taxa_vamala_pct, alte_costuri, an).
+    Returns an error string or None on success.
+    """
+    sku = (d.get('sku') or '').strip()
+    if not sku:
+        return 'SKU obligatoriu.'
+    db = get_db()
+    try:
+        if db.execute("SELECT 1 FROM produse WHERE sku=?", (sku,)).fetchone():
+            return f'SKU {sku} exista deja.'
+        db.execute("""
+            INSERT INTO produse (sku, descriere, furnizor, brand, categorie,
+                gramaj, buc_cutie, ean, tva_pct, hs_code, taxa_vamala_mfn_pct,
+                taxa_vamala_pct, origine, tara_origine, activ, gama)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
+        """, (sku, d.get('descriere'), d.get('furnizor'), d.get('brand'),
+              d.get('categorie'), d.get('gramaj'), d.get('buc_cutie'),
+              d.get('ean'), d.get('tva_pct', 0.09), d.get('hs_code'),
+              d.get('taxa_vamala_mfn_pct', 0), d.get('taxa_vamala_pct', 0),
+              d.get('origine', 'import_extraeu'), d.get('tara_origine'),
+              d.get('gama') or d.get('furnizor')))
+        log = d.get('logistica') or {}
+        if any(v is not None for v in log.values()):
+            db.execute("""
+                INSERT INTO produse_logistica (sku, unit_net_kg, unit_gross_kg,
+                    bax_l_mm, bax_w_mm, bax_h_mm, bax_gross_kg, bax_cbm,
+                    buc_bax, bax_palet, valabilitate_luni, moq, sursa)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'manual')
+            """, (sku, log.get('unit_net_kg'), log.get('unit_gross_kg'),
+                  log.get('bax_l_mm'), log.get('bax_w_mm'), log.get('bax_h_mm'),
+                  log.get('bax_gross_kg'), log.get('bax_cbm'),
+                  log.get('buc_bax'), log.get('bax_palet'),
+                  log.get('valabilitate_luni'), log.get('moq')))
+        if d.get('poza_url'):
+            db.execute("INSERT INTO produse_media (sku, url_sursa, principala)"
+                       " VALUES (?,?,1)", (sku, d['poza_url'].strip()))
+        db.commit()
+    finally:
+        db.close()
+    lnd = d.get('landing') or {}
+    if lnd.get('pret_valuta') and lnd.get('curs'):
+        preturi_update_landing(
+            sku, lnd['an'], lnd['pret_valuta'], lnd.get('moneda', 'EUR'),
+            lnd['curs'], lnd.get('transport_pct', 10),
+            lnd.get('taxa_vamala_pct', 0), lnd.get('alte_costuri', 0))
+    return None
+
+
+def produse_atribute_distincte():
+    """Distinct furnizor/brand/categorie/gama values for form datalists."""
+    out = {}
+    for col in ('furnizor', 'brand', 'categorie', 'gama'):
+        out[col] = [r[col] for r in query(
+            f"SELECT DISTINCT {col} FROM produse WHERE {col} IS NOT NULL "
+            f"AND {col} != '' ORDER BY {col}")]
+    return out
+
+
+# ── Simulator + propuneri de pret (F2) ───────────────────────────────────────
+
+def simulator_articole(an, cod_client):
+    """Articles with a landing cost, plus the client's and standard price."""
+    return query("""
+        SELECT p.sku, p.descriere, p.furnizor, p.categorie, p.gama,
+               cl.landing_cost_ron,
+               pvc.pret_vanzare_ron AS pret_client,
+               pvs.pret_vanzare_ron AS pret_standard
+        FROM produse p
+        JOIN costuri_landing cl ON cl.sku = p.sku AND cl.an = :an
+             AND cl.landing_cost_ron IS NOT NULL
+        LEFT JOIN preturi_vanzare pvc ON pvc.sku = p.sku AND pvc.an = :an
+             AND pvc.cod_client = :cod_client AND pvc.activ = 1
+        LEFT JOIN preturi_vanzare pvs ON pvs.sku = p.sku AND pvs.an = :an
+             AND pvs.cod_client IS NULL AND pvs.activ = 1
+        WHERE p.activ = 1
+        ORDER BY p.furnizor, p.sku
+    """, {"an": an, "cod_client": cod_client})
+
+
+def propuneri_list(an=None, cod_client=None):
+    filters, params = ["1=1"], {}
+    if an:
+        filters.append("pp.an = :an")
+        params['an'] = an
+    if cod_client:
+        filters.append("pp.cod_client = :cod_client")
+        params['cod_client'] = cod_client
+    return query(f"""
+        SELECT pp.*, t.client,
+               COUNT(li.id) AS nr_linii,
+               SUM(CASE WHEN li.verdict = 'aprobare_director' THEN 1 ELSE 0 END)
+                   AS nr_sub_aprobare
+        FROM propuneri_pret pp
+        LEFT JOIN (SELECT DISTINCT cod_client, client FROM tranzactii) t
+            ON t.cod_client = pp.cod_client
+        LEFT JOIN propuneri_pret_linii li ON li.propunere_id = pp.id
+        WHERE {' AND '.join(filters)}
+        GROUP BY pp.id
+        ORDER BY pp.creat_la DESC
+    """, params)
+
+
+def propunere_get(id):
+    rows = query("SELECT * FROM propuneri_pret WHERE id = :id", {"id": id})
+    if not rows:
+        return None
+    linii = query("""
+        SELECT li.*, p.descriere, p.furnizor
+        FROM propuneri_pret_linii li
+        LEFT JOIN produse p ON p.sku = li.sku
+        WHERE li.propunere_id = :id ORDER BY p.furnizor, li.sku
+    """, {"id": id})
+    return {"propunere": rows[0], "linii": linii}
+
+
+def propunere_create(an, cod_client, titlu, linii):
+    """linii: list of dicts with sku, pret_actual, pret_propus, landing_ron,
+    cond_pct, marja_neta_pct, verdict (computed by the caller via the
+    pricing engine). Returns the new proposal id."""
+    db = get_db()
+    try:
+        cur = db.execute(
+            "INSERT INTO propuneri_pret (an, cod_client, titlu) VALUES (?,?,?)",
+            (an, cod_client, titlu or None))
+        pid = cur.lastrowid
+        db.executemany("""
+            INSERT INTO propuneri_pret_linii (propunere_id, sku, pret_actual,
+                pret_propus, landing_ron, cond_pct, marja_neta_pct, verdict)
+            VALUES (?,?,?,?,?,?,?,?)
+        """, [(pid, li['sku'], li.get('pret_actual'), li['pret_propus'],
+               li.get('landing_ron'), li.get('cond_pct'),
+               li.get('marja_neta_pct'), li.get('verdict')) for li in linii])
+        db.commit()
+        return pid
+    finally:
+        db.close()
+
+
+def propunere_delete(id):
+    db = get_db()
+    db.execute("DELETE FROM propuneri_pret WHERE id=?", (id,))
+    db.commit()
+    db.close()
+
+
 def marja_ajustata(an):
     """Adjusted margin per client/brand after applying commercial conditions."""
     return query("""

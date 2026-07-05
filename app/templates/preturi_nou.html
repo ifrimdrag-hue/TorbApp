@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+{% block title %}Articol nou — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold">
+    <i class="bi bi-plus-square text-primary"></i> Articol nou
+  </h4>
+  <a href="/preturi?an={{ an }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Înapoi la catalog
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-box-seam me-1 text-primary"></i> Date articol
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-4">
+            <label class="form-label small mb-0">SKU *</label>
+            <input id="f-sku" class="form-control form-control-sm">
+          </div>
+          <div class="col-8">
+            <label class="form-label small mb-0">Denumire *</label>
+            <input id="f-descriere" class="form-control form-control-sm">
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">Furnizor *</label>
+            <input id="f-furnizor" class="form-control form-control-sm" list="dl-furnizor">
+            <datalist id="dl-furnizor">
+              {% for v in atribute.furnizor %}<option value="{{ v }}">{% endfor %}
+            </datalist>
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">Brand</label>
+            <input id="f-brand" class="form-control form-control-sm" list="dl-brand">
+            <datalist id="dl-brand">
+              {% for v in atribute.brand %}<option value="{{ v }}">{% endfor %}
+            </datalist>
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">Gamă</label>
+            <input id="f-gama" class="form-control form-control-sm" list="dl-gama"
+                   placeholder="implicit = furnizor">
+            <datalist id="dl-gama">
+              {% for v in atribute.gama %}<option value="{{ v }}">{% endfor %}
+            </datalist>
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">Categorie</label>
+            <input id="f-categorie" class="form-control form-control-sm" list="dl-categorie">
+            <datalist id="dl-categorie">
+              {% for v in atribute.categorie %}<option value="{{ v }}">{% endfor %}
+            </datalist>
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">EAN</label>
+            <input id="f-ean" class="form-control form-control-sm">
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">Gramaj (g)</label>
+            <input id="f-gramaj" type="number" step="0.01" class="form-control form-control-sm">
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">Buc / cutie</label>
+            <input id="f-buc-cutie" type="number" class="form-control form-control-sm">
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">TVA</label>
+            <select id="f-tva" class="form-select form-select-sm">
+              <option value="0.09">9%</option>
+              <option value="0.19">19%</option>
+              <option value="0.21">21%</option>
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">Cod HS vamal</label>
+            <input id="f-hs" class="form-control form-control-sm">
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">Taxă vamală %</label>
+            <input id="f-taxa" type="number" step="0.1" value="0" class="form-control form-control-sm">
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">Origine</label>
+            <select id="f-origine" class="form-select form-select-sm">
+              <option value="import_extraeu">Import extra-UE</option>
+              <option value="eu">UE</option>
+              <option value="intern">Intern</option>
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">Țară origine</label>
+            <input id="f-tara" class="form-control form-control-sm">
+          </div>
+          <div class="col-8">
+            <label class="form-label small mb-0">Poză (URL de pe site)</label>
+            <input id="f-poza" class="form-control form-control-sm"
+                   placeholder="https://... (opțional)">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-currency-exchange me-1 text-success"></i> Preț achiziție {{ an }} (opțional)
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-3">
+            <label class="form-label small mb-0">Monedă</label>
+            <select id="f-moneda" class="form-select form-select-sm">
+              {% for m in ['EUR','USD','PLN','RON'] %}
+              <option value="{{ m }}">{{ m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Preț (valută)</label>
+            <input id="f-pret-valuta" type="number" step="0.0001" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Curs RON</label>
+            <input id="f-curs" type="number" step="0.0001" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Transport %</label>
+            <input id="f-transport" type="number" step="0.1" value="10" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Alte costuri RON</label>
+            <input id="f-alte" type="number" step="0.01" value="0" class="form-control form-control-sm">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-truck me-1 text-secondary"></i> Date logistice (opțional)
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-3">
+            <label class="form-label small mb-0">Net / buc (kg)</label>
+            <input id="f-unit-net" type="number" step="0.001" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Brut / buc (kg)</label>
+            <input id="f-unit-gross" type="number" step="0.001" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Buc / bax</label>
+            <input id="f-buc-bax" type="number" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Bax / palet</label>
+            <input id="f-bax-palet" type="number" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Bax L (mm)</label>
+            <input id="f-bax-l" type="number" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Bax l (mm)</label>
+            <input id="f-bax-w" type="number" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Bax H (mm)</label>
+            <input id="f-bax-h" type="number" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Brut / bax (kg)</label>
+            <input id="f-bax-gross" type="number" step="0.001" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Valabilitate (luni)</label>
+            <input id="f-valab" type="number" class="form-control form-control-sm">
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">MOQ</label>
+            <input id="f-moq" type="number" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="form-text">CBM bax se calculează automat din dimensiuni.</div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 align-items-center">
+      <button class="btn btn-primary" onclick="salveazaArticol()">
+        <i class="bi bi-check-lg me-1"></i>Salvează articolul
+      </button>
+      <span id="f-msg" class="small"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+const RATE = {{ rate | tojson }};
+const AN = {{ an }};
+
+document.getElementById('f-moneda').addEventListener('change', function() {
+  if (RATE[this.value]) document.getElementById('f-curs').value = RATE[this.value];
+});
+if (RATE['EUR']) document.getElementById('f-curs').value = RATE['EUR'];
+
+function nr(id) {
+  const v = document.getElementById(id).value;
+  return v === '' ? null : parseFloat(v);
+}
+function txt(id) {
+  return document.getElementById(id).value.trim() || null;
+}
+
+async function salveazaArticol() {
+  const msg = document.getElementById('f-msg');
+  const sku = txt('f-sku'), descriere = txt('f-descriere'), furnizor = txt('f-furnizor');
+  if (!sku || !descriere || !furnizor) {
+    msg.className = 'small text-danger';
+    msg.textContent = 'SKU, denumirea și furnizorul sunt obligatorii.';
+    return;
+  }
+  const l = nr('f-bax-l'), w = nr('f-bax-w'), h = nr('f-bax-h');
+  const body = {
+    sku, descriere, furnizor,
+    brand: txt('f-brand'), gama: txt('f-gama'), categorie: txt('f-categorie'),
+    ean: txt('f-ean'), gramaj: nr('f-gramaj'), buc_cutie: nr('f-buc-cutie'),
+    tva_pct: parseFloat(document.getElementById('f-tva').value),
+    hs_code: txt('f-hs'), taxa_vamala_pct: nr('f-taxa') || 0,
+    origine: document.getElementById('f-origine').value, tara_origine: txt('f-tara'),
+    poza_url: txt('f-poza'),
+    logistica: {
+      unit_net_kg: nr('f-unit-net'), unit_gross_kg: nr('f-unit-gross'),
+      buc_bax: nr('f-buc-bax'), bax_palet: nr('f-bax-palet'),
+      bax_l_mm: l, bax_w_mm: w, bax_h_mm: h,
+      bax_cbm: (l && w && h) ? +(l * w * h / 1e9).toFixed(4) : null,
+      bax_gross_kg: nr('f-bax-gross'),
+      valabilitate_luni: nr('f-valab'), moq: nr('f-moq'),
+    },
+    landing: {
+      an: AN, moneda: document.getElementById('f-moneda').value,
+      pret_valuta: nr('f-pret-valuta'), curs: nr('f-curs'),
+      transport_pct: nr('f-transport') ?? 10, taxa_vamala_pct: nr('f-taxa') || 0,
+      alte_costuri: nr('f-alte') || 0,
+    },
+  };
+  const resp = await fetch('/api/preturi/articol-nou', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    window.location.href = '/preturi/' + encodeURIComponent(data.sku) + '?an=' + AN;
+  } else {
+    msg.className = 'small text-danger';
+    msg.textContent = data.error || 'Eroare la salvare.';
+  }
+}
+</script>
+{% endblock %}

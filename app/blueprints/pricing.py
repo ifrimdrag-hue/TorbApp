@@ -210,3 +210,94 @@ def api_termene_create():
 def api_termene_delete(id):
     queries.termene_delete(id)
     return jsonify({'ok': True})
+
+
+# ── Articol nou (F2) ─────────────────────────────────────────────────────────
+
+@pricing_bp.route('/preturi/nou')
+def preturi_articol_nou():
+    an = int(request.args.get('an', datetime.date.today().year))
+    rate = {r['moneda']: r['curs_ron'] for r in queries.rate_schimb_list(an)}
+    return render_template('preturi_nou.html', an=an, rate=rate,
+                           atribute=queries.produse_atribute_distincte())
+
+
+@pricing_bp.route('/api/preturi/articol-nou', methods=['POST'])
+def api_preturi_articol_nou():
+    d = request.get_json(silent=True) or {}
+    try:
+        err = queries.produs_create(d)
+        if err:
+            return jsonify({'error': err}), 400
+        return jsonify({'ok': True, 'sku': d['sku'].strip()})
+    except Exception as e:
+        logger.exception("api_preturi_articol_nou failed")
+        return jsonify({'error': str(e)}), 400
+
+
+# ── Simulator + propuneri de pret (F2) ───────────────────────────────────────
+
+@pricing_bp.route('/preturi/simulator')
+def preturi_simulator():
+    an         = int(request.args.get('an', datetime.date.today().year))
+    cod_client = request.args.get('client', '').strip() or None
+    client_opts = queries.clients_list(an)
+    articole, cond_map, praguri = [], {}, pricing_engine.praguri_marja()
+    if cod_client:
+        articole = queries.simulator_articole(an, cod_client)
+        cond_map = pricing_engine.cond_map_for_client(an, cod_client, articole)
+    propuneri = queries.propuneri_list(an, cod_client)
+    return render_template('preturi_simulator.html',
+        an=an, cod_client=cod_client or '', client_opts=client_opts,
+        articole=articole, cond_map=cond_map, praguri=praguri,
+        propuneri=propuneri)
+
+
+@pricing_bp.route('/api/preturi/propuneri', methods=['POST'])
+def api_propunere_create():
+    d = request.get_json(silent=True) or {}
+    try:
+        an, cod_client = int(d['an']), d['cod_client']
+        linii_in = {li['sku']: float(li['pret_propus'])
+                    for li in d.get('linii', []) if li.get('pret_propus')}
+        if not linii_in:
+            return jsonify({'error': 'Nicio linie cu preț propus.'}), 400
+        articole = {a['sku']: a for a in queries.simulator_articole(an, cod_client)}
+        cond_map = pricing_engine.cond_map_for_client(an, cod_client,
+                                                      list(articole.values()))
+        linii = []
+        for sku, pret in linii_in.items():
+            a = articole.get(sku)
+            if a is None:
+                continue
+            cond    = cond_map.get(sku, 0)
+            neta    = pricing_engine.marja_neta_pct(pret, a['landing_cost_ron'], cond)
+            praguri = pricing_engine.praguri_marja(a['gama'])
+            linii.append({
+                'sku': sku, 'pret_propus': pret,
+                'pret_actual': a['pret_client'] or a['pret_standard'],
+                'landing_ron': a['landing_cost_ron'], 'cond_pct': cond,
+                'marja_neta_pct': neta,
+                'verdict': pricing_engine.verdict(neta, praguri),
+            })
+        pid = queries.propunere_create(an, cod_client, d.get('titlu'), linii)
+        return jsonify({'ok': True, 'id': pid, 'nr_linii': len(linii)})
+    except Exception as e:
+        logger.exception("api_propunere_create failed")
+        return jsonify({'error': str(e)}), 400
+
+
+@pricing_bp.route('/api/preturi/propuneri/<int:id>')
+def api_propunere_get(id):
+    data = queries.propunere_get(id)
+    if not data:
+        abort(404)
+    return jsonify({'ok': True,
+                    'propunere': dict(data['propunere']),
+                    'linii': [dict(li) for li in data['linii']]})
+
+
+@pricing_bp.route('/api/preturi/propuneri/<int:id>', methods=['DELETE'])
+def api_propunere_delete(id):
+    queries.propunere_delete(id)
+    return jsonify({'ok': True})

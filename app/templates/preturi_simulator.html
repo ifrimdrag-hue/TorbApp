@@ -1,0 +1,333 @@
+{% extends 'base.html' %}
+{% block title %}Simulator preț — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold">
+    <i class="bi bi-sliders text-primary"></i> Simulator preț & propuneri
+  </h4>
+  <a href="/preturi?an={{ an }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Înapoi la catalog
+  </a>
+</div>
+
+<!-- Client selector -->
+<form method="get" class="card shadow-sm border-0 mb-3">
+  <div class="card-body py-2">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small mb-0">An</label>
+        <select name="an" class="form-select form-select-sm" style="width:85px">
+          {% for yr in [2025,2026] %}
+          <option value="{{ yr }}" {% if an==yr %}selected{% endif %}>{{ yr }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-0">Client</label>
+        <select name="client" class="form-select form-select-sm" style="min-width:280px">
+          <option value="">— alege clientul —</option>
+          {% for c in client_opts %}
+          <option value="{{ c.cod_client }}" {% if cod_client==c.cod_client %}selected{% endif %}>
+            {{ c.client }} ({{ c.cod_client }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary">Încarcă</button>
+      </div>
+      {% if cod_client %}
+      <div class="col-auto ms-auto text-muted small">
+        Praguri: marjă minimă <b>{{ praguri.minima }}%</b> ·
+        sub <b>{{ praguri.aprobare }}%</b> necesită acordul directorului
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+{% if cod_client %}
+<!-- Toolbar simulare -->
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-body py-2">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small mb-0">Filtru furnizor</label>
+        <select id="t-furnizor" class="form-select form-select-sm" onchange="filtreaza()">
+          <option value="">Toți</option>
+          {% for f in articole | map(attribute='furnizor') | unique | list %}
+          <option value="{{ f }}">{{ f }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-0">Caută</label>
+        <input id="t-cauta" class="form-control form-control-sm" style="width:200px"
+               placeholder="SKU sau denumire..." oninput="filtreaza()">
+      </div>
+      <div class="col-auto border-start ps-3">
+        <label class="form-label small mb-0">Marjă netă țintă %</label>
+        <div class="input-group input-group-sm" style="width:170px">
+          <input id="t-marja" type="number" step="0.5" value="{{ praguri.minima }}" class="form-control">
+          <button class="btn btn-outline-primary" onclick="aplicaMarja()"
+                  title="Setează prețul propus pe rândurile vizibile ca să atingă marja netă țintă">Aplică</button>
+        </div>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-0">Creștere % față de actual</label>
+        <div class="input-group input-group-sm" style="width:170px">
+          <input id="t-crestere" type="number" step="0.5" value="5" class="form-control">
+          <button class="btn btn-outline-primary" onclick="aplicaCrestere()"
+                  title="Preț propus = preț actual + %">Aplică</button>
+        </div>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-outline-secondary" onclick="golesteTot()">Golește</button>
+      </div>
+      <div class="col-auto ms-auto">
+        <span class="small text-muted me-2"><span id="t-count">0</span> articole cu preț propus</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabel simulare -->
+<div class="card shadow-sm border-0 mb-3">
+  <div class="table-responsive" style="max-height:60vh">
+    <table class="table table-sm table-hover align-middle mb-0" id="sim-table">
+      <thead class="table-secondary sticky-top">
+        <tr>
+          <th>SKU</th>
+          <th>Denumire</th>
+          <th>Furnizor</th>
+          <th class="text-end">Landing RON</th>
+          <th class="text-end">Preț actual</th>
+          <th class="text-end">Condiții %</th>
+          <th class="text-end" style="width:110px">Preț propus</th>
+          <th class="text-end">Marjă netă %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in articole %}
+        {% set cond = cond_map.get(a.sku, 0) %}
+        {% set actual = a.pret_client or a.pret_standard %}
+        <tr data-sku="{{ a.sku }}" data-furnizor="{{ a.furnizor }}"
+            data-landing="{{ a.landing_cost_ron }}" data-cond="{{ cond }}"
+            data-actual="{{ actual or '' }}"
+            data-text="{{ (a.sku ~ ' ' ~ a.descriere) | lower }}">
+          <td class="text-nowrap">
+            <a href="/preturi/{{ a.sku }}?an={{ an }}">{{ a.sku }}</a>
+            {% if not a.pret_client %}<span class="badge bg-light text-muted" title="Clientul nu are preț propriu; se folosește prețul standard">std</span>{% endif %}
+          </td>
+          <td class="small">{{ a.descriere }}</td>
+          <td class="small">{{ a.furnizor }}</td>
+          <td class="text-end">{{ "%.2f"|format(a.landing_cost_ron) }}</td>
+          <td class="text-end">{{ "%.2f"|format(actual) if actual else "—" }}</td>
+          <td class="text-end text-muted">{{ "%.2f"|format(cond) }}</td>
+          <td>
+            <input type="number" step="0.01" min="0"
+                   class="form-control form-control-sm text-end pret-propus"
+                   oninput="recalc(this.closest('tr'))">
+          </td>
+          <td class="text-end fw-bold marja-cell">—</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Salvare propunere -->
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-body py-2">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small mb-0">Titlu propunere</label>
+        <input id="p-titlu" class="form-control form-control-sm" style="width:320px"
+               placeholder="ex: Majorare iulie {{ an }}">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-success btn-sm" onclick="salveazaPropunere()">
+          <i class="bi bi-save me-1"></i>Salvează propunerea
+        </button>
+      </div>
+      <div class="col-auto"><span id="p-msg" class="small"></span></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Propuneri salvate -->
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-journal-text me-1 text-primary"></i>
+    Propuneri salvate {% if cod_client %}(clientul selectat){% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-secondary">
+        <tr>
+          <th>#</th><th>Client</th><th>Titlu</th><th>Creată la</th>
+          <th class="text-end">Linii</th>
+          <th class="text-end">Sub prag aprobare</th>
+          <th class="text-center">Acțiuni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pp in propuneri %}
+        <tr>
+          <td>{{ pp.id }}</td>
+          <td>{{ pp.client or pp.cod_client }}</td>
+          <td>{{ pp.titlu or '—' }}</td>
+          <td class="small text-muted">{{ pp.creat_la }}</td>
+          <td class="text-end">{{ pp.nr_linii }}</td>
+          <td class="text-end">
+            {% if pp.nr_sub_aprobare %}
+            <span class="badge bg-danger">{{ pp.nr_sub_aprobare }}</span>
+            {% else %}<span class="text-muted">0</span>{% endif %}
+          </td>
+          <td class="text-center text-nowrap">
+            <button class="btn btn-xs btn-outline-primary py-0 px-1"
+                    onclick="vezi({{ pp.id }})"><i class="bi bi-eye"></i></button>
+            <button class="btn btn-xs btn-outline-danger py-0 px-1"
+                    onclick="sterge({{ pp.id }})"><i class="bi bi-trash"></i></button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-3">Nicio propunere salvată.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div id="detaliu-propunere" class="card-body border-top d-none"></div>
+</div>
+
+<script>
+const AN = {{ an }};
+const COD_CLIENT = {{ cod_client | tojson }};
+const PRAGURI = {{ praguri | tojson }};
+
+function recalc(tr) {
+  const pret = parseFloat(tr.querySelector('.pret-propus').value);
+  const cell = tr.querySelector('.marja-cell');
+  if (!pret) { cell.textContent = '—'; cell.className = 'text-end fw-bold marja-cell'; numara(); return; }
+  const landing = parseFloat(tr.dataset.landing);
+  const cond = parseFloat(tr.dataset.cond) || 0;
+  const neta = Math.round(((pret - landing) / pret * 100 - cond) * 10) / 10;
+  cell.textContent = neta.toFixed(1) + '%';
+  let cls = 'text-success';
+  if (neta < PRAGURI.aprobare) cls = 'text-danger';
+  else if (neta < PRAGURI.minima) cls = 'text-warning';
+  cell.className = 'text-end fw-bold marja-cell ' + cls;
+  cell.title = neta < PRAGURI.aprobare ? 'Sub ' + PRAGURI.aprobare + '% — necesită acordul directorului' : '';
+  numara();
+}
+
+function randuriVizibile() {
+  return [...document.querySelectorAll('#sim-table tbody tr')]
+    .filter(tr => tr.style.display !== 'none');
+}
+
+function filtreaza() {
+  const f = document.getElementById('t-furnizor').value;
+  const q = document.getElementById('t-cauta').value.toLowerCase();
+  document.querySelectorAll('#sim-table tbody tr').forEach(tr => {
+    const ok = (!f || tr.dataset.furnizor === f) && (!q || tr.dataset.text.includes(q));
+    tr.style.display = ok ? '' : 'none';
+  });
+}
+
+function aplicaMarja() {
+  const tinta = parseFloat(document.getElementById('t-marja').value);
+  if (!tinta && tinta !== 0) return;
+  randuriVizibile().forEach(tr => {
+    const landing = parseFloat(tr.dataset.landing);
+    const cond = parseFloat(tr.dataset.cond) || 0;
+    const total = tinta + cond;
+    if (total >= 100) return;
+    const pret = landing / (1 - total / 100);
+    tr.querySelector('.pret-propus').value = pret.toFixed(2);
+    recalc(tr);
+  });
+}
+
+function aplicaCrestere() {
+  const pct = parseFloat(document.getElementById('t-crestere').value);
+  if (!pct && pct !== 0) return;
+  randuriVizibile().forEach(tr => {
+    const actual = parseFloat(tr.dataset.actual);
+    if (!actual) return;
+    tr.querySelector('.pret-propus').value = (actual * (1 + pct / 100)).toFixed(2);
+    recalc(tr);
+  });
+}
+
+function golesteTot() {
+  document.querySelectorAll('#sim-table .pret-propus').forEach(inp => {
+    inp.value = '';
+    recalc(inp.closest('tr'));
+  });
+}
+
+function numara() {
+  const n = [...document.querySelectorAll('#sim-table .pret-propus')]
+    .filter(i => i.value).length;
+  document.getElementById('t-count').textContent = n;
+}
+
+async function salveazaPropunere() {
+  const msg = document.getElementById('p-msg');
+  const linii = [...document.querySelectorAll('#sim-table tbody tr')]
+    .filter(tr => tr.querySelector('.pret-propus').value)
+    .map(tr => ({sku: tr.dataset.sku,
+                 pret_propus: parseFloat(tr.querySelector('.pret-propus').value)}));
+  if (!linii.length) {
+    msg.className = 'small text-danger';
+    msg.textContent = 'Introdu cel puțin un preț propus.';
+    return;
+  }
+  const resp = await fetch('/api/preturi/propuneri', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({an: AN, cod_client: COD_CLIENT,
+                          titlu: document.getElementById('p-titlu').value.trim(),
+                          linii})
+  });
+  const data = await resp.json();
+  if (data.ok) location.reload();
+  else { msg.className = 'small text-danger'; msg.textContent = data.error; }
+}
+
+async function vezi(id) {
+  const resp = await fetch('/api/preturi/propuneri/' + id);
+  const data = await resp.json();
+  const div = document.getElementById('detaliu-propunere');
+  const badge = v => v === 'aprobare_director'
+      ? '<span class="badge bg-danger">acord director</span>'
+      : v === 'atentie' ? '<span class="badge bg-warning text-dark">sub minim</span>'
+      : '<span class="badge bg-success">ok</span>';
+  div.innerHTML = '<div class="fw-semibold mb-2">Propunerea #' + id +
+    (data.propunere.titlu ? ' — ' + data.propunere.titlu : '') + '</div>' +
+    '<table class="table table-sm mb-0"><thead><tr>' +
+    '<th>SKU</th><th>Denumire</th><th class="text-end">Preț actual</th>' +
+    '<th class="text-end">Preț propus</th><th class="text-end">Marjă netă %</th>' +
+    '<th>Verdict</th></tr></thead><tbody>' +
+    data.linii.map(li => '<tr><td>' + li.sku + '</td><td class="small">' +
+      (li.descriere || '') + '</td><td class="text-end">' +
+      (li.pret_actual != null ? li.pret_actual.toFixed(2) : '—') +
+      '</td><td class="text-end fw-semibold">' + li.pret_propus.toFixed(2) +
+      '</td><td class="text-end">' +
+      (li.marja_neta_pct != null ? li.marja_neta_pct.toFixed(1) + '%' : '—') +
+      '</td><td>' + badge(li.verdict) + '</td></tr>').join('') +
+    '</tbody></table>';
+  div.classList.remove('d-none');
+  div.scrollIntoView({behavior: 'smooth'});
+}
+
+async function sterge(id) {
+  if (!confirm('Ștergi propunerea #' + id + '?')) return;
+  await fetch('/api/preturi/propuneri/' + id, {method: 'DELETE'});
+  location.reload();
+}
+</script>
+{% endblock %}

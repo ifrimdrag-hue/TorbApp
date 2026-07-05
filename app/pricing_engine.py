@@ -106,3 +106,28 @@ def cond_effective(an, cod_client, furnizor=None, categorie=None, sku=None):
     """, {"an": an, "cod_client": cod_client, "furnizor": furnizor,
           "categorie": categorie, "sku": sku})
     return rows[0]['pct'] or 0.0
+
+
+def cond_map_for_client(an, cod_client, items):
+    """Effective conditions % per SKU for one client, in bulk.
+
+    items: iterable of mappings with sku/furnizor/categorie keys (e.g. the
+    simulator article rows). One query, python-side scope matching - same
+    semantics as cond_effective.
+    """
+    rows = query("""
+        SELECT furnizor, categorie, sku, valoare
+        FROM conditii_comerciale
+        WHERE an = :an AND tip_valoare = 'pct'
+          AND (cod_client = :cod_client OR cod_client IS NULL)
+    """, {"an": an, "cod_client": cod_client})
+    out = {}
+    for it in items:
+        pct = 0.0
+        for r in rows:
+            if ((r['furnizor'] is None or r['furnizor'] == it['furnizor'])
+                    and (r['categorie'] is None or r['categorie'] == it['categorie'])
+                    and (r['sku'] is None or r['sku'] == it['sku'])):
+                pct += r['valoare'] or 0
+        out[it['sku']] = round(pct, 4)
+    return out

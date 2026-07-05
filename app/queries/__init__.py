@@ -81,6 +81,13 @@ from queries.pricing import (
     termene_create as termene_create,
     termene_delete as termene_delete,
     marja_ajustata as marja_ajustata,
+    produs_create as produs_create,
+    produse_atribute_distincte as produse_atribute_distincte,
+    simulator_articole as simulator_articole,
+    propuneri_list as propuneri_list,
+    propunere_get as propunere_get,
+    propunere_create as propunere_create,
+    propunere_delete as propunere_delete,
 )
 from queries.orders import (
     termene_aprovizionare_list as termene_aprovizionare_list,

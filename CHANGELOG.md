@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Pricing module F2: price simulator, proposals, manual article creation, seed data to dev (2026-07-06)
+
+- **Simulator** (`/preturi/simulator`) — pick a client, see every article with a landing cost (landing, current price, effective conditions %), type proposed prices or bulk-apply a target NET margin / % increase over current price to the filtered rows; net margin recomputes live and is colored by the configured thresholds. Save as a named proposal.
+- **Proposals** — `propuneri_pret`(+`_linii`, migration 0025): margins and threshold verdicts are recomputed **server-side** via the pricing engine at save time (client input is only sku+price); list with "sub prag aprobare" counter, detail view with per-line verdict badges, delete (cascade). Foundation for F3 offer/listing generation.
+- **Manual article creation** (`/preturi/nou`) — full form: master data (datalists from existing values), optional purchase price (landing computed with the standard formula), optional logistics (carton CBM auto-computed from dims), optional photo URL (`produse_media`). Covers the 90 unmatched SKUs from the F0 report until the full F4 flow (client sheets) lands.
+- **Seed data migration 0024** — the locally-validated pricing rows (1013 landing costs, 968 prices incl. 334 per-client, 268 client codes, 44 logistics rows, 6 condition totals, 7 clients) travel to dev/prod via `migrations/data/0024_pricing_seed.json`, since the source Excels are gitignored and there is no SSH path. INSERT OR IGNORE: existing rows on the target DB always win; skipped entirely on an empty catalog (test DBs).
+- Catalog header gains *Simulator preț* and *Articol nou* buttons. Tests: 245 passing (6 new F2 route/API tests). Verified in browser: Auchan simulation over 1013 articles, 30% net target on 33 filtered articles, proposal saved/viewed/deleted.
+
 ### Pricing module F1: cost/margin engine + net margin per client (2026-07-06)
 
 - **`app/pricing_engine.py`** — pure, tested margin math: landing cost, margin-of-price convention (48.3 → 69 = 30%), `pret_pentru_marja` (target NET margin + conditions), `marja_neta_pct`, `verdict` against thresholds, `praguri_marja` (from `pricing_config`, per-gama override → global), `cond_effective` (sums `conditii_comerciale` rows with NULL-wildcard scope on client/furnizor/categorie/sku — deliberately independent of `cond_resolved`, whose supplier keys come from the ERP spelling, see BACKLOG #13).
