@@ -1,0 +1,154 @@
+"""Solduri neincasate (accounts-receivable aging) queries.
+
+Reference date = today. Due date is derived per row as datadl + term_pl_cl.
+`d` = signed whole days from today to the due date (negative = overdue).
+Every row (incl. negative advances/credit notes) is bucketed by `d`, so the
+cards + catch-all reconcile exactly to Total in piata.
+"""
+from db import query, query_one
+
+# signed whole days from today to due date (negative = overdue)
+_days_expr = (
+    "CAST(julianday(date(datadl, '+' || COALESCE(term_pl_cl,0) || ' days')) "
+    "- julianday(date('now','localtime')) AS INTEGER)"
+)
+
+_scadenta_expr = "date(datadl, '+' || COALESCE(term_pl_cl,0) || ' days')"
+
+BUCKET_KEYS = ("nesc7", "nesc30", "nesc60", "scad7", "scad30", "scad60",
+               "total_scadent", "catchall")
+
+_BUCKET_PRED = {
+    "nesc7":         f"{_days_expr} BETWEEN 0 AND 7",
+    "nesc30":        f"{_days_expr} BETWEEN 0 AND 30",
+    "nesc60":        f"{_days_expr} BETWEEN 0 AND 60",
+    "scad7":         f"{_days_expr} BETWEEN -7 AND -1",
+    "scad30":        f"{_days_expr} BETWEEN -30 AND -1",
+    "scad60":        f"{_days_expr} BETWEEN -60 AND -1",
+    "total_scadent": f"{_days_expr} <= -1",
+    "catchall":      f"({_days_expr} > 60 OR {_days_expr} < -60)",
+}
+
+
+def _bucket_where(bucket):
+    pred = _BUCKET_PRED.get(bucket)
+    return f" AND {pred}" if pred else ""
+
+
+def _total_case(bucket):
+    """SUM scoped to the active bucket, else the full balance."""
+    bwhere = _bucket_where(bucket)
+    if bwhere:
+        return f"SUM(CASE WHEN 1=1{bwhere} THEN sumdeincas ELSE 0 END)"
+    return "SUM(sumdeincas)"
+
+
+def _bucket_sum_cols():
+    return ", ".join(
+        f"ROUND(SUM(CASE WHEN {_BUCKET_PRED[k]} THEN sumdeincas ELSE 0 END),2) AS {k}"
+        for k in ("nesc7", "nesc30", "nesc60", "scad7", "scad30", "scad60")
+    )
+
+
+def _filters(agent, search):
+    where, params = "", {}
+    if agent:
+        where += " AND numeag = :agent"
+        params["agent"] = agent
+    if search:
+        where += " AND numecli LIKE :search"
+        params["search"] = f"%{search}%"
+    return where, params
+
+
+# ── meta + KPI ───────────────────────────────────────────────────────────────
+
+def solduri_meta():
+    return query_one(
+        "SELECT MAX(data_raport) AS data_raport, COUNT(*) AS nr_randuri "
+        "FROM solduri_neincasate"
+    )
+
+
+def solduri_kpi():
+    keys = (*BUCKET_KEYS, "total_piata")
+    sums = ", ".join(
+        f"ROUND(SUM(CASE WHEN {pred} THEN sumdeincas ELSE 0 END), 2) AS {key}"
+        for key, pred in _BUCKET_PRED.items()
+    )
+    row = query_one(
+        f"SELECT {sums}, ROUND(SUM(sumdeincas),2) AS total_piata "
+        f"FROM solduri_neincasate"
+    )
+    return {k: (row[k] or 0) for k in keys} if row else {k: 0 for k in keys}
+
+
+# ── table views ──────────────────────────────────────────────────────────────
+
+def solduri_agents():
+    rows = query("SELECT DISTINCT numeag FROM solduri_neincasate "
+                 "WHERE numeag IS NOT NULL ORDER BY numeag")
+    return [r["numeag"] for r in rows]
+
+
+def solduri_by_client(bucket=None, agent=None, search=None):
+    fwhere, params = _filters(agent, search)
+    total_case = _total_case(bucket)
+    return query(f"""
+        SELECT numecli, MIN(codcli) AS codcli, MIN(numeag) AS numeag,
+               ROUND({total_case},2) AS total,
+               {_bucket_sum_cols()},
+               MAX(plafon) AS plafon,
+               MAX(CASE WHEN {_days_expr} <= -1 THEN -({_days_expr}) ELSE 0 END)
+                   AS zile_restanta_max,
+               CASE WHEN MAX(plafon) > 0 AND ROUND(SUM(sumdeincas),2) > MAX(plafon)
+                    THEN 1 ELSE 0 END AS depasit_plafon
+        FROM solduri_neincasate
+        WHERE 1=1{fwhere}
+        GROUP BY numecli
+        HAVING ROUND({total_case},2) <> 0
+        ORDER BY total DESC
+    """, params)
+
+
+def solduri_by_agent(bucket=None, search=None):
+    fwhere, params = _filters(None, search)
+    total_case = _total_case(bucket)
+    return query(f"""
+        SELECT numeag,
+               ROUND({total_case},2) AS total,
+               {_bucket_sum_cols()},
+               COUNT(DISTINCT codcli) AS nr_clienti
+        FROM solduri_neincasate
+        WHERE 1=1{fwhere}
+        GROUP BY numeag
+        HAVING ROUND({total_case},2) <> 0
+        ORDER BY total DESC
+    """, params)
+
+
+_BUCKET_LABEL = (
+    f"CASE "
+    f"WHEN {_days_expr} BETWEEN 0 AND 7 THEN 'Nescadent ≤7' "
+    f"WHEN {_days_expr} BETWEEN 0 AND 30 THEN 'Nescadent ≤30' "
+    f"WHEN {_days_expr} BETWEEN 0 AND 60 THEN 'Nescadent ≤60' "
+    f"WHEN {_days_expr} > 60 THEN 'Nescadent >60' "
+    f"WHEN {_days_expr} BETWEEN -7 AND -1 THEN 'Scadent ≤7' "
+    f"WHEN {_days_expr} BETWEEN -30 AND -1 THEN 'Scadent ≤30' "
+    f"WHEN {_days_expr} BETWEEN -60 AND -1 THEN 'Scadent ≤60' "
+    f"ELSE 'Scadent >60' END"
+)
+
+
+def solduri_by_invoice(bucket=None, agent=None, search=None):
+    fwhere, params = _filters(agent, search)
+    bwhere = _bucket_where(bucket)
+    return query(f"""
+        SELECT factout, numecli, numeag, datadl,
+               {_scadenta_expr} AS scadenta, term_pl_cl, sumdeincas,
+               {_days_expr} AS zile,
+               {_BUCKET_LABEL} AS bucket_label
+        FROM solduri_neincasate
+        WHERE 1=1{fwhere}{bwhere}
+        ORDER BY scadenta ASC, factout
+    """, params)

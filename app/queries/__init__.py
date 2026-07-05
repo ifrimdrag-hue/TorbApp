@@ -130,6 +130,15 @@ from queries.bonus import (
     set_agent_active as set_agent_active,
     field_agents_in_tranzactii as field_agents_in_tranzactii,
 )
+from queries.solduri import (
+    solduri_meta as solduri_meta,
+    solduri_kpi as solduri_kpi,
+    solduri_by_client as solduri_by_client,
+    solduri_by_agent as solduri_by_agent,
+    solduri_by_invoice as solduri_by_invoice,
+    solduri_agents as solduri_agents,
+    BUCKET_KEYS as SOLDURI_BUCKET_KEYS,
+)
 from queries.export import (
     get_export_hu_codes as get_export_hu_codes,
     monthly_sales_ro_hu as monthly_sales_ro_hu,
