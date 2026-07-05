@@ -137,6 +137,7 @@ from queries.solduri import (
     solduri_by_agent as solduri_by_agent,
     solduri_by_invoice as solduri_by_invoice,
     solduri_agents as solduri_agents,
+    solduri_client_header as solduri_client_header,
 )
 from queries.export import (
     get_export_hu_codes as get_export_hu_codes,

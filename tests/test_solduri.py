@@ -102,6 +102,23 @@ def test_by_agent_and_invoice():
     assert inv[0]["bucket_label"]
 
 
+def test_client_header_and_invoices():
+    # C0 gets rows i=0 (due today, 100) and i=3 (40d overdue, 30)
+    _seed([(0, 100), (-3, 50), (-10, 70), (-40, 30)])
+    h = queries.solduri_client_header("C0")
+    assert h["numecli"] == "CLI0"
+    assert round(h["total"], 2) == 130.0
+    assert round(h["total_scadent"], 2) == 30.0
+    assert h["zile_restanta_max"] == 40
+    assert h["nr_documente"] == 2
+    inv = queries.solduri_by_invoice(codcli="C0")
+    assert len(inv) == 2
+    assert all(r["codcli"] == "C0" for r in inv)
+    # missing client -> aggregate row with zero documents
+    miss = queries.solduri_client_header("NOPE")
+    assert not miss or not miss["nr_documente"]
+
+
 def test_agents_list():
     _seed([(0, 100), (-3, 50)])
     assert set(queries.solduri_agents()) == {"AG0", "AG1"}
@@ -115,3 +132,12 @@ def test_route_renders(client):
     assert client.get('/solduri-neincasate?view=agent').status_code == 200
     assert client.get('/solduri-neincasate?view=invoice&bucket=scad7').status_code == 200
     assert client.get('/solduri-neincasate/export/excel').status_code == 200
+
+
+def test_client_detail_route(client):
+    _seed([(0, 100), (-3, 50)])
+    assert client.get('/solduri-neincasate/client/C0').status_code == 200
+    assert client.get('/solduri-neincasate/client/NOPE').status_code == 404
+    assert client.get(
+        '/solduri-neincasate/export/excel?view=invoice&codcli=C0'
+    ).status_code == 200

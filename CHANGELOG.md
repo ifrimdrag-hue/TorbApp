@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Solduri: drill-down navigation + client invoice page (2026-07-05)
+
+Owner request: easy navigation agent → clients → invoices on the Solduri page.
+
+- **New client page** `/solduri-neincasate/client/<codcli>` — header cards (sold total, total scadent, zile restanță max, plafon with over-ceiling badge), contact strip (agent — linked back to the agent's client list —, telefon, canal, open-document count) and the full list of the client's open invoices: data emiterii, scadență (derived `datadl + term_pl_cl`), termen, sumă, zile (overdue shown as "N întârziere" in red), aging category, plus a total footer. Excel export of the invoice list (`?view=invoice&codcli=`); a **Fișă client (vânzări)** button cross-links to the analytics client page when the ERP code exists in `tranzactii`. 404 on unknown code.
+- **List page links** — client names in the *Client* and *Factură* views link to the client page; agent names in the *Agent* and *Client* views link to `?view=client&agent=` (bucket filter preserved), so card → agent → client → invoices is fully clickable.
+- Plumbing: `queries.solduri_client_header()`, `codcli` filter on `solduri_by_invoice()` (+ `codcli` column in its output/export), `codcli` passthrough in the blueprint's `_params`/`_load`. New template `app/templates/solduri_client.html`. Tests: header aggregates, per-client invoice filter, route + export smoke (230 passing).
+
+### Hotfix: adding a new export country failed at the DB level (2026-07-04)
+
+- `tari_export` still carried `CHECK(piata IN ('RO','HU'))` from migration 0001, blocking the new data-driven multi-country model at INSERT time — **migration 0020** rebuilds the table without the CHECK. The `/forecast/setari` country form also swallowed API errors (reloaded on any response); it now surfaces them via `AppError.show()`. Verified end-to-end (Bulgaria/BG → dynamic Sug. BG column).
+
 ### New module: Solduri neîncasate (accounts-receivable aging) (2026-07-05)
 
 New **Comercial → Solduri** page turning the ERP receivables export into an aging dashboard.

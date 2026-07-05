@@ -140,11 +140,14 @@ _BUCKET_LABEL = (
 )
 
 
-def solduri_by_invoice(bucket=None, agent=None, search=None):
+def solduri_by_invoice(bucket=None, agent=None, search=None, codcli=None):
     fwhere, params = _filters(agent, search)
+    if codcli:
+        fwhere += " AND codcli = :codcli"
+        params["codcli"] = codcli
     bwhere = _bucket_where(bucket)
     return query(f"""
-        SELECT factout, numecli, numeag, datadl,
+        SELECT factout, numecli, codcli, numeag, datadl,
                {_scadenta_expr} AS scadenta, term_pl_cl, sumdeincas,
                {_days_expr} AS zile,
                {_BUCKET_LABEL} AS bucket_label
@@ -152,3 +155,23 @@ def solduri_by_invoice(bucket=None, agent=None, search=None):
         WHERE 1=1{fwhere}{bwhere}
         ORDER BY scadenta ASC, factout
     """, params)
+
+
+def solduri_client_header(codcli):
+    """Aggregate card for one client's open balance (None-safe: check nr_documente)."""
+    return query_one(f"""
+        SELECT MIN(numecli) AS numecli, MIN(codcli) AS codcli,
+               MIN(numeag) AS numeag, MIN(telefon) AS telefon, MIN(canal) AS canal,
+               MAX(plafon) AS plafon,
+               ROUND(SUM(sumdeincas),2) AS total,
+               ROUND(SUM(CASE WHEN {_days_expr} <= -1 THEN sumdeincas ELSE 0 END),2)
+                   AS total_scadent,
+               {_bucket_sum_cols()},
+               MAX(CASE WHEN {_days_expr} <= -1 THEN -({_days_expr}) ELSE 0 END)
+                   AS zile_restanta_max,
+               COUNT(*) AS nr_documente,
+               CASE WHEN MAX(plafon) > 0 AND ROUND(SUM(sumdeincas),2) > MAX(plafon)
+                    THEN 1 ELSE 0 END AS depasit_plafon
+        FROM solduri_neincasate
+        WHERE codcli = :codcli
+    """, {"codcli": codcli})

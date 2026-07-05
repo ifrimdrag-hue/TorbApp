@@ -50,6 +50,7 @@
 ## Livrat recent (detalii în CHANGELOG)
 
 - `[x]` **Modul Comercial → Solduri neîncasate** (2026-07-05) — upload raport ERP + dashboard aging (carduri Nescadent/Scadent 7/30/60 + catch-all, tabel per client/agent/factură, filtrare pe card, export Excel). Referință = azi. Migrație 0021.
+- `[x]` **Solduri: navigare drill-down + pagină facturi client** (2026-07-05) — agent → clienți → pagină client cu toate facturile deschise (emitere, scadență, termen, sumă, zile întârziere, categorie), export Excel per client, link către fișa de vânzări. Cerere owner 2026-07-05.
 
 ## În curs / blocaje active
 

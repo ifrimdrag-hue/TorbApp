@@ -160,7 +160,14 @@
         {% for r in rows %}
         <tr>
           <td class="small">{{ r.factout or '—' }}</td>
-          <td class="small">{{ r.numecli | truncate(32, True, '…') }}</td>
+          <td class="small">
+            {% if r.codcli %}
+            <a href="{{ url_for('solduri.solduri_client', codcli=r.codcli) }}"
+               class="text-decoration-none" title="Vezi facturile clientului">
+              {{ r.numecli | truncate(32, True, '…') }}
+            </a>
+            {% else %}{{ r.numecli | truncate(32, True, '…') }}{% endif %}
+          </td>
           <td class="small text-muted">{{ r.numeag or '—' }}</td>
           <td class="small">{{ r.datadl or '—' }}</td>
           <td class="small">{{ r.scadenta or '—' }}</td>
@@ -173,7 +180,12 @@
         {% elif view == 'agent' %}
         {% for r in rows %}
         <tr>
-          <td class="fw-semibold">{{ r.numeag or '—' }}</td>
+          <td class="fw-semibold">
+            {% if r.numeag %}
+            <a href="{{ url_for('solduri.solduri', view='client', agent=r.numeag, bucket=bucket) }}"
+               class="text-decoration-none" title="Vezi clienții agentului">{{ r.numeag }}</a>
+            {% else %}—{% endif %}
+          </td>
           <td class="text-end small">{{ r.nr_clienti }}</td>
           <td class="text-end fw-bold {% if (r.total or 0) < 0 %}text-primary{% endif %}">{{ r.total | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc7 | ron }}</td>
@@ -187,8 +199,20 @@
         {% else %}
         {% for r in rows %}
         <tr>
-          <td class="small">{{ r.numecli | truncate(34, True, '…') }}</td>
-          <td class="small text-muted">{{ r.numeag or '—' }}</td>
+          <td class="small">
+            {% if r.codcli %}
+            <a href="{{ url_for('solduri.solduri_client', codcli=r.codcli) }}"
+               class="text-decoration-none" title="Vezi facturile clientului">
+              {{ r.numecli | truncate(34, True, '…') }}
+            </a>
+            {% else %}{{ r.numecli | truncate(34, True, '…') }}{% endif %}
+          </td>
+          <td class="small text-muted">
+            {% if r.numeag %}
+            <a href="{{ url_for('solduri.solduri', view='client', agent=r.numeag, bucket=bucket) }}"
+               class="text-decoration-none text-muted">{{ r.numeag }}</a>
+            {% else %}—{% endif %}
+          </td>
           <td class="text-end fw-bold {% if (r.total or 0) < 0 %}text-primary{% endif %}">{{ r.total | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc7 | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc30 | ron }}</td>
