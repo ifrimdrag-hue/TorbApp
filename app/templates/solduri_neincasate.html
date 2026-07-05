@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+{% block title %}Solduri neîncasate — Torb Logistic{% endblock %}
+
+{% macro money(v) %}{{ v | ron }}{% endmacro %}
+
+{% block content %}
+{% set nesc_cards = [('nesc7', 'Nescadent ≤7 zile'), ('nesc30', 'Nescadent ≤30 zile'), ('nesc60', 'Nescadent ≤60 zile')] %}
+{% set scad_cards = [('scad7', 'Scadent ≤7 zile'), ('scad30', 'Scadent ≤30 zile'), ('scad60', 'Scadent ≤60 zile')] %}
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0 fw-bold">
+    <i class="bi bi-cash-coin text-success me-1"></i> Solduri neîncasate
+    {% if meta and meta.data_raport %}
+    <span class="text-muted small fw-normal ms-2">
+      Raport încărcat: {{ meta.data_raport }} · {{ meta.nr_randuri }} documente
+    </span>
+    {% endif %}
+  </h4>
+  <div class="d-flex gap-2 align-items-center">
+    <label class="btn btn-sm btn-outline-primary mb-0" id="soldZone" data-tip="solduri">
+      <i class="bi bi-cloud-upload"></i> Încarcă raport ERP
+      <input type="file" accept=".xls,.xlsx" hidden onchange="startUpload(this)">
+    </label>
+    <span class="small" id="soldZoneStatus"></span>
+    <a href="{{ url_for('solduri.solduri_export', view=view, bucket=bucket, agent=agent, q=q) }}"
+       class="btn btn-sm btn-outline-success">
+      <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+  </div>
+</div>
+
+{% if not meta or not meta.nr_randuri %}
+<div class="alert alert-info d-flex align-items-center gap-2">
+  <i class="bi bi-info-circle-fill"></i>
+  Niciun raport încărcat. Folosește <strong>Încarcă raport ERP</strong> pentru a importa fișierul de solduri neîncasate.
+</div>
+{% else %}
+
+<!-- ── KPI cards ── -->
+<div class="row g-2 mb-2">
+  {% for key, label in nesc_cards %}
+  <div class="col-6 col-lg-4">
+    <a href="{{ url_for('solduri.solduri', view=view, bucket=key, agent=agent, q=q) }}"
+       class="card border-0 shadow-sm h-100 text-decoration-none {% if bucket == key %}border-primary border-2{% endif %}"
+       style="{% if bucket == key %}outline:2px solid var(--bs-primary){% endif %}">
+      <div class="card-body py-2">
+        <div class="text-muted small">{{ label }}</div>
+        <div class="h5 fw-bold mb-0 text-primary">{{ kpi[key] | ron }}</div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-2 mb-2">
+  {% for key, label in scad_cards %}
+  <div class="col-6 col-lg-4">
+    <a href="{{ url_for('solduri.solduri', view=view, bucket=key, agent=agent, q=q) }}"
+       class="card border-0 shadow-sm h-100 text-decoration-none {% if bucket == key %}border-danger border-2{% endif %}"
+       style="{% if bucket == key %}outline:2px solid var(--bs-danger){% endif %}">
+      <div class="card-body py-2">
+        <div class="text-muted small">{{ label }}</div>
+        <div class="h5 fw-bold mb-0 text-danger">{{ kpi[key] | ron }}</div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-2 mb-3">
+  <div class="col-6 col-lg-4">
+    <a href="{{ url_for('solduri.solduri', view=view, bucket='total_scadent', agent=agent, q=q) }}"
+       class="card border-0 shadow-sm h-100 text-decoration-none {% if bucket == 'total_scadent' %}border-danger border-2{% endif %}"
+       style="{% if bucket == 'total_scadent' %}outline:2px solid var(--bs-danger){% endif %}">
+      <div class="card-body py-2">
+        <div class="text-muted small">Total scadent (toate restanțele)</div>
+        <div class="h5 fw-bold mb-0 text-danger">{{ kpi['total_scadent'] | ron }}</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-4">
+    <a href="{{ url_for('solduri.solduri', view=view, bucket='catchall', agent=agent, q=q) }}"
+       class="card border-0 shadow-sm h-100 text-decoration-none {% if bucket == 'catchall' %}border-secondary border-2{% endif %}"
+       style="{% if bucket == 'catchall' %}outline:2px solid var(--bs-secondary){% endif %}">
+      <div class="card-body py-2">
+        <div class="text-muted small">Neîncadrate (>60 zile viitor / restanță)</div>
+        <div class="h5 fw-bold mb-0 text-secondary">{{ kpi['catchall'] | ron }}</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-12 col-lg-4">
+    <div class="card border-0 shadow-sm h-100 bg-dark text-white">
+      <div class="card-body py-2">
+        <div class="small opacity-75">Total în piață</div>
+        <div class="h5 fw-bold mb-0">{{ kpi['total_piata'] | ron }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toolbar: view toggle + filters ── -->
+<form method="get" class="card border-0 shadow-sm mb-3" action="{{ url_for('solduri.solduri') }}">
+  <input type="hidden" name="bucket" value="{{ bucket or '' }}">
+  <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+    <div class="btn-group btn-group-sm" role="group">
+      {% for v, lbl, icon in [('client','Client','building'), ('agent','Agent','person'), ('invoice','Factură','receipt')] %}
+      <a class="btn {% if view == v %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+         href="{{ url_for('solduri.solduri', view=v, bucket=bucket, agent=agent, q=q) }}">
+        <i class="bi bi-{{ icon }}"></i> {{ lbl }}
+      </a>
+      {% endfor %}
+    </div>
+    <input type="hidden" name="view" value="{{ view }}">
+    <select name="agent" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+      <option value="">Toți agenții</option>
+      {% for a in agents %}
+      <option value="{{ a }}" {% if agent == a %}selected{% endif %}>{{ a }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm w-auto"
+           placeholder="Caută client…">
+    <button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
+    {% if bucket %}
+    <a href="{{ url_for('solduri.solduri', view=view, agent=agent, q=q) }}"
+       class="btn btn-sm btn-outline-danger">
+      <i class="bi bi-x-lg"></i> Șterge filtru card
+    </a>
+    {% endif %}
+  </div>
+</form>
+
+<!-- ── Table ── -->
+<div class="card shadow-sm border-0">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-dark">
+        {% if view == 'invoice' %}
+        <tr>
+          <th>Factură</th><th>Client</th><th>Agent</th>
+          <th>Data</th><th>Scadență</th><th class="text-end">Termen</th>
+          <th class="text-end">Sumă</th><th class="text-end">Zile</th><th>Categorie</th>
+        </tr>
+        {% elif view == 'agent' %}
+        <tr>
+          <th>Agent</th><th class="text-end">Clienți</th><th class="text-end">Total</th>
+          <th class="text-end">Nesc ≤7</th><th class="text-end">≤30</th><th class="text-end">≤60</th>
+          <th class="text-end">Scad ≤7</th><th class="text-end">≤30</th><th class="text-end">≤60</th>
+        </tr>
+        {% else %}
+        <tr>
+          <th>Client</th><th>Agent</th><th class="text-end">Total</th>
+          <th class="text-end">Nesc ≤7</th><th class="text-end">≤30</th><th class="text-end">≤60</th>
+          <th class="text-end">Scad ≤7</th><th class="text-end">≤30</th><th class="text-end">≤60</th>
+          <th class="text-end">Plafon</th><th class="text-end">Zile restanță</th>
+        </tr>
+        {% endif %}
+      </thead>
+      <tbody>
+        {% if view == 'invoice' %}
+        {% for r in rows %}
+        <tr>
+          <td class="small">{{ r.factout or '—' }}</td>
+          <td class="small">{{ r.numecli | truncate(32, True, '…') }}</td>
+          <td class="small text-muted">{{ r.numeag or '—' }}</td>
+          <td class="small">{{ r.datadl or '—' }}</td>
+          <td class="small">{{ r.scadenta or '—' }}</td>
+          <td class="text-end small">{{ r.term_pl_cl if r.term_pl_cl is not none else '—' }}</td>
+          <td class="text-end small {% if (r.sumdeincas or 0) < 0 %}text-primary{% endif %}">{{ r.sumdeincas | ron }}</td>
+          <td class="text-end small {% if (r.zile or 0) < 0 %}text-danger fw-semibold{% else %}text-muted{% endif %}">{{ r.zile }}</td>
+          <td class="small">{{ r.bucket_label }}</td>
+        </tr>
+        {% endfor %}
+        {% elif view == 'agent' %}
+        {% for r in rows %}
+        <tr>
+          <td class="fw-semibold">{{ r.numeag or '—' }}</td>
+          <td class="text-end small">{{ r.nr_clienti }}</td>
+          <td class="text-end fw-bold {% if (r.total or 0) < 0 %}text-primary{% endif %}">{{ r.total | ron }}</td>
+          <td class="text-end small text-primary">{{ r.nesc7 | ron }}</td>
+          <td class="text-end small text-primary">{{ r.nesc30 | ron }}</td>
+          <td class="text-end small text-primary">{{ r.nesc60 | ron }}</td>
+          <td class="text-end small text-danger">{{ r.scad7 | ron }}</td>
+          <td class="text-end small text-danger">{{ r.scad30 | ron }}</td>
+          <td class="text-end small text-danger">{{ r.scad60 | ron }}</td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        {% for r in rows %}
+        <tr>
+          <td class="small">{{ r.numecli | truncate(34, True, '…') }}</td>
+          <td class="small text-muted">{{ r.numeag or '—' }}</td>
+          <td class="text-end fw-bold {% if (r.total or 0) < 0 %}text-primary{% endif %}">{{ r.total | ron }}</td>
+          <td class="text-end small text-primary">{{ r.nesc7 | ron }}</td>
+          <td class="text-end small text-primary">{{ r.nesc30 | ron }}</td>
+          <td class="text-end small text-primary">{{ r.nesc60 | ron }}</td>
+          <td class="text-end small text-danger">{{ r.scad7 | ron }}</td>
+          <td class="text-end small text-danger">{{ r.scad30 | ron }}</td>
+          <td class="text-end small text-danger">{{ r.scad60 | ron }}</td>
+          <td class="text-end small">
+            {% if r.depasit_plafon %}
+            <span class="badge bg-danger" title="Sold peste plafon">{{ r.plafon | ron }}</span>
+            {% elif r.plafon %}{{ r.plafon | ron }}{% else %}—{% endif %}
+          </td>
+          <td class="text-end small {% if (r.zile_restanta_max or 0) > 60 %}text-danger fw-semibold{% endif %}">
+            {{ r.zile_restanta_max if r.zile_restanta_max else '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+        {% if not rows %}
+        <tr><td colspan="11" class="text-center text-muted py-3">Niciun rezultat pentru filtrele curente.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function startUpload(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var status = document.getElementById('soldZoneStatus');
+  status.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Se încarcă…';
+  var fd = new FormData();
+  fd.append('file', file);
+  fetch('/api/upload/solduri', { method: 'POST', body: fd })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) { throw new Error(d.error || 'Eroare upload'); }
+      pollStatus(d.job_id, file.name, status);
+    })
+    .catch(function (err) {
+      status.textContent = '';
+      AppError.show(file.name, (err && err.message) || String(err), 'Eroare la import');
+    });
+}
+
+function pollStatus(jobId, fileName, status) {
+  status.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Se importă…';
+  var timer = setInterval(function () {
+    fetch('/api/upload/status/' + jobId)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.status === 'running') return;
+        clearInterval(timer);
+        if (d.status === 'done') {
+          status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Import finalizat</span>';
+          setTimeout(function () { window.location.reload(); }, 700);
+        } else {
+          status.textContent = '';
+          AppError.show(fileName, d.mesaj || 'Eroare import', 'Eroare la import');
+        }
+      })
+      .catch(function () { /* keep polling */ });
+  }, 1000);
+}
+</script>
+{% endblock %}

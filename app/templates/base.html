@@ -86,6 +86,10 @@
        href="{{ url_for('pricing.conditii') }}" data-label="Condiții">
       <i class="bi bi-file-earmark-text-fill"></i><span class="link-text"> Condiții</span>
     </a>
+    <a class="sidebar-link {% if request.endpoint == 'solduri.solduri' %}active{% endif %}"
+       href="{{ url_for('solduri.solduri') }}" data-label="Solduri">
+      <i class="bi bi-cash-coin"></i><span class="link-text"> Solduri</span>
+    </a>
     <a class="sidebar-link {% if request.endpoint == 'bonus' %}active{% endif %}"
        href="{{ url_for('bonus.bonus') }}" data-label="Bonus">
       <i class="bi bi-trophy-fill"></i><span class="link-text"> Bonus</span>

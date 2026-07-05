@@ -144,6 +144,7 @@ def _run_upload_job(job_id: str, tip: str, fisier_orig: str, dest_path: str):
         'comenzi_toras':    'etl/import_comenzi_tranzit_toras.py',
         'comenzi_celmar':   'etl/import_comenzi_tranzit_celmar.py',
         'comenzi_leonex':   'etl/import_comenzi_tranzit_leonex.py',
+        'solduri':          'etl/import_solduri_neincasate.py',
     }
     script = script_map[tip]
     proj_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -203,7 +204,7 @@ def _run_upload_job(job_id: str, tip: str, fisier_orig: str, dest_path: str):
 
 @actualizare_bp.route('/api/upload/<tip>', methods=['POST'])
 def api_upload(tip):
-    if tip not in ('stoc', 'vanzari', 'auchan', 'comenzi_basilur', 'comenzi_toras', 'comenzi_celmar', 'comenzi_leonex'):
+    if tip not in ('stoc', 'vanzari', 'auchan', 'comenzi_basilur', 'comenzi_toras', 'comenzi_celmar', 'comenzi_leonex', 'solduri'):
         return jsonify({'ok': False, 'error': 'Tip necunoscut'}), 400
 
     f = request.files.get('file')

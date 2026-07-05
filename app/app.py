@@ -28,6 +28,7 @@ def create_app(test_config=None):
     from blueprints.forecast import forecast_bp
     from blueprints.actualizare import actualizare_bp
     from blueprints.reports import reports_bp
+    from blueprints.solduri import solduri_bp
     from blueprints.stocuri_emag import stocuri_emag_bp
     from blueprints.stocuri_shopify import stocuri_shopify_bp
     from blueprints.campanii import campanii_bp
@@ -91,6 +92,7 @@ def create_app(test_config=None):
     app.register_blueprint(forecast_bp)
     app.register_blueprint(actualizare_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(solduri_bp)
     app.register_blueprint(stocuri_emag_bp)
     app.register_blueprint(stocuri_shopify_bp)
     app.register_blueprint(campanii_bp)
