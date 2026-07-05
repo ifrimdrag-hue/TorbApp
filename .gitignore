@@ -48,3 +48,7 @@ docs/manuals/server/secrets.local.md
 # Windows system files
 desktop.ini
 Thumbs.db
+
+# Business data files - never commit (commercial data)
+Date pricinng&Logistica&Ofertare/
+Propunere_Structura_Vanzari_Torb_2026.docx
