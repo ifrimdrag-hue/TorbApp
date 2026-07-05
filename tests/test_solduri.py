@@ -72,6 +72,17 @@ def test_kpi_buckets():
     assert round(k["nesc60"] + k["scad60"] + k["catchall"], 2) == round(k["total_piata"], 2)
 
 
+def test_kpi_scoped_to_filters():
+    # AG0 gets even rows (i=0: due today 100, i=2: 10d overdue 70)
+    _seed([(0, 100), (-3, 50), (-10, 70), (-40, 30)])
+    k = queries.solduri_kpi(agent="AG0")
+    assert round(k["total_piata"]) == 170
+    assert round(k["nesc7"]) == 100
+    assert round(k["total_scadent"]) == 70
+    kq = queries.solduri_kpi(search="CLI1")
+    assert round(kq["total_piata"]) == 50  # only i=1 is CLI1
+
+
 def test_meta():
     _seed([(0, 100), (-3, 50)])
     m = queries.solduri_meta()

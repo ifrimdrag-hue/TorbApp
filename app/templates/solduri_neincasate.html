@@ -91,7 +91,12 @@
   <div class="col-12 col-lg-4">
     <div class="card border-0 shadow-sm h-100 bg-dark text-white">
       <div class="card-body py-2">
-        <div class="small opacity-75">Total în piață</div>
+        <div class="small opacity-75">
+          {% if agent and q %}Total {{ agent }} · „{{ q }}”
+          {% elif agent %}Total {{ agent }}
+          {% elif q %}Total căutare „{{ q }}”
+          {% else %}Total în piață{% endif %}
+        </div>
         <div class="h5 fw-bold mb-0">{{ kpi['total_piata'] | ron }}</div>
       </div>
     </div>

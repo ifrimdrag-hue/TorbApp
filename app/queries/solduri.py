@@ -70,7 +70,9 @@ def solduri_meta():
     )
 
 
-def solduri_kpi():
+def solduri_kpi(agent=None, search=None):
+    """Aging cards, scoped to the active agent/client filters (default: whole market)."""
+    fwhere, params = _filters(agent, search)
     keys = (*BUCKET_KEYS, "total_piata")
     sums = ", ".join(
         f"ROUND(SUM(CASE WHEN {pred} THEN sumdeincas ELSE 0 END), 2) AS {key}"
@@ -78,7 +80,8 @@ def solduri_kpi():
     )
     row = query_one(
         f"SELECT {sums}, ROUND(SUM(sumdeincas),2) AS total_piata "
-        f"FROM solduri_neincasate"
+        f"FROM solduri_neincasate WHERE 1=1{fwhere}",
+        params,
     )
     return {k: (row[k] or 0) for k in keys} if row else {k: 0 for k in keys}
 

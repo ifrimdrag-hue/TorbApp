@@ -37,7 +37,7 @@ def solduri():
     return render_template(
         'solduri_neincasate.html',
         meta=queries.solduri_meta(),
-        kpi=queries.solduri_kpi(),
+        kpi=queries.solduri_kpi(agent=agent, search=search),
         rows=_load(view, bucket, agent, search),
         view=view, bucket=bucket, agent=agent, q=search or '',
         agents=queries.solduri_agents(),
