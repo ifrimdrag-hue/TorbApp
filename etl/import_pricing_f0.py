@@ -39,16 +39,25 @@ CONSOLIDAT = os.path.join(START_DIR, "FISIER_CONSOLIDAT_PRETURI.xlsx")
 RO1_FILES = [os.path.join(START_DIR, f) for f in ("RO1-010-26.xls", "RO1-011-26.xls")]
 REPORT_DIR = os.path.join(DATA_DIR, "rapoarte")
 
-# 'cod client <X>' column header -> search pattern in tranzactii.client
+# per-client columns in 'liste pret': internal-code header, current invoicing
+# price header (stripped), and the client-name search pattern in tranzactii
 CLIENT_COLS = {
-    "cod client AUCHAN": "%AUCHAN%",
-    "Cod client METRO": "%METRO%",
-    "Cod Client Kaufland": "%KAUFLAND%",
-    "Cod client EMAG RETAIL": "%EMAG RETAIL%",
-    "Cod client Sezamo": "%SEZAMO%",
-    "Cod client PROFI": "%PROFI ROM FOOD%",  # not in tranzactii yet -> stays reported
-    "cod client SUPECO": "%SUPECO%",
-    "Cod client CARREFOUR": "%CARREFOUR%",
+    "cod client AUCHAN":
+        ("Pret facturare actual AUCHAN", "%AUCHAN%"),
+    "Cod client METRO":
+        ("Pret facturare actual Metro", "%METRO%"),
+    "Cod Client Kaufland":
+        ("Pret facturare actual kaufland", "%KAUFLAND%"),
+    "Cod client EMAG RETAIL":
+        ("Pret facturare actual EMAG RETAIL", "%EMAG RETAIL%"),
+    "Cod client Sezamo":
+        ("Pret facturare Sezamo", "%SEZAMO%"),
+    "Cod client PROFI":  # not in tranzactii yet -> stays reported
+        ("Pret facturare actual PROFI", "%PROFI ROM FOOD%"),
+    "cod client SUPECO":
+        ("Pret facturare actual SUPECO", "%SUPECO%"),
+    "Cod client CARREFOUR":
+        ("Pret facturare actual CARREFOUR", "%CARREFOUR%"),
 }
 
 report_lines = []
@@ -104,7 +113,7 @@ def import_consolidat(db, an, dry):
     col = {h: i for i, h in enumerate(hdr)}
 
     clients = {}
-    for header, pattern in CLIENT_COLS.items():
+    for header, (_pret_hdr, pattern) in CLIENT_COLS.items():
         if header not in col:
             rep("CLIENTI", f"coloana lipsa in fisier: {header}")
             continue
@@ -121,9 +130,13 @@ def import_consolidat(db, an, dry):
                     "VALUES (?, ?)", res)
 
     unmatched, land_new, land_diff, land_same, codes_ins = [], 0, 0, 0, 0
+    pv_new, pv_diff = 0, 0
     landing = {r[0]: r for r in db.execute(
         "SELECT sku, moneda, pret_achizitie_valuta, transport_pct, taxa_vamala_pct "
         "FROM costuri_landing WHERE an = ?", (an,))}
+    pv_exist = {(r[0], r[1]): r[2] for r in db.execute(
+        "SELECT sku, cod_client, pret_vanzare_ron FROM preturi_vanzare "
+        "WHERE an = ? AND cod_client IS NOT NULL", (an,))}
     cursuri_gama = {str(r[0]).strip().upper(): (str(r[1]).strip().upper(), num(r[2]))
                     for r in wb["Cursuri"].iter_rows(min_row=2, values_only=True)
                     if r[0] and r[1]}
@@ -136,12 +149,10 @@ def import_consolidat(db, an, dry):
                 unmatched.append(f"{raw_cod}  |  {r[col['DENUMIRE']]}")
             continue
 
-        # per-client internal codes
+        # per-client internal codes + current invoicing prices
         for header, (cod_client, _n) in clients.items():
             val = r[col[header]]
-            if val is None or str(val).strip() in ("", "0"):
-                continue
-            if not dry:
+            if val is not None and str(val).strip() not in ("", "0") and not dry:
                 cur = db.execute(
                     "INSERT OR IGNORE INTO coduri_client_articol"
                     "(sku, cod_client, cod_intern, sursa) VALUES (?,?,?,?)",
@@ -149,6 +160,21 @@ def import_consolidat(db, an, dry):
                      if isinstance(val, float) else str(val).strip(),
                      "FISIER_CONSOLIDAT"))
                 codes_ins += cur.rowcount
+            pret_hdr = CLIENT_COLS[header][0]
+            pret_client = num(r[col[pret_hdr]]) if pret_hdr in col else None
+            if pret_client:
+                old = pv_exist.get((sku, cod_client))
+                if old is None:
+                    pv_new += 1
+                    if not dry:
+                        db.execute(
+                            "INSERT OR IGNORE INTO preturi_vanzare"
+                            "(an, sku, cod_client, pret_vanzare_ron, activ)"
+                            " VALUES (?,?,?,?,1)", (an, sku, cod_client, pret_client))
+                elif abs(old - pret_client) > 0.005:
+                    pv_diff += 1
+                    rep("PRET-CLIENT-DIFERIT",
+                        f"{sku} / {cod_client}: DB {old} vs fisier {pret_client}")
 
         # purchase price -> costuri_landing (fill missing only)
         pret = num(r[col["Pret"]])
@@ -227,10 +253,49 @@ def import_consolidat(db, an, dry):
     wb.close()
     rep("SUMAR liste pret",
         f"landing: {land_new} noi, {land_same} identice, {land_diff} diferite; "
-        f"coduri client inserate: {codes_ins}; SKU nepotrivite: {len(unmatched)}")
+        f"coduri client inserate: {codes_ins}; preturi client: {pv_new} noi, "
+        f"{pv_diff} diferite; SKU nepotrivite: {len(unmatched)}")
     if unmatched:
         rep("SKU NEPOTRIVITE (de creat in produse sau de mapat)")
         report_lines.extend("    " + u for u in unmatched)
+
+
+def seed_conditii(db, an, dry):
+    """Seed conditii_comerciale with per-client totals from the CONDITII sheet.
+
+    One 'pct' row per resolved client (furnizor/categorie/sku = NULL = all),
+    marked for later itemization (owner decision #4). Skips clients that
+    already have any pct row for the year. cond_resolved is truncated so the
+    app rebuilds it lazily at startup.
+    """
+    wb = openpyxl.load_workbook(CONSOLIDAT, read_only=True, data_only=True)
+    ins = 0
+    for r in wb["CONDITII"].iter_rows(min_row=2, values_only=True):
+        nume, pct = str(r[0] or "").strip(), num(r[1])
+        if not nume or pct is None:
+            continue
+        res = resolve_client(db, f"%{nume.split('-')[0]}%")
+        if res is None or res[0] == "AMBIGUU":
+            rep("SEED-CONDITII", f"'{nume}' ({pct:.2%}) nerezolvat - de introdus manual")
+            continue
+        exists = db.execute(
+            "SELECT 1 FROM conditii_comerciale WHERE an=? AND cod_client=? "
+            "AND tip_valoare='pct' LIMIT 1", (an, res[0])).fetchone()
+        if exists:
+            rep("SEED-CONDITII", f"{nume} ({res[0]}): are deja conditii pct - sarit")
+            continue
+        ins += 1
+        if not dry:
+            db.execute(
+                "INSERT INTO conditii_comerciale(an, cod_client, furnizor,"
+                " tip_valoare, periodicitate, valoare, descriere, data_creare)"
+                " VALUES (?,?,NULL,'pct','anual',?,?,date('now'))",
+                (an, res[0], round(pct * 100, 2),
+                 "Total conditii client (import FISIER_CONSOLIDAT) - de defalcat"))
+    wb.close()
+    if ins and not dry:
+        db.execute("DELETE FROM cond_resolved")  # lazy rebuild at app startup
+    rep("SUMAR conditii", f"{ins} clienti seed-uiti cu % total conditii")
 
 
 def import_logistica_basilur(db, dry):
@@ -292,6 +357,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--an", type=int, default=2026)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--seed-conditii", action="store_true",
+                    help="seed conditii_comerciale from the CONDITII sheet totals")
     args = ap.parse_args()
 
     if not os.path.exists(CONSOLIDAT):
@@ -300,6 +367,8 @@ def main():
     rep(f"F0 import - an {args.an}" + (" (DRY RUN)" if args.dry_run else ""))
     import_consolidat(db, args.an, args.dry_run)
     import_logistica_basilur(db, args.dry_run)
+    if args.seed_conditii:
+        seed_conditii(db, args.an, args.dry_run)
     if not args.dry_run:
         db.commit()
     db.close()

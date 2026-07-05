@@ -177,6 +177,8 @@
               <th class="text-end">Preț RON (fără TVA)</th>
               <th class="text-end">Marjă brută</th>
               <th class="text-end">Marjă %</th>
+              <th class="text-end">Condiții %</th>
+              <th class="text-end">Marjă netă %</th>
               <th class="text-center">Acțiuni</th>
             </tr>
           </thead>
@@ -209,6 +211,26 @@
                   </span>
                 {% else %}—{% endif %}
               </td>
+              {% set cond = cond_map.get(pv.cod_client) or 0 %}
+              {% set mn_pct = (mb_pct - cond) if mb_pct is not none else none %}
+              <td class="text-end text-muted">
+                {% if pv.cod_client %}{{ "%.2f"|format(cond) }}%{% else %}—{% endif %}
+              </td>
+              <td class="text-end fw-bold">
+                {% if mn_pct is not none %}
+                  {% if mn_pct < praguri.aprobare %}
+                    <span class="text-danger" title="Sub {{ praguri.aprobare }}% — necesită acordul directorului">
+                      {{ "%.1f"|format(mn_pct) }}% <i class="bi bi-exclamation-triangle-fill"></i>
+                    </span>
+                  {% elif mn_pct < praguri.minima %}
+                    <span class="text-warning" title="Sub marja minimă de {{ praguri.minima }}%">
+                      {{ "%.1f"|format(mn_pct) }}%
+                    </span>
+                  {% else %}
+                    <span class="text-success">{{ "%.1f"|format(mn_pct) }}%</span>
+                  {% endif %}
+                {% else %}—{% endif %}
+              </td>
               <td class="text-center">
                 <button class="btn btn-xs btn-outline-primary py-0 px-1 btn-edit-pret"
                         data-pret="{{ pv.pret_vanzare_ron }}"
@@ -219,7 +241,7 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="text-center text-muted py-3">Niciun preț de vânzare.</td></tr>
+            <tr><td colspan="7" class="text-center text-muted py-3">Niciun preț de vânzare.</td></tr>
             {% endfor %}
           </tbody>
         </table>

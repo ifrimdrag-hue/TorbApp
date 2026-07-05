@@ -20,6 +20,7 @@ Combines the leftovers of the 2026-05-28 code audit (re-verified against code on
 10. **Accessibility pass** — only 6 `aria-label`s across all templates.
 11. **Remove the stale `scripts/` line from `.gitignore`** — if anyone recreates that directory, its files would silently never be committed.
 12. **Off-VPS copy of DB backups** (low priority by decision 2026-06-11: the hosting provider backs up the whole VPS). If ever needed: pull `data/backups/` to a local machine via scheduled `scp` — admins can also download backups manually from `/admin/db`.
+13. **Supplier naming split "Toras" vs "Torras"** — `tranzactii` (ERP prefix mapping) uses `Toras`; `produse.furnizor`/`gama` has BOTH `Toras` (22 SKUs) and `Torras` (59 SKUs). Any join between `produse` and `tranzactii`/`cond_resolved` on supplier name silently misses the `Torras` rows (found 2026-07-06 while wiring net margins — worked around by computing conditions from `conditii_comerciale` directly). Fix: pick one canonical spelling (ERP's `Toras` is the safer key), update `produse`, and normalize in the ETL prefix map. Same class of issue: `Ipek` exists only in `produse`, its sales book under `Leonex`.
 
 ### Resolved (kept for the record)
 

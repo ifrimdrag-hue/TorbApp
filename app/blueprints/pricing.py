@@ -2,6 +2,7 @@ import datetime
 import logging
 from flask import Blueprint, render_template, request, jsonify, abort
 import queries
+import pricing_engine
 
 pricing_bp = Blueprint('pricing', __name__)
 
@@ -39,9 +40,13 @@ def preturi_sku(sku):
     client_prices = queries.preturi_client_sku(sku, an)
     rate          = {r['moneda']: r['curs_ron'] for r in queries.rate_schimb_list(an)}
     client_opts   = queries.clients_list(an)
+    praguri       = pricing_engine.praguri_marja(prod['gama'])
+    cond_map      = {pv['cod_client']: pricing_engine.cond_effective(
+                        an, pv['cod_client'], prod['furnizor'], prod['categorie'], sku)
+                     for pv in client_prices if pv['cod_client']}
     return render_template('preturi_sku.html',
         an=an, prod=prod, client_prices=client_prices,
-        rate=rate, client_opts=client_opts,
+        rate=rate, client_opts=client_opts, praguri=praguri, cond_map=cond_map,
     )
 
 

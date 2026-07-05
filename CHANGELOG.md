@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Pricing module F1: cost/margin engine + net margin per client (2026-07-06)
+
+- **`app/pricing_engine.py`** — pure, tested margin math: landing cost, margin-of-price convention (48.3 → 69 = 30%), `pret_pentru_marja` (target NET margin + conditions), `marja_neta_pct`, `verdict` against thresholds, `praguri_marja` (from `pricing_config`, per-gama override → global), `cond_effective` (sums `conditii_comerciale` rows with NULL-wildcard scope on client/furnizor/categorie/sku — deliberately independent of `cond_resolved`, whose supplier keys come from the ERP spelling, see BACKLOG #13).
+- **`/preturi/<sku>`** — the per-client price table gains *Condiții %* and *Marjă netă %* columns; net margin is colored by the configured thresholds (≥30% green, 25–30% yellow, <25% red + "necesită acordul directorului" warning). Verified in browser on SKU 534: Auchan 32.6% gross − 11.72% conditions = 20.8% net flagged red.
+- **Importer additions** — per-client current invoicing prices from FISIER_CONSOLIDAT (`Pret facturare actual <client>` columns → `preturi_vanzare`, 334 rows, fill-missing-only) and `--seed-conditii` (CONDITII sheet totals → one pct row per client marked "de defalcat", 6 clients seeded; `cond_resolved` truncated for lazy rebuild).
+- **Migration 0023** — `preturi_vanzare` standard rows (cod_client NULL) deduped (289 SKUs had stacked duplicates: SQLite UNIQUE treats NULLs as distinct, so INSERT OR REPLACE never replaced them) + partial unique index `idx_pv_standard_unic` so upserts work from now on.
+- Tests: 239 passing (8 new engine tests).
+
 ### Pricing module F0: data foundations + one-off import (2026-07-06)
 
 Owner request 2026-07-05: pricing module from purchase price → landing cost → margin simulation per client → offers with photos → per-client xls listing files. Strategy + owner decisions: `docs/plans/2026-07-05-modul-pricing-ofertare.md`.
