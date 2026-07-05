@@ -1,17 +1,15 @@
-"""Render smoke tests for Task 10 forecast UI additions: model toggle,
-SUSPECT badge, seasonality gating, transparency popover, compare view.
+"""Render smoke tests for the forecast UI: SUSPECT badge, seasonality gating,
+transparency popover, suspects modal.
 
-Asserts HTTP 200 (no template exception) across the model/compare/tab
-combinations — the test DB is schema-only, so this mainly guards against
-Jinja errors from unguarded field access (r.n_suspect, r.suggested_ro_nou, ...).
+Asserts HTTP 200 (no template exception) across the tab combinations — the
+test DB is schema-only, so this mainly guards against Jinja errors from
+unguarded field access (r.n_suspect, r.sug_piete, ...).
 """
 
 FORECAST_ROUTES = [
     '/forecast',
-    '/forecast?model=nou',
-    '/forecast?model=nou&compare=1',
     '/forecast?tab=suggest',
-    '/forecast?tab=stoc&model=nou',
+    '/forecast?tab=stoc',
     '/forecast/setari',
 ]
 
@@ -24,7 +22,7 @@ def test_forecast_routes_render_200(client):
 
 def test_forecast_page_has_suspects_modal(client):
     """The omitted-clients modal + handlers ship with the page (items #1/#4)."""
-    html = client.get('/forecast?tab=stoc&model=nou').data.decode('utf-8')
+    html = client.get('/forecast?tab=stoc').data.decode('utf-8')
     assert 'id="modalSuspects"' in html
     assert 'function openSuspects(' in html
     assert 'function openSuspectsIdx(' in html
@@ -39,14 +37,6 @@ def test_setari_page_params_and_typeahead(client):
     assert 'id="clientSearch"' in html
     assert 'id="clientSuggest"' in html
     assert '/api/clienti/search' in html
-
-
-def test_forecast_compare_adds_delta_columns(client):
-    resp = client.get('/forecast?tab=stoc&compare=1')
-    assert resp.status_code == 200
-    html = resp.data.decode('utf-8')
-    assert 'Sug. RO nou' in html
-    assert 'Δ RO' in html
 
 
 def test_testare_page_and_flag_gate(client):
@@ -73,33 +63,21 @@ def test_testare_page_and_flag_gate(client):
         feature_flags.SHOW_TESTING = True
 
 
-def test_forecast_default_page_has_no_compare_columns(client):
+def test_forecast_page_has_no_model_toggle_or_compare(client):
+    """After the flip the legacy model toggle + Comparație scaffolding is gone."""
     resp = client.get('/forecast?tab=stoc')
     assert resp.status_code == 200
     html = resp.data.decode('utf-8')
+    assert 'Model actual' not in html
+    assert 'Comparație' not in html
     assert 'Sug. RO nou' not in html
 
 
-def test_forecast_model_toggle_present(client):
-    resp = client.get('/forecast?tab=stoc')
-    assert resp.status_code == 200
-    html = resp.data.decode('utf-8')
-    assert 'Model actual' in html
-    assert 'Model nou (client × articol)' in html
-
-
-def test_forecast_compare_with_urgenta_filter_renders(client):
-    """Compare with a narrow urgenta filter can leave rows without a nou
-    counterpart (None) — the em-dash path must not raise a template error."""
-    resp = client.get('/forecast?compare=1&urgenta=critic')
-    assert resp.status_code == 200
-
-
-def test_api_forecast_suggest_nou_does_not_500(client):
-    """Exercises the nou server path in api_forecast_suggest; the test DB
-    lacks Basilur data so build_suggestion returns empty items gracefully —
-    we're only checking the nou branch doesn't raise."""
-    resp = client.get('/api/forecast/suggest/Basilur?model=nou')
+def test_api_forecast_suggest_does_not_500(client):
+    """Exercises the server path in api_forecast_suggest; the test DB lacks
+    Basilur data so build_suggestion returns empty items gracefully — we're
+    only checking the path doesn't raise."""
+    resp = client.get('/api/forecast/suggest/Basilur')
     assert resp.status_code == 200
     data = resp.get_json()
     assert data['ok'] is True

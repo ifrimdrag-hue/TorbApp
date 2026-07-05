@@ -91,8 +91,8 @@
 
   <header class="masthead">
     <p class="kicker">Torb · Modul Aprovizionare<span class="dev">Mediu de test — dev</span></p>
-    <h1>Testare — modelul de forecast client × articol</h1>
-    <p class="lede">Această pagină adună tot ce e nevoie pentru testarea noului model de prognoză pe dev. Noul model rulează momentan „în spatele unui buton" (<code>?model=nou</code>) — modelul actual rămâne cel implicit până confirmați cifrele. Scopul testării: să validați că sugestiile noului model sunt corecte înainte să-l facem implicit.</p>
+    <h1>Modelul de forecast client × articol</h1>
+    <p class="lede">Modelul client × articol este acum <b>modelul implicit</b> al paginii de forecast — instrumentele de comparație (butoanele „Model actual / Model nou", „Comparație" și comutatorul „3 ani / 90 zile") s-au retras după validare. Vânz./lună și exportul Excel se calculează pe <b>fereastra istorică</b> din Setări forecast. Pagina de mai jos rămâne ca referință de verificare a cifrelor.</p>
   </header>
 
   <!-- ============ PE SCURT ============ -->
@@ -115,23 +115,21 @@
 
   <p class="step-group">1 · Pornire &amp; acces</p>
   <ul class="chk">
-    <li><input type="checkbox"><span><span class="step-t">Deschideți comparația pe Basilur.</span><span class="step-d">Accesați <code>/forecast?tab=stoc&amp;brand=Basilur&amp;compare=1</code> (sau: tab <b>Stoc</b> → Brand = Basilur → butonul <b>Comparație</b>).</span></span></li>
-    <li><input type="checkbox"><span><span class="step-t">Confirmați butoanele de model.</span><span class="step-d">Vedeți grupul <b>Model actual</b> / <b>Model nou (client × articol)</b> și butonul <b>Comparație</b> lângă Export.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Deschideți Stoc pe Basilur.</span><span class="step-d">Accesați <code>/forecast?tab=stoc&amp;brand=Basilur</code> (sau: tab <b>Stoc</b> → Brand = Basilur). Pagina rulează direct pe modelul client × articol.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Confirmați coloanele.</span><span class="step-d">Vedeți <code>Sug. RO</code> și câte o coloană per piață de export (<code>Sug. HU</code>, <code>Sug. DE</code>, …). Nu mai există butoane de model sau de comparație.</span></span></li>
   </ul>
 
-  <p class="step-group">2 · Citirea cifrelor (mod Comparație)</p>
+  <p class="step-group">2 · Citirea cifrelor</p>
   <ul class="chk">
-    <li><input type="checkbox"><span><span class="step-t">Comparați coloanele.</span><span class="step-d"><code>Sug. RO</code> = modelul actual · <code>Sug. RO nou</code> = modelul nou · <code>Δ RO</code> = diferența (roșu când noul model comandă mai puțin).</span></span></li>
-    <li><input type="checkbox"><span><span class="step-t">Identificați rândurile cu Δ RO mare, roșu.</span><span class="step-d">Acolo unde actualul sugera o cantitate iar noul model dă 0 — acelea sunt articolele „tăiate" de noul model.</span></span></li>
-    <li><input type="checkbox"><span><span class="step-t">Distingeți cauza tăierii.</span><span class="step-d">Rând cu badge <span class="badge warn">Suspect delistare</span> → cauza e delistarea unor clienți (treceți cu mouse-ul: câți clienți au fost excluși). Rând fără badge, dar cu <code>Sug. RO nou = 0</code> → e tăierea <b>INACTIV</b> (6 luni fără vânzări).</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Identificați rândurile cu sugestie 0.</span><span class="step-d">Articolele „tăiate" de model apar cu <code>Sug. RO = 0</code>.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Distingeți cauza tăierii.</span><span class="step-d">Rând cu badge <span class="badge warn">Suspect delistare</span> → cauza e delistarea unor clienți (treceți cu mouse-ul: câți clienți au fost excluși). Rând cu badge <b>INACTIV</b> → tăierea pe 6 luni fără vânzări.</span></span></li>
   </ul>
 
   <p class="step-group">3 · Verificarea agresivității (cel mai important)</p>
-  <div class="callout"><b>⚠ De urmărit:</b> pe Basilur, noul model marchează <b>205 din 473 SKU-uri ca INACTIV</b>. Poate fi corect (coadă lungă de produse moarte) sau prea agresiv pentru un brand cu livrare lentă (16 săptămâni), unde un articol viu poate sta 6 luni fără vânzare. Verificați-l.</div>
+  <div class="callout"><b>⚠ De urmărit:</b> pe Basilur, modelul marchează <b>205 din 473 SKU-uri ca INACTIV</b>. Poate fi corect (coadă lungă de produse moarte) sau prea agresiv pentru un brand cu livrare lentă (16 săptămâni), unde un articol viu poate sta 6 luni fără vânzare. Verificați-l.</div>
   <ul class="chk">
-    <li><input type="checkbox"><span><span class="step-t">Comutați pe „90 zile".</span><span class="step-d">Butonul de sus schimbă <code>Vânz./lună</code> pe viteza recentă.</span></span></li>
-    <li><input type="checkbox"><span><span class="step-t">Pe rândurile tăiate (nou = 0), verificați semnele de viață.</span><span class="step-d">Dacă <code>Vânz./lună (90 zile)</code> este &gt; 0 sau <code>Zile stoc</code> e mic/critic → articolul e <b>viu</b>, tăierea e prea agresivă. Dacă <code>Vânz./lună</code> ≈ 0 și stă stoc mult → corect marcat mort.</span></span></li>
-    <li><input type="checkbox"><span><span class="step-t">Notați câte din eșantion sunt „vii dar tăiate".</span><span class="step-d">Dacă sunt multe, ridicăm pragul <code>taiere_inactiv_luni</code> (6 → 9–12) pentru brandurile lente.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Pe rândurile tăiate (Sug. = 0), verificați semnele de viață.</span><span class="step-d">Dacă <code>Vânz./lună</code> este &gt; 0 sau <code>Zile stoc</code> e mic/critic → articolul e <b>viu</b>, tăierea e prea agresivă. Dacă <code>Vânz./lună</code> ≈ 0 și stă stoc mult → corect marcat mort.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Notați câte din eșantion sunt „vii dar tăiate".</span><span class="step-d">Dacă sunt multe, ridicăm pragul <code>taiere_inactiv_luni</code> (6 → 9–12) pentru brandurile lente, din Setări forecast.</span></span></li>
   </ul>
 
   <p class="step-group">4 · Verificări de corectitudine (cazuri din specificație)</p>
@@ -144,10 +142,10 @@
 
   <p class="step-group">5 · Reglaj live (fără cod)</p>
   <ul class="chk">
-    <li><input type="checkbox"><span><span class="step-t">Ajustați parametrii pe Setări Forecast.</span><span class="step-d">Pe <code>/forecast/setari</code>, cardul „Parametri forecast": modificați <code>taiere_inactiv_luni</code>, <code>prag_neutru_multi_client</code> etc., salvați și reluați pasul 3. Nu se schimbă modelul implicit — puteți experimenta liniștiți.</span></span></li>
+    <li><input type="checkbox"><span><span class="step-t">Ajustați parametrii pe Setări Forecast.</span><span class="step-d">Pe <code>/forecast/setari</code>, cardul „Parametri forecast": modificați <code>fereastra_luni</code> (fereastra istorică), <code>taiere_inactiv_luni</code>, <code>prag_neutru_multi_client</code> etc., salvați și reluați pasul 3.</span></span></li>
   </ul>
 
-  <div class="pass"><b>Criterii de acceptare:</b> (1) articolele tăiate de noul model sunt, la verificare, chiar moarte/delistate; (2) articolele vii rămân cu sugestii rezonabile; (3) diferențele Δ față de modelul actual sunt explicabile, nu aleatorii. Dacă toate trei sunt îndeplinite → dați GO pentru trecerea la modelul nou ca implicit.</div>
+  <div class="pass"><b>Criterii de acceptare:</b> (1) articolele tăiate de model sunt, la verificare, chiar moarte/delistate; (2) articolele vii rămân cu sugestii rezonabile; (3) cifrele sunt explicabile, nu aleatorii. Aceste criterii au stat la baza deciziei de a trece modelul client × articol pe implicit.</div>
 
   <!-- ============ B. FUNCTIONALITATI ============ -->
   <h2 class="sec"><span class="n">B.</span>Descrierea funcționalităților</h2>
@@ -169,8 +167,12 @@
     <p>Dacă o pereche client-articol depășește pragul adaptiv <code>max(180 zile, 3× intervalul mediu de comandă)</code>, e marcată <span class="badge warn">Suspect delistare</span> și contribuția ei devine 0. După încă <b>90 de zile</b> fără comandă, primește eticheta <b>DELISTAT</b> (același efect — 0 în prognoză — doar o etichetă mai clară pentru raportare).</p>
   </div>
   <div class="card">
+    <h3>Sugestie separată RO / piețe export</h3>
+    <p>Pe lângă <b>Sug. RO</b>, fiecare piață de export configurată în Setări are coloana ei (<b>Sug. HU</b>, <b>Sug. DE</b>, …), cu istoric și sugestie proprii. Stocul comun acoperă întâi cererea RO; fiecare piață de export își primește necesarul propriu.</p>
+  </div>
+  <div class="card">
     <h3>Prag MOQ (cantitate minimă de comandă)</h3>
-    <p>Sugestia se rotunjește deja în sus la bax. Mecanismul de MOQ (ridicarea sugestiei la cantitatea minimă a furnizorului) este implementat, dar <b>inactiv</b> — se activează când ne dați lista de MOQ pe furnizor/articol.</p>
+    <p>Sugestia se rotunjește deja în sus la bax. Mecanismul de MOQ (ridicarea sugestiei la cantitatea minimă a furnizorului) este pregătit, dar <b>inactiv</b> — se activează la implementarea dedicată din backlog, când primim lista MOQ pe furnizor/articol.</p>
   </div>
   <div class="card">
     <h3>Captură zilnică de stoc (ETL)</h3>
@@ -179,30 +181,30 @@
 
   <!-- ============ C. UI DUPA FLIP ============ -->
   <h2 class="sec"><span class="n">C.</span>Interfața după trecerea la modelul nou</h2>
-  <p>Astăzi, în perioada de testare, aveți <b>ambele modele</b> și le puteți compara. După ce dați GO și facem noul model implicit, pagina se simplifică — nu mai e nevoie de comparație:</p>
+  <p>Trecerea s-a făcut: modelul client × articol e acum <b>singurul model</b>, iar instrumentele de comparație s-au retras. Iată ce s-a schimbat și ce a rămas:</p>
 
   <div class="two">
     <div class="col gone">
-      <h3>Ce dispare</h3>
+      <h3>Ce s-a retras</h3>
       <ul>
         <li>Butoanele de comutare <b>Model actual / Model nou</b> (rămâne un singur model).</li>
         <li>Butonul <b>Comparație</b> și coloanele <b>Sug. RO nou</b> + <b>Δ RO</b>.</li>
-        <li>Cifrele modelului <b>„actual"</b> (media pe SKU) nu mai apar nicăieri.</li>
-        <li>Parametrul <code>?model=nou</code> din URL nu mai e necesar (devine comportamentul normal).</li>
+        <li>Modelul <b>„actual"</b> (media pe SKU) și codul lui — eliminate complet.</li>
+        <li>Comutatorul <b>3 ani / 90 zile</b> — Vânz./lună și exportul folosesc acum <b>fereastra istorică</b> din Setări.</li>
       </ul>
     </div>
     <div class="col stay">
-      <h3>Ce rămâne (neschimbat vizual)</h3>
+      <h3>Ce rămâne</h3>
       <ul>
         <li>Pagina <code>/forecast</code> cu aceleași tab-uri: Stoc, Sugestie, Comenzi, Setări, Export.</li>
-        <li>Coloanele <b>Sug. RO</b> / <b>Sug. HU</b> — dar calculate cu noul model.</li>
+        <li>Coloana <b>Sug. RO</b> + o coloană per <b>piață de export</b> (Sug. HU, Sug. DE, …).</li>
         <li>Badge-urile <span class="badge warn">Suspect delistare</span> și marcajele de urgență (<span class="badge crit">Critic</span> / <span class="badge warn">Atenție</span> / <span class="badge ok">OK</span>).</li>
         <li>Coloanele de stoc, zile de stoc, în tranzit, vechime, clienți.</li>
-        <li>Comutatorul <b>3 ani / 90 zile</b>, exportul Excel și tab-ul <b>Setări</b> cu parametrii reglabili.</li>
+        <li>Exportul Excel și tab-ul <b>Setări</b> cu parametrii reglabili.</li>
       </ul>
     </div>
   </div>
-  <p class="lede" style="max-width:none">Pe scurt: <b>trecerea la modelul nou nu mută butoane și nu schimbă felul de a lucra</b> — doar cifrele din spate devin cele ale modelului client × articol, iar instrumentele de comparație folosite la testare se retrag.</p>
+  <p class="lede" style="max-width:none">Pe scurt: <b>felul de a lucra nu se schimbă</b> — cifrele din spate sunt cele ale modelului client × articol, iar instrumentele de comparație folosite la testare s-au retras.</p>
 
   <!-- ============ NOTE ============ -->
   <h2 class="sec"><span class="n">D.</span>Note &amp; ce urmează</h2>
@@ -215,25 +217,24 @@
     <li><b>Componentele extinse F2/F3/F4</b> — ciclul de viață al comenzilor, managementul documentelor, stocul pe loturi cu termen de valabilitate.</li>
   </ul>
 
-  <h3>Decizii care mai așteaptă răspuns de la proprietar</h3>
+  <h3>Deciziile deschise — acum închise</h3>
   <ul class="plain">
-    <li><b>6</b> — lista de cantități minime de comandă (MOQ).</li>
-    <li><b>9</b> — păstrăm sugestia separată RO / Export HU (proprietarul a confirmat: <b>da</b>).</li>
-    <li><b>11</b> — pragul (%) de la care alertăm diferența de preț la achiziție.</li>
-    <li><b>12</b> — valoarea (lei) de la care semnalăm „stoc mort".</li>
-    <li><b>13</b> — raportul din ERP defalcat pe loturi cu termen de valabilitate (precondiție F4).</li>
-    <li><b>14</b> — canalul de notificare (în aplicație / e-mail).</li>
+    <li><b>9</b> — sugestie separată RO / piețe export: <b>implementat</b> (coloane RO + o coloană per piață de export).</li>
+    <li><b>11</b> — prag alertă diferență de preț: <b>1%</b>, configurabil în Setări forecast (nu codat fix).</li>
+    <li><b>6</b> — MOQ: trecut în <b>backlog</b> (implementare dedicată, mai multe detalii urmează).</li>
+    <li><b>12</b> + <b>13</b> — stoc mort + raport ERP pe loturi/valabilitate: <b>backlog</b>, o singură implementare (precondiție F4).</li>
+    <li><b>14</b> — notificări: <b>backlog</b>, item umbrelă „Notificări".</li>
   </ul>
   <div class="callout" style="border-left-color:var(--accent);background:var(--accent-soft)">
     <b style="color:var(--accent)">Documentul complet de decizii:</b>
     <a href="/decizii" style="color:var(--accent);font-weight:700">deschideți „Decizii de validat" →</a>
-    — toate cele 14 puncte, cu rezoluția fiecăruia (1–10 rezolvate de documentele proprietarului) și opțiunile pentru cele deschise.
+    — toate cele 14 puncte, fiecare cu rezoluția lui.
   </div>
 
-  <h3>Trecerea la modelul nou (GO)</h3>
-  <p>Modelul nou stă în spatele butonului până când, în urma acestei testări, dați GO. Atunci îl facem implicit (păstrând <code>?model=actual</code> ca portiță de siguranță) și retragem instrumentele de comparație. Dacă la testare pragul INACTIV pare prea agresiv, îl reglăm întâi din Setări, apoi facem trecerea.</p>
+  <h3>Trecerea la modelul nou (GO) — făcută</h3>
+  <p>În urma validării, modelul client × articol a fost făcut <b>implicit</b>, iar instrumentele de comparație și comutatorul de viteză s-au retras. Dacă pragul INACTIV pare prea agresiv pe un brand cu livrare lentă, se reglează oricând din Setări forecast (<code>taiere_inactiv_luni</code>).</p>
 
-  <p class="foot">Pagină internă de testare · vizibilă doar pe mediul de dev, ascunsă programatic în producție · sursă: modelul forecast client × articol (2026-07-04)</p>
+  <p class="foot">Pagină internă · vizibilă doar pe mediul de dev, ascunsă programatic în producție · sursă: modelul forecast client × articol (finalizat 2026-07-05)</p>
 </div>
 </body>
 </html>

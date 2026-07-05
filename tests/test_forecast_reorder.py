@@ -49,7 +49,7 @@ def test_moq_floor_never_creates_order():
     assert r["suggested_ro"] == 0
 
 
-def test_build_suggestion_accepts_model_param(monkeypatch):
+def test_build_suggestion_uses_pair_engine(monkeypatch):
     from forecast import forecast_logic as fl
 
     def fake_profiles(furnizor, params, today=None, _rows=None):
@@ -66,6 +66,5 @@ def test_build_suggestion_accepts_model_param(monkeypatch):
                         lambda f: {"zile_livrare": 30, "sezon_craciun": 0})
     monkeypatch.setattr(fl, "query", lambda *a, **k: [])
     monkeypatch.setattr(fl, "query_one", lambda *a, **k: {"d": None})
-    res = fl.build_suggestion("AnyBrand", min_velocity=0, only_needed=False,
-                              model="nou")
+    res = fl.build_suggestion("AnyBrand", min_velocity=0, only_needed=False)
     assert res["items"][0]["n_suspect"] == 0

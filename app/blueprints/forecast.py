@@ -27,20 +27,8 @@ def forecast():
     furnizor = request.args.get('brand', '').strip() or None
     search   = request.args.get('q', '').strip() or None
     sel_status = request.args.get('status', '').strip() or None
-    vel      = '90zile' if request.args.get('vel') == '90zile' else '3ani'
-    model    = 'nou' if request.args.get('model') == 'nou' else 'actual'
-    compare  = request.args.get('compare') == '1'
 
-    rows       = queries.forecast_stoc_extended(furnizor=furnizor, gama=gama, urgenta=urgenta, search=search,
-                                                 vel=vel, model='actual' if compare else model)
-    if compare:
-        rows_nou   = queries.forecast_stoc_extended(furnizor=furnizor, gama=gama, urgenta=None, search=search,
-                                                     vel=vel, model='nou')
-        nou_by_sku = {r['sku']: r for r in rows_nou}
-        for r in rows:
-            o = nou_by_sku.get(r['sku'])
-            r['suggested_ro_nou'] = o['suggested_ro'] if o else None
-            r['suggested_hu_nou'] = o['suggested_hu'] if o else None
+    rows       = queries.forecast_stoc_extended(furnizor=furnizor, gama=gama, urgenta=urgenta, search=search)
 
     summary    = queries.forecast_summary() or {}
     gama_opts  = queries.forecast_gama_list()
@@ -71,9 +59,6 @@ def forecast():
         sel_brand=furnizor or '',
         sel_status=sel_status or '',
         sel_search=search or '',
-        sel_vel=vel,
-        model=model,
-        compare=compare,
         is_xmas_window=forecast_logic.is_xmas_window(),
         months_json=json.dumps(MONTHS_RO),
         stoc_snapshot=stoc_snapshot,
@@ -201,9 +186,8 @@ def api_forecast_suggest(furnizor):
     try:
         min_velocity = float(request.args.get('min_velocity', 1))
         only_needed = request.args.get('only_needed', '1') == '1'
-        model = 'nou' if request.args.get('model') == 'nou' else 'actual'
         result = forecast_logic.build_suggestion(furnizor, min_velocity=min_velocity,
-                                                 only_needed=only_needed, model=model)
+                                                 only_needed=only_needed)
         return jsonify({'ok': True, **result})
     except Exception as exc:
         logger.exception("api_forecast_suggest failed for %s", furnizor)

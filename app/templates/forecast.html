@@ -188,36 +188,7 @@
     </div>
     {% endif %}
     <div class="col-auto ms-auto d-flex align-items-end gap-2">
-      <input type="hidden" name="vel" id="velInput" value="{{ sel_vel }}">
-      <div class="btn-group btn-group-sm" role="group"
-           aria-label="Bază pentru Vânz./lună și Zile stoc">
-        <button type="button"
-                class="btn {{ 'btn-primary' if sel_vel == '3ani' else 'btn-outline-primary' }}"
-                title="Media sezonieră pe 3 ani"
-                onclick="document.getElementById('velInput').value='3ani';this.form.submit()">3 ani</button>
-        <button type="button"
-                class="btn {{ 'btn-primary' if sel_vel == '90zile' else 'btn-outline-primary' }}"
-                title="Viteza recentă pe ultimele 90 de zile"
-                onclick="document.getElementById('velInput').value='90zile';this.form.submit()">90 zile</button>
-      </div>
-      <div class="btn-group btn-group-sm" role="group" aria-label="Model de prognoză">
-        <a class="btn {{ 'btn-primary' if model != 'nou' else 'btn-outline-primary' }}"
-           href="{{ url_for('forecast.forecast', tab=tab, brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='actual', compare=request.args.get('compare')) }}"
-           title="Model curent, pe SKU agregat">Model actual</a>
-        <a class="btn {{ 'btn-primary' if model == 'nou' else 'btn-outline-primary' }}"
-           href="{{ url_for('forecast.forecast', tab=tab, brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model='nou', compare=request.args.get('compare')) }}"
-           title="Model nou, client × articol, cu detectare suspecți delistare">Model nou (client × articol)</a>
-      </div>
-      {% if compare %}
-      <a class="btn btn-sm btn-info text-dark active"
-         href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model=model) }}"
-         title="Ascunde coloanele de comparație">✕ Comparație</a>
-      {% else %}
-      <a class="btn btn-sm btn-outline-info"
-         href="{{ url_for('forecast.forecast', tab='stoc', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel, model=model, compare=1) }}"
-         title="Compară sugestiile modelului nou față de cel actual">Comparație</a>
-      {% endif %}
-      <a href="{{ url_for('reports.export_excel', report='forecast', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search, vel=sel_vel) }}"
+      <a href="{{ url_for('reports.export_excel', report='forecast', brand=sel_brand, gama=sel_gama, urgenta=sel_urgenta, q=sel_search) }}"
          class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel-fill"></i> Export</a>
     </div>
     <div class="col-auto align-self-end text-muted small">{{ rows|length }} SKU-uri</div>
@@ -233,7 +204,7 @@
             <th class="text-end">Val. stoc</th>
             <th>În tranzit (comenzi)</th>
             <th class="text-end">Stoc + tranzit</th>
-            <th class="text-end">Vânz./lună<br><span class="fw-normal opacity-75" style="font-size:.85em">({{ '3 ani' if sel_vel == '3ani' else '90 zile' }})</span></th>
+            <th class="text-end">Vânz./lună<br><span class="fw-normal opacity-75" style="font-size:.85em">(medie sezonieră)</span></th>
             <th class="text-center">Zile stoc</th>
             <th class="text-center">Zile cu tranzit</th>
             <th class="text-center">Urgență</th>
@@ -241,7 +212,7 @@
             <th class="text-center" title="Istoric vânzări pe clienți">Clienți</th>
             <th class="text-end" style="background:#1c375e;min-width:90px"
                 title="Sugestie cantitate de comandat piața RO (editabil)">Sug. RO</th>
-            {% if model == 'nou' and piete_active %}
+            {% if piete_active %}
             {% for p in piete_active %}
             <th class="text-end" style="background:#594c21;min-width:90px"
                 title="Sugestie cantitate de comandat Export {{ p }} (editabil)">Sug. {{ p }}</th>
@@ -249,11 +220,6 @@
             {% else %}
             <th class="text-end" style="background:#594c21;min-width:90px"
                 title="Sugestie cantitate de comandat Export HU (editabil)">Sug. HU</th>
-            {% endif %}
-            {% if compare %}
-            <th class="text-end small" style="background:#25452b"
-                title="Sugestie RO cu modelul nou (client × articol)">Sug. RO nou</th>
-            <th class="text-end small" title="Diferență față de modelul actual">Δ RO</th>
             {% endif %}
             <th class="text-center" style="min-width:80px">+ Comandă</th>
           </tr>
@@ -351,8 +317,8 @@
                      style="width:78px"
                      title="Avg RO {{ r.avg_monthly_ro }}/lună · termen {{ r.lead_time_days }}z">
             </td>
-            {# Col 15: Sugestie export (editabil) — o coloană per țară în modelul nou #}
-            {% if model == 'nou' and piete_active %}
+            {# Col 15: Sugestie export (editabil) — o coloană per țară export #}
+            {% if piete_active %}
             {% set row_idx = loop.index %}
             {% for p in piete_active %}
             <td class="text-end" style="background:rgba(255,193,7,.06)">
@@ -374,17 +340,6 @@
                      title="Avg HU {{ r.avg_monthly_hu }}/lună · termen {{ r.lead_time_days }}z">
             </td>
             {% endif %}
-            {% if compare %}
-            {# Col comparație: sugestie model nou + delta față de modelul curent #}
-            {% if r.suggested_ro_nou is none %}
-            <td class="text-end small text-muted" style="background:rgba(25,135,84,.08)">—</td>
-            <td class="text-end small text-muted">—</td>
-            {% else %}
-            <td class="text-end small" style="background:rgba(25,135,84,.08)">{{ r.suggested_ro_nou }}</td>
-            <td class="text-end small {{ 'text-danger' if (r.suggested_ro_nou) < (r.suggested_ro or 0) else 'text-success' }}">
-              {{ (r.suggested_ro_nou) - (r.suggested_ro or 0) }}</td>
-            {% endif %}
-            {% endif %}
             {# Col 16: Buton adaugă la comandă draft #}
             <td class="text-center">
               <button class="btn btn-sm btn-outline-primary py-0 px-1"
@@ -401,7 +356,7 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="{{ 18 if compare else 16 }}" class="text-center text-muted py-4">Nu există date de stoc.</td></tr>
+          <tr><td colspan="16" class="text-center text-muted py-4">Nu există date de stoc.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -1024,7 +979,7 @@
 
 {% block scripts %}
 <script>
-window.FORECAST_MODEL = "{{ model|default('actual') }}";
+window.FORECAST_MODEL = "nou";
 window.PIETE_ACTIVE = {{ (piete_active or []) | tojson }};
 const MONTHS = {{ months_json | safe }};
 let suggestData = [];
@@ -1067,7 +1022,7 @@ async function loadSuggestion() {
     // Fetch in paralel pentru toate brandurile
     const responses = await Promise.all(opts.map(async opt => {
       const brand = opt.value;
-      const url = `/api/forecast/suggest/${encodeURIComponent(brand)}?min_velocity=${minVel}&only_needed=${onlyNeeded}&model=${encodeURIComponent(window.FORECAST_MODEL)}`;
+      const url = `/api/forecast/suggest/${encodeURIComponent(brand)}?min_velocity=${minVel}&only_needed=${onlyNeeded}`;
       const r = await fetch(url);
       const data = await r.json();
       if (!data.ok) throw new Error(`${brand}: ${data.error}`);

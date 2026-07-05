@@ -172,22 +172,15 @@ def piete_export_active():
         "WHERE activ = 1 AND UPPER(piata) != 'RO' ORDER BY piata")]
 
 
-def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, vel='3ani',
-                            model='actual'):
-    """Ca forecast_stoc_brand + avg RO/HU + sugestii de comandă per SKU.
+def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
+    """Ca forecast_stoc_brand + avg RO/piețe export + sugestii de comandă per SKU.
 
-    `vel` controlează baza pentru coloanele afișate Vânz./lună + Zile stoc:
-      '3ani'   → media sezonieră pe 3 ani (implicit, netezește vârfurile);
-      '90zile' → viteza recentă pe ultimele 90 de zile (valorile brute din SQL).
-    Sugestiile Sug. RO/HU rămân mereu pe modelul sezonier, indiferent de `vel`.
-
-    `model` alege sursa cererii lunare: 'actual' (implicit, comportament
-    neschimbat) folosește `_monthly_sales_by_sku`; 'nou' folosește modelul
-    client×articol (`pair_engine.article_monthly_profiles`) + sugestii cu
-    coeficient de siguranță (`split_with_safety`) și expune `n_suspect`.
+    Coloanele afișate Vânz./lună + Zile stoc folosesc media sezonieră pe
+    fereastra istorică configurată (`fereastra_luni` din Setări forecast).
+    Cererea și sugestiile provin din modelul client×articol
+    (`pair_engine.article_monthly_profiles` + `split_with_safety`), care
+    expune și `n_suspect` / `inactive` / sugestiile per piață export.
     """
-    model = 'nou' if model == 'nou' else 'actual'
-    vel = '90zile' if vel == '90zile' else '3ani'
     filters, params = [], {}
     if furnizor:
         filters.append("s.furnizor = :furnizor")
@@ -270,15 +263,10 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
     furnizori_in_rows = list({r['furnizor'] for r in rows})
     monthly_cache = {}
     bax_cache = {}
-    nou_params = None
-    if model == 'nou':
-        from forecast import pair_engine, config as fc_config
-        nou_params = fc_config.get_params()
-        for f in furnizori_in_rows:
-            monthly_cache[f] = pair_engine.article_monthly_profiles(f, nou_params)
-    else:
-        for f in furnizori_in_rows:
-            monthly_cache[f] = forecast_logic._monthly_sales_by_sku(f)
+    from forecast import pair_engine, config as fc_config
+    nou_params = fc_config.get_params()
+    for f in furnizori_in_rows:
+        monthly_cache[f] = pair_engine.article_monthly_profiles(f, nou_params)
 
     def _bax_map(f):
         if f not in bax_cache:
@@ -302,29 +290,21 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
         monthly_total = sku_data.get('total', {})
 
         available = float(r['stoc_total'] or 0) + float(r['in_tranzit_qty'] or 0)
-        if model == 'nou':
-            base_ro = sum(monthly_ro.values()) / 12 if monthly_ro else 0
-            base_export = sum(monthly_hu.values()) / 12 if monthly_hu else 0
-            bax = _bax_map(r['furnizor'])
-            split = forecast_logic.split_with_safety(
-                monthly_ro, monthly_hu, lead, available,
-                base_ro, base_export, nou_params['coef_siguranta'],
-                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n),
-                monthly_piete=sku_data.get('piete'))
-            r['n_suspect'] = sku_data.get('n_suspect', 0)
-            r['suspects'] = sku_data.get('suspects', [])
-            r['inactive'] = bool(sku_data.get('inactive'))
-            r['avg_piete'] = {p: round(sum(mm.values()) / 12, 1)
-                              for p, mm in (sku_data.get('piete') or {}).items()}
-            r['sug_piete'] = {p: v['suggested']
-                              for p, v in split.get('piete', {}).items()}
-        else:
-            split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, available)
-            r['n_suspect'] = 0
-            r['suspects'] = []
-            r['inactive'] = False
-            r['avg_piete'] = {}
-            r['sug_piete'] = {}
+        base_ro = sum(monthly_ro.values()) / 12 if monthly_ro else 0
+        base_export = sum(monthly_hu.values()) / 12 if monthly_hu else 0
+        bax = _bax_map(r['furnizor'])
+        split = forecast_logic.split_with_safety(
+            monthly_ro, monthly_hu, lead, available,
+            base_ro, base_export, nou_params['coef_siguranta'],
+            int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n),
+            monthly_piete=sku_data.get('piete'))
+        r['n_suspect'] = sku_data.get('n_suspect', 0)
+        r['suspects'] = sku_data.get('suspects', [])
+        r['inactive'] = bool(sku_data.get('inactive'))
+        r['avg_piete'] = {p: round(sum(mm.values()) / 12, 1)
+                          for p, mm in (sku_data.get('piete') or {}).items()}
+        r['sug_piete'] = {p: v['suggested']
+                          for p, v in split.get('piete', {}).items()}
         r['suggested_ro'] = int(round(split['suggested_ro']))
         r['suggested_hu'] = int(round(split['suggested_export']))
         r['lead_time_days'] = lead
@@ -332,28 +312,10 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
         avg_total = sum(monthly_total.values()) / 12 if monthly_total else 0
         r['avg_monthly_ro'] = round(sum(monthly_ro.values()) / 12, 1) if monthly_ro else 0
         r['avg_monthly_hu'] = round(sum(monthly_hu.values()) / 12, 1) if monthly_hu else 0
-        # În modul '3ani' înlocuim viteza afișată cu media sezonieră; în '90zile'
-        # păstrăm valorile brute din SQL (ultimele 90 de zile).
-        if vel == '3ani':
-            r['vanzari_luna_avg'] = round(avg_total, 1)
-            if avg_total > 0:
-                r['zile_stoc'] = int(float(r['stoc_total'] or 0) / (avg_total / 30))
-
-    # Pentru rândurile sintetice (fără rând SQL), în modul '90zile' avem nevoie de
-    # viteza pe 90 de zile per SKU normalizat.
-    vel90_by_sku = {}
-    if vel == '90zile':
-        for vr in query("""
-            SELECT sku, SUM(cantitate) / 3.0 AS v
-            FROM tranzactii WHERE data_dl >= date('now', '-90 days')
-            GROUP BY sku
-        """):
-            vel90_by_sku[forecast_logic._normalize_sku(vr['sku'])] = vr['v']
-
-    def _disp_avg(sku_norm, avg_total):
-        if vel == '90zile':
-            return round(vel90_by_sku.get(sku_norm, 0) or 0, 1)
-        return round(avg_total, 1)
+        # Viteza afișată = media sezonieră pe fereastra istorică configurată.
+        r['vanzari_luna_avg'] = round(avg_total, 1)
+        if avg_total > 0:
+            r['zile_stoc'] = int(float(r['stoc_total'] or 0) / (avg_total / 30))
 
     # Adaugă SKU-uri cu tranzit activ dar fără stoc fizic (lipsesc din tabela stoc)
     existing_skus = {r['sku'] for r in rows}
@@ -377,10 +339,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
         if not sku_data:
             # furnizor-ul poate să nu fie în monthly_cache dacă nu era în rows
             if furn not in monthly_cache:
-                if model == 'nou':
-                    monthly_cache[furn] = pair_engine.article_monthly_profiles(furn, nou_params)
-                else:
-                    monthly_cache[furn] = forecast_logic._monthly_sales_by_sku(furn)
+                monthly_cache[furn] = pair_engine.article_monthly_profiles(furn, nou_params)
             sku_data = monthly_cache.get(furn, {}).get(sku_n, {})
         monthly_ro = sku_data.get('ro', {})
         monthly_hu = sku_data.get('export', {})
@@ -388,29 +347,21 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
         avg_total = sum(monthly_total.values()) / 12 if monthly_total else 0
 
         available = float(transit_qty)
-        if model == 'nou':
-            base_ro = sum(monthly_ro.values()) / 12 if monthly_ro else 0
-            base_export = sum(monthly_hu.values()) / 12 if monthly_hu else 0
-            bax = _bax_map(furn)
-            split = forecast_logic.split_with_safety(
-                monthly_ro, monthly_hu, lead, available,
-                base_ro, base_export, nou_params['coef_siguranta'],
-                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n),
-                monthly_piete=sku_data.get('piete'))
-            n_suspect = sku_data.get('n_suspect', 0)
-            suspects = sku_data.get('suspects', [])
-            inactive = bool(sku_data.get('inactive'))
-            avg_piete = {p: round(sum(mm.values()) / 12, 1)
-                         for p, mm in (sku_data.get('piete') or {}).items()}
-            sug_piete = {p: v['suggested']
-                         for p, v in split.get('piete', {}).items()}
-        else:
-            split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, available)
-            n_suspect = 0
-            suspects = []
-            inactive = False
-            avg_piete = {}
-            sug_piete = {}
+        base_ro = sum(monthly_ro.values()) / 12 if monthly_ro else 0
+        base_export = sum(monthly_hu.values()) / 12 if monthly_hu else 0
+        bax = _bax_map(furn)
+        split = forecast_logic.split_with_safety(
+            monthly_ro, monthly_hu, lead, available,
+            base_ro, base_export, nou_params['coef_siguranta'],
+            int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n),
+            monthly_piete=sku_data.get('piete'))
+        n_suspect = sku_data.get('n_suspect', 0)
+        suspects = sku_data.get('suspects', [])
+        inactive = bool(sku_data.get('inactive'))
+        avg_piete = {p: round(sum(mm.values()) / 12, 1)
+                     for p, mm in (sku_data.get('piete') or {}).items()}
+        sug_piete = {p: v['suggested']
+                     for p, v in split.get('piete', {}).items()}
         sug_ro = split['suggested_ro']
         sug_hu = split['suggested_export']
         zile_stoc = 0 if avg_total > 0 else None
@@ -422,7 +373,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
             'gama':              None,
             'stoc_total':        0,
             'valoare_stoc':      0,
-            'vanzari_luna_avg':  _disp_avg(sku_n, avg_total),
+            'vanzari_luna_avg':  round(avg_total, 1),
             'zile_stoc':         zile_stoc,
             'cel_mai_vechi_lot': None,
             'pret_valuta':       None,
@@ -465,10 +416,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
         if search and search.lower() not in sku.lower():
             continue
         if furn not in monthly_cache:
-            if model == 'nou':
-                monthly_cache[furn] = pair_engine.article_monthly_profiles(furn, nou_params)
-            else:
-                monthly_cache[furn] = forecast_logic._monthly_sales_by_sku(furn)
+            monthly_cache[furn] = pair_engine.article_monthly_profiles(furn, nou_params)
         sku_n = forecast_logic._normalize_sku(sku)
         sku_data = monthly_cache.get(furn, {}).get(sku_n, {})
         monthly_ro = sku_data.get('ro', {})
@@ -477,29 +425,21 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
         avg_total = sum(monthly_total.values()) / 12 if monthly_total else 0
         lead = lt_map.get(furn, 30)
         # Fără stoc și fără tranzit → available = 0, deci sugestia = cererea completă.
-        if model == 'nou':
-            base_ro = sum(monthly_ro.values()) / 12 if monthly_ro else 0
-            base_export = sum(monthly_hu.values()) / 12 if monthly_hu else 0
-            bax = _bax_map(furn)
-            split = forecast_logic.split_with_safety(
-                monthly_ro, monthly_hu, lead, 0,
-                base_ro, base_export, nou_params['coef_siguranta'],
-                int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n),
-                monthly_piete=sku_data.get('piete'))
-            n_suspect = sku_data.get('n_suspect', 0)
-            suspects = sku_data.get('suspects', [])
-            inactive = bool(sku_data.get('inactive'))
-            avg_piete = {p: round(sum(mm.values()) / 12, 1)
-                         for p, mm in (sku_data.get('piete') or {}).items()}
-            sug_piete = {p: v['suggested']
-                         for p, v in split.get('piete', {}).items()}
-        else:
-            split = forecast_logic._ro_hu_split(monthly_ro, monthly_hu, lead, 0)
-            n_suspect = 0
-            suspects = []
-            inactive = False
-            avg_piete = {}
-            sug_piete = {}
+        base_ro = sum(monthly_ro.values()) / 12 if monthly_ro else 0
+        base_export = sum(monthly_hu.values()) / 12 if monthly_hu else 0
+        bax = _bax_map(furn)
+        split = forecast_logic.split_with_safety(
+            monthly_ro, monthly_hu, lead, 0,
+            base_ro, base_export, nou_params['coef_siguranta'],
+            int(nou_params['perioada_acoperire_luni'] * 30), bax.get(sku_n),
+            monthly_piete=sku_data.get('piete'))
+        n_suspect = sku_data.get('n_suspect', 0)
+        suspects = sku_data.get('suspects', [])
+        inactive = bool(sku_data.get('inactive'))
+        avg_piete = {p: round(sum(mm.values()) / 12, 1)
+                     for p, mm in (sku_data.get('piete') or {}).items()}
+        sug_piete = {p: v['suggested']
+                     for p, v in split.get('piete', {}).items()}
         # Derivă cod furnizor din SKU dacă nu e în stoc istoric (ex: "71725" → "71725-00")
         cod_mare = row_s['cod_mare']
         if not cod_mare:
@@ -512,7 +452,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None, 
             'gama':              None,
             'stoc_total':        0,
             'valoare_stoc':      0,
-            'vanzari_luna_avg':  _disp_avg(sku_n, avg_total),
+            'vanzari_luna_avg':  round(avg_total, 1),
             'zile_stoc':         0,
             'cel_mai_vechi_lot': None,
             'pret_valuta':       None,

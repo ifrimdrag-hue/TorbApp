@@ -71,15 +71,14 @@ gives every country its full coverage demand + safety with **no stock offset**
 export cells, one quantity field per country in the add-to-order modal.
 Tests: `tests/test_multi_country_export.py`.
 
-### Wiring — `?model=nou` / `?compare=1`
+### Wiring (default and only model since 2026-07-05)
 
-Both entry points default to the unchanged legacy behaviour; the new model is opt-in only:
+The client × article model is the sole forecast model — the legacy per-SKU path, the `?model=` toggle, and the `?compare=1` view were removed after owner validation.
 
-- `forecast_logic.build_suggestion(furnizor, ..., model="actual"|"nou")` — Suggest tab. `model="nou"` swaps `_monthly_sales_by_sku` for `pair_engine.article_monthly_profiles` and `_ro_hu_split` for `split_with_safety`; adds `n_suspect`/`suspects`/`safety_ro`/`safety_export` to each item.
-- `queries.forecast_stoc_extended(..., model="actual"|"nou")` — Stoc tab, same swap.
-- `/forecast?model=nou` — switches the whole page to the new model.
-- `/forecast?compare=1` — validation view: renders the **old** model as the base rows, then runs the new model alongside and attaches `suggested_ro_nou`/`suggested_hu_nou` per SKU so old-vs-new can be diffed on screen before flipping the default. Use this to validate before changing the `model` default in `app/blueprints/forecast.py`.
-- UI (`forecast.html`): model toggle control, "Suspect delistare" badge (from `n_suspect`/`suspects`), a "fără ajustare (<24 luni)" seasonality marker when the gate hasn't opened yet, and a suggestion-transparency popover showing the demand/safety-stock breakdown.
+- `forecast_logic.build_suggestion(furnizor, min_velocity=1.0, only_needed=True)` — Suggest tab. Sources monthly demand from `pair_engine.article_monthly_profiles` and computes suggestions via `split_with_safety`; adds `n_suspect`/`suspects`/`safety_ro`/`safety_export` per item.
+- `queries.forecast_stoc_extended(furnizor, gama, urgenta, search)` — Stoc tab, same engine. Displayed Vânz./lună + Zile stoc use the seasonal mean over `fereastra_luni` (no more `vel` velocity mode).
+- Excel export (`reports.export_excel(report='forecast')`) mirrors the page: one `Sug. <țară>` column per active export market, Vânz./lună on the same window.
+- UI (`forecast.html`): "Suspect delistare" badge (from `n_suspect`/`suspects`), a "fără ajustare (<24 luni)" seasonality marker when the gate hasn't opened yet, and a suggestion-transparency popover showing the demand/safety-stock breakdown.
 
 ### Deferred spec items — need owner decisions (`app/templates/decision_torb.html`, items 5–10)
 
@@ -88,12 +87,13 @@ Not implemented; blocked on data availability or a product decision. Each maps t
 | # | Spec ref | Status |
 |---|---|---|
 | 5 | §4.4 / Brief §4.1 | **Level-1 done** (`neutral_months`, multi-client heuristic). Level-2 (daily stock snapshot → `stock_snapshot`, seeded by `etl/snapshot_stoc.py`) and level-3 (manual events journal) still to build |
-| 6 | §8 | **Mechanism done** (`_moq_floor`); inert until owner supplies MOQ data (`produse` has no MOQ column) |
+| 6 | §8 | **Mechanism done** (`_moq_floor`); inert until owner supplies MOQ data. Full impl in backlog (owner-directed 2026-07-05) |
 | 7 | §5 | **Auto-confirm done** (`DELISTAT` after `confirmare_delistare_zile`). Manual confirm UI + exception report + `REACTIVAT`→new-listing still to build |
 | 8 | §6 | New-listing ramp-up — initial estimate for a client×article pair with no history, definition of "comparable clients" |
-| 9 | — | RO/Export HU split — owner confirmed **keep** (2026-07-04); still kept in the new model |
-| 10 | §10 | Nightly batch recalculation vs. on-demand (currently on-demand, same as legacy) |
+| 9 | — | **Done** — RO/export split shipped as multi-country columns (Sug. RO + one per export market) |
+| 10 | §10 | Nightly batch recalculation vs. on-demand (currently on-demand) |
+| 11 | Brief §10 | **Done** — price-diff alert threshold = 1%, stored as `prag_alerta_pret_pct` (config); alert consumer (F2) pending |
 
-Owner decisions log: `app/templates/decision_torb.html` (1–10 resolved by the owner brief/spec; 6/9/11–14 open). Plan + spec digest: `docs/plans/2026-07-04-forecast-spec-completion.md`.
+Owner decisions log: `app/templates/decision_torb.html` (all 14 resolved or scheduled). Decisions 6, 12+13, 14 are backlog items — see `docs/BACKLOG.md` §Aprovizionare. Plan + spec digest: `docs/plans/2026-07-04-forecast-spec-completion.md`.
 
 Tests: `tests/test_pair_engine.py`, `tests/test_forecast_reorder.py`, `tests/test_forecast_config.py`, `tests/test_forecast_routes.py`.

@@ -5,4 +5,4 @@ returns 404 when off, so the page can't be reached by URL in production).
 Flip to False when the dev testing round is over.
 """
 
-SHOW_TESTING = True
+SHOW_TESTING = False

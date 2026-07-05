@@ -282,9 +282,9 @@ Quick orientation:
 - Results tables: `forecasts`, `reorder_suggestions`, `forecast_runs`, `forecast_backtests`; per-brand business rules (lead times, safety stock, seasonal restrictions) in `brands_config`
 - Full page audit (architecture, suggestion algorithm, column-by-column reference, API, 20 ranked issues): `docs/analysis/forecast_page_analysis.md` (2026-07-02); open findings tracked in `docs/BACKLOG.md`
 
-### 7.1 Client × article demand model (2026-07-04, behind `?model=nou`)
+### 7.1 Client × article demand model (default since 2026-07-05)
 
-A second demand model computes the forecast per **(client, article)** pair instead of averaging a SKU across all clients, so a delisting or decline at one client is removed immediately rather than diluting slowly through a global average. It ships behind a toggle — the default stays the legacy per-SKU model (`?model=actual`); `?compare=1` shows both side by side for owner validation before the default flips.
+The forecast is computed per **(client, article)** pair instead of averaging a SKU across all clients, so a delisting or decline at one client is removed immediately rather than diluting slowly through a global average. This is the **only** forecast model — the legacy per-SKU model and the transitional `?model=`/`?compare=1` toggles were removed after owner validation. Displayed Vânz./lună + Zile stoc and the Excel export use the seasonal mean over the configured historical window (`fereastra_luni`).
 
 - **Per-pair window** — history counts only from the pair's first sale, capped at 36 months, through the last closed month (a newly listed pair isn't penalised with pre-listing zeros).
 - **Mean with zeros** — months on stock but without a sale count as 0, so a pair that stopped selling decays toward 0 on its own.
