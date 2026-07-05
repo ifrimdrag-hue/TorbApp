@@ -3,8 +3,9 @@
 The pricing import sources (FISIER_CONSOLIDAT, RO1 order forms) are
 commercial Excel files that never enter git, and there is no SSH path to
 dev/prod. This migration carries the validated result rows instead
-(migrations/data/0024_pricing_seed.json) so the owner can validate the
-module on dev :5001 with real data.
+(migrations/seed/0024_pricing_seed.json - NOT under a directory named
+"data/", which .gitignore matches at any depth) so the owner can validate
+the module on dev :5001 with real data.
 
 Idempotent: INSERT OR IGNORE against each table's unique key - existing
 rows on the target DB always win, nothing is overwritten.
@@ -15,7 +16,7 @@ from pathlib import Path
 VERSION = 24
 NAME = "0024_20260706_pricing_seed_data"
 
-_SEED = Path(__file__).parent / "data" / "0024_pricing_seed.json"
+_SEED = Path(__file__).parent / "seed" / "0024_pricing_seed.json"
 
 _TABLES = {
     "costuri_landing": (
