@@ -318,3 +318,36 @@ Torb identity (`cod_furnizor = cod_torb`, `sku`/`descriere` = Torb SKU name).
 - Lines whose MK code is **not in the mapping are skipped** (not stored) and
   reported via an `AVERTISMENT:` line, surfaced as an amber note in the upload UI
   so a new code can be added to the table.
+
+## 9. Solduri neîncasate (accounts-receivable aging)
+
+Turns the consolidated ERP receivables report into an aging dashboard
+(Comercial → **Solduri**, `/solduri-neincasate`). Data model + file map:
+`docs/TECHNICAL.md` §Data / §Input files. Table `solduri_neincasate` is a
+**replace-only snapshot** — no history is kept.
+
+**Vocabulary.**
+- **Sold rămas de încasat** (`sumdeincas`) — outstanding amount on a document. **Signed**:
+  negative rows are advances / credit notes (`avans`); they net down the balance.
+- **Termen de plată** (`term_pl_cl`) — payment term in days.
+- **Data scadenței** — **derived**: `datadl + term_pl_cl`. The file's own `scadenta`
+  column is the term in days, not a date, and is ignored.
+- **Total în piață** — sum of all outstanding (the whole receivables book).
+
+**Aging math.** Reference date = **today** (owner decision — the snapshot's upload date
+`data_raport` is shown on the page for staleness, but buckets always compute against the
+current date). Per row `d = zile de la azi până la scadență` (negative ⇒ overdue). Every row,
+including negatives, is bucketed by `d`, so the cards reconcile exactly to Total în piață.
+
+- **Nescadent** (not yet due, nested/cumulative): `0 ≤ d ≤ 7` · `≤ 30` · `≤ 60`. Due *today*
+  (d=0) counts here — never overdue.
+- **Scadent** (overdue, nested): `1 ≤ −d ≤ 7` · `≤ 30` · `≤ 60`.
+- **Total scadent** = all overdue (`−d ≥ 1`, no cap).
+- **Neîncadrate** (catch-all) = `d > 60` (future) **+** `−d > 60` (deep overdue).
+- Reconciliation identity (enforced by test): `nesc≤60 + scad≤60 + catchall = Total în piață`.
+
+**Views** (`/solduri-neincasate?view=`): per **client**, per **agent** (both with per-bucket
+columns + oldest-overdue days + `plafon` over-ceiling flag), and flat per **factură** (sortable by
+scadență). Clicking an aging card filters the table to that bucket and scopes the shown totals to
+the clicked card. Logic in `app/queries/solduri.py`; the reference date is a one-line change there
+if the owner ever wants it frozen to `data_raport` instead of today.

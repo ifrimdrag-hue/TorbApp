@@ -27,6 +27,15 @@ codes (`cod_mare`, "Cod TORB"); consumed by `etl/import_comenzi_tranzit_leonex.p
 so imported order lines resolve to the correct Torb product
 (`docs/BUSINESS_LOGIC.md` §8).
 
+Receivables snapshot: `solduri_neincasate` (migration 0021) — one row per open ERP
+document (invoice/advance) from the consolidated "solduri neîncasate" report,
+**replace-loaded** by `etl/import_solduri_neincasate.py` (each import truncates + reinserts,
+stamping `data_raport` = upload date). Outstanding = `sumdeincas` (may be negative for
+advances/credit notes); the due date is **derived on read** as `datadl + term_pl_cl`, never
+taken from the file's `scadenta` column (which only holds the term in days). Read via
+`app/queries/solduri.py`, shown on `/solduri-neincasate`. Aging bucket rules:
+`docs/BUSINESS_LOGIC.md` §Solduri neîncasate.
+
 Migrations are versioned in `migrations/` (`NNNN_YYYYMMDD_description.py`), applied automatically on Flask startup and explicitly in CI before service restart. `schema_version` table tracks applied versions; the runner is idempotent.
 
 ### Rebuild pipeline (`etl/rebuild_db.py`)
@@ -99,6 +108,16 @@ Template was empty; superseded by the webapp dashboard.
 ### Financial
 
 **Bal Dec.pdf** — December balance sheet. Not yet read.
+
+### Receivables (solduri neîncasate)
+
+**neinc DD MM.xls** (e.g. `neinc 30 06.xls`) — consolidated ERP receivables export, one row
+per open document (invoice/advance). Uploaded on `/solduri-neincasate` (saved to
+`docs_input/rapoarte/`, `tip='solduri'` on the shared `/api/upload/<tip>` pipeline), parsed by
+`etl/import_solduri_neincasate.py`. Key columns: `datadl` (doc date), `term_pl_cl` (payment
+term in days), `sumdeincas` (outstanding, signed), `numecli`/`codcli`, `numeag` (agent/channel),
+`factout` (invoice), `plafon` (credit ceiling), `nume` (channel → stored as `canal`). The file's
+`scadenta` column is the term in days, **not** a date — the due date is computed downstream.
 
 ---
 
