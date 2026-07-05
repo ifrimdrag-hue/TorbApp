@@ -54,6 +54,7 @@
 
 ## În curs / blocaje active
 
+- `[~]` **Modul Pricing & Ofertare** — strategie aprobată de owner 2026-07-06 (12 decizii în `docs/plans/2026-07-05-modul-pricing-ofertare.md` §7). F0 livrat local (migrație 0022 + import FISIER_CONSOLIDAT/RO1, commit local, nepushat). Urmează F1: motor cost/marjă (`pricing_engine`) cu praguri din `pricing_config` (min 30%, sub 25% doar cu acord owner). De rezolvat din raportul F0: 51 prețuri achiziție diferite DB vs fișier, 90 SKU nepotrivite, condiții defalcate de introdus (cond_resolved e gol la retaileri mari), curs USD 4.5 (DB) vs 4.6 (fișier), 9 SKU cu buc/bax contradictoriu.
 - `[~]` **Validare forecast Basilur** — hindcast 2025 Q4 manual blocată până când owner-ul livrează Excel stoc curent. Fix-ul A1 (coduri export HU) e livrat 2026-07-03 — cifrele HU/export ar trebui reverificate de owner înainte de validarea finală.
 
 ---

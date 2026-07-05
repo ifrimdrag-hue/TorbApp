@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Solduri: drill-down navigation + client invoice page (2026-07-05)
+### Pricing module F0: data foundations + one-off import (2026-07-06)
+
+Owner request 2026-07-05: pricing module from purchase price → landing cost → margin simulation per client → offers with photos → per-client xls listing files. Strategy + owner decisions: `docs/plans/2026-07-05-modul-pricing-ofertare.md`.
+
+- **Migration 0022** — `produse_logistica` (unit/carton dims, weights, CBM, units/case), `produse_media` (product photos: local path and/or source URL), `coduri_client_articol` (per-client internal article codes), `pricing_config` (margin thresholds as data — global 30% min / 25% approval floor, per-gama override), `clienti_pricing` (simulated shelf margin, listing template key); `conditii_comerciale` gains optional `categorie`/`sku` scope.
+- **`etl/import_pricing_f0.py`** — imports FISIER_CONSOLIDAT_PRETURI.xlsx (268 client codes for Auchan/Metro/Kaufland/eMAG/Supeco/Carrefour, 48 missing purchase prices) and Basilur RO1 order forms (44 SKUs with carton dims/CBM/weights; cm→mm conversion validated against the CBM column). Existing DB prices are never overwritten — differences go to a data-quality report (`Date pricinng&Logistica&Ofertare/rapoarte/f0_import_raport.txt`): 51 price differences, 90 unmatched SKUs, conditions gap vs `cond_resolved`.
+- Commercial data folder added to `.gitignore` (xls sources never land in git). Tests: 231 passing.
 
 Owner request: easy navigation agent → clients → invoices on the Solduri page.
 

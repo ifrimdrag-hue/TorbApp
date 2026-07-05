@@ -1,6 +1,6 @@
 # Modul Pricing & Ofertare — strategie de implementare
 
-**Data:** 2026-07-05 · **Status:** DRAFT — așteaptă răspunsurile ownerului la întrebările din §7
+**Data:** 2026-07-05 · **Status:** APROBAT — deciziile ownerului în §7 (2026-07-06); F0 în lucru
 **Obiectiv:** un modul complet de la preț de achiziție → landing cost → simulare marjă → ofertă de preț cu poze → fișiere de listare (xls) per client, gândit din perspectiva directorului comercial.
 
 ---
@@ -101,20 +101,20 @@ Fiecare fază: dezvoltare pe `main` local → teste → push → Dev :5001 → e
 - **Poze în xlsx**: openpyxl suportă imagini embedded; dimensiunea fișierului crește — thumbnail-uri max ~200px în oferte.
 - **`an` vs. `valabil_de_la`**: modelul actual e per an calendaristic; prețurile reale se schimbă în cursul anului (15.06, 01.07 în fișiere). Propun migrare graduală la valabilitate pe dată, cu compatibilitate pe an.
 
-## 7. Întrebări deschise (răspunsurile ownerului) — BLOCANTE pentru F0/F1
+## 7. Deciziile ownerului (2026-07-06)
 
-1. **Transport în landing cost:** rămânem la % din valoare (azi 10% default, în fișier 0 la Basilur) sau alocăm costul real de transport per comandă pe CBM/kg? Care e regula pe care o folosiți azi în practică, per furnizor?
-2. **Curs valutar:** curs fix „de calcul" per gamă (USD 4,6 / EUR 5,4 ca în fișier) actualizat manual, sau curs BNR + marjă de siguranță? Cine îl schimbă și când?
-3. **Marja de bază 30%:** e aceeași pentru toate gamele sau diferă (Basilur vs. Torras vs. Celmar)? Există praguri minime sub care echipa nu are voie să coboare fără aprobarea ta?
-4. **Condiții client:** ne ajunge un % total per client (ca în sheet CONDIȚII: Auchan 11,72%) sau vrei defalcat pe tipuri (bonus logistic, marketing, promo, listare) ca să vezi unde se duce marja? Tabelul detaliat există deja în app, dar e gol.
-5. **Preț raft:** vrei ca simulatorul să meargă până la preț raft estimat (marja retailerului + TVA, ca în „simulare metro")? De unde luăm marja de raft per client — o introduci tu per client/categorie?
-6. **Poze:** de pe ce site se iau pozele (robrands.ro? site-urile furnizorilor?) și există o regulă de potrivire (EAN/SKU în URL), sau se încarcă manual la definirea articolului?
-7. **Clienți prioritari pentru template-uri:** confirmi ordinea Kaufland, Sezamo, Fildas, Selgros, Auchan? Formatul trebuie 1:1 cu fișierele existente (le atașează echipa direct în portalurile clienților)?
-8. **Cine folosește modulul:** câți oameni din echipă generează oferte? Vrei flux de aprobare (echipa propune → directorul aprobă → abia apoi se generează fișierul de listare)?
-9. **Valabilitate & istoric:** confirmi trecerea la `valabil_de_la` (dată) în locul prețului „per an"? Păstrăm istoricul complet al listelor trimise per client?
-10. **Sursa prețului de achiziție:** lista de preț oficială a furnizorului sau prețul din ultima comandă efectivă (`comenzi_furnizori_linii` le are pe ambele potențial diferite)? Ce facem când diferă?
-11. **Export (HU/BG…):** modulul de pricing acoperă și clienții export (HunTrade etc., prețuri în EUR?) din prima, sau întâi RO și extindem după?
-12. **Alte costuri în marjă:** vrei incluse în „marja netă" și costuri operaționale (depozitare, retur, transport la client, termen de plată/cost finanțare — există `termene_plata`), sau doar condițiile comerciale?
+1. **Transport:** rămâne **% din valoare**; costul real vine ulterior din exportul ERP la recepție și se reglează din contabilitate. (Pregătim câmp pentru costul real reconciliat — fază ulterioară.)
+2. **Curs valutar:** actualizat **manual** (modelul existent `rate_schimb`).
+3. **Marjă:** minim **30%**, sub **25%** doar cu acordul directorului — **nimic hardcodat**: praguri în `pricing_config` (global + override per gamă), editabile din UI.
+4. **Condiții client:** **defalcate** — condițiile diferă pe categorii și pe produse → `conditii_comerciale` primește scope opțional `categorie` și `sku`.
+5. **Preț raft:** simularea merge până la preț raft cu **marje de raft setate manual** (per client, doar pentru simulare); KPI-ul central rămâne **prețul de facturare către client**.
+6. **Poze:** **ambele** — fetch de pe site și upload manual la definirea articolului.
+7. **Template-uri prioritare:** neconfirmat explicit → mergem pe ordinea propusă (Kaufland, Sezamo, Fildas, Selgros, Auchan); de reconfirmat la F3.
+8. **Aprobare oferte:** **nu** — oricine din echipă poate genera oferte (pragul de marjă de la pct. 3 rămâne singura barieră).
+9. **Valabilitate:** **da** — trecem pe `valabil_de_la` + istoric complet al listelor per client.
+10. **Sursa preț achiziție:** **lista oficială a furnizorului**; notificare când diferă de prețul din comenzi.
+11. **Export:** întâi **RO**, extindem după.
+12. **Marja netă:** doar **condițiile comerciale** (fără costuri operaționale/finanțare).
 
 ---
-*Documentul se actualizează cu răspunsurile + deciziile finale înainte de începerea F0.*
+*§7 completat cu deciziile din 2026-07-06; F0 pornit pe baza lor.*
