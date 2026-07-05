@@ -6,7 +6,6 @@ import datetime
 import logging
 import math
 import re
-from collections import defaultdict
 
 from db import query, query_one
 
@@ -69,54 +68,6 @@ def get_in_transit(furnizor: str) -> dict:
         return {}
 
 
-def _monthly_sales_by_sku(furnizor: str) -> dict:
-    """
-    Returns {sku: {'ro': {month: avg}, 'export': {month: avg},
-                   'total': {month: avg}, 'cod_produs': str}}
-    averaged across available years (up to 3 years of history).
-
-    'export' = vânzări către clienții HU (Brandmix + Hun-Trade), urmăriți
-    separat pentru sugestii de comandă export distinctă.
-    'ro' = piața RO (toate celelalte vânzări).
-    'total' = ro + export (preluat ca avg_monthly în sugestie).
-    """
-    cutoff_year = datetime.date.today().year - 3
-    export_clause = "cod_client IN (SELECT cod_client FROM clienti_export WHERE activ = 1)"
-    rows = query(f"""
-        SELECT t.sku, t.luna, t.an,
-               SUM(CASE WHEN {export_clause} THEN cantitate ELSE 0 END) AS qty_exp,
-               SUM(CASE WHEN NOT ({export_clause}) OR cod_client IS NULL
-                        THEN cantitate ELSE 0 END) AS qty_ro
-        FROM tranzactii t
-        WHERE t.furnizor = :f AND t.an >= :cutoff
-        GROUP BY t.sku, t.luna, t.an
-        ORDER BY t.sku, t.luna, t.an
-    """, {'f': furnizor, 'cutoff': cutoff_year})
-
-    raw_ro = defaultdict(lambda: defaultdict(list))
-    raw_exp = defaultdict(lambda: defaultdict(list))
-
-    for r in rows:
-        sku_n = _normalize_sku(r['sku'])
-        m = int(r['luna'])
-        raw_ro[sku_n][m].append(r['qty_ro'] or 0)
-        raw_exp[sku_n][m].append(r['qty_exp'] or 0)
-
-    all_skus = set(raw_ro.keys()) | set(raw_exp.keys())
-    result = {}
-    for sku in all_skus:
-        ro = {m: sum(q) / len(q) for m, q in raw_ro[sku].items() if q}
-        exp = {m: sum(q) / len(q) for m, q in raw_exp[sku].items() if q}
-        total = {m: ro.get(m, 0) + exp.get(m, 0) for m in set(ro.keys()) | set(exp.keys())}
-        result[sku] = {
-            'ro': ro,
-            'export': exp,
-            'total': total,
-            'cod_produs': None,
-        }
-    return result
-
-
 def _seasonality_index(monthly_avg: dict) -> dict:
     """Returns {month: index} where 1.0 = average month."""
     total = sum(monthly_avg.values())
@@ -147,28 +98,6 @@ def _coverage_demand(monthly_avg: dict, lead_time_days: int,
         total += daily * days_covered
         cur = _next_month_start(covered_end)
     return total
-
-
-def _ro_hu_split(monthly_ro: dict, monthly_export: dict,
-                 lead_days: int, available: float) -> dict:
-    """RO-first demand split shared by both suggestion paths (Tab 1 & Tab 2).
-
-    Common stock + in-transit (`available`) covers the RO coverage demand
-    first; only the leftover surplus offsets the separate export order.
-    Returns the two coverage demands and the two non-negative suggested
-    quantities as floats — callers round to their own convention.
-    """
-    demand_ro = _coverage_demand(monthly_ro, lead_days)
-    demand_export = _coverage_demand(monthly_export, lead_days)
-    suggested_ro = max(0.0, demand_ro - available)
-    surplus = max(0.0, available - demand_ro)
-    suggested_export = max(0.0, demand_export - surplus)
-    return {
-        'demand_ro': demand_ro,
-        'demand_export': demand_export,
-        'suggested_ro': suggested_ro,
-        'suggested_export': suggested_export,
-    }
 
 
 def _listing_changes(furnizor: str) -> dict:
@@ -212,15 +141,11 @@ def is_xmas_window() -> bool:
     return datetime.date.today().month in (4, 5)
 
 
-def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool = True,
-                     model: str = "actual") -> dict:
+def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool = True) -> dict:
     """
-    Build order suggestion for a brand.
+    Build order suggestion for a brand — client×article model (`pair_engine`).
     min_velocity : ignore SKUs with avg monthly sales below this threshold
     only_needed  : if True, return only SKUs where suggested > 0
-    model        : "actual" (default, current SKU-level logic) or "nou"
-                   (client x article model — see pair_engine.article_monthly_profiles
-                   and split_with_safety)
     """
     lt = get_lead_time(furnizor)
     lead_days = lt['zile_livrare']
@@ -229,17 +154,12 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
     today = datetime.date.today()
     delivery_date = today + datetime.timedelta(days=lead_days)
 
-    nou_params = None
-    bax = {}
-    if model == "nou":
-        from forecast import config, pair_engine
-        nou_params = config.get_params()
-        monthly_data = pair_engine.article_monthly_profiles(furnizor, nou_params)
-        bax = {_normalize_sku(r['sku']): r['buc_cutie']
-               for r in query("SELECT sku, buc_cutie FROM produse WHERE furnizor=:f",
-                              {'f': furnizor})}
-    else:
-        monthly_data = _monthly_sales_by_sku(furnizor)
+    from forecast import config, pair_engine
+    nou_params = config.get_params()
+    monthly_data = pair_engine.article_monthly_profiles(furnizor, nou_params)
+    bax = {_normalize_sku(r['sku']): r['buc_cutie']
+           for r in query("SELECT sku, buc_cutie FROM produse WHERE furnizor=:f",
+                          {'f': furnizor})}
     if not monthly_data:
         return {'items': [], 'lead_time': lt, 'xmas_window': is_xmas_window(),
                 'delivery_date': delivery_date.isoformat(),
@@ -323,23 +243,18 @@ def build_suggestion(furnizor: str, min_velocity: float = 1.0, only_needed: bool
             total_available = stoc_qty + transit_qty
             zile_stoc = int(total_available / (avg_monthly / 30))
 
-        # Stocul comun + tranzitul acopera intai cererea RO; surplusul
-        # ramane disponibil pentru export (vezi _ro_hu_split / split_with_safety).
+        # Stocul comun + tranzitul acoperă întâi cererea RO; surplusul rămâne
+        # disponibil pentru export (vezi split_with_safety).
         available = stoc_qty + transit_qty
-        if model == "nou":
-            base_ro = sum(sku_monthly_ro.values()) / 12
-            base_export = sum(sku_monthly_export.values()) / 12
-            split = split_with_safety(
-                sku_monthly_ro, sku_monthly_export, lead_days, available,
-                base_ro, base_export, nou_params["coef_siguranta"],
-                int(nou_params["perioada_acoperire_luni"] * 30), bax.get(_normalize_sku(sku)),
-                monthly_piete=sku_data.get('piete'))
-            suggested_ro = split['suggested_ro']
-            suggested_export = split['suggested_export']
-        else:
-            split = _ro_hu_split(sku_monthly_ro, sku_monthly_export, lead_days, available)
-            suggested_ro = round(split['suggested_ro'])
-            suggested_export = round(split['suggested_export'])
+        base_ro = sum(sku_monthly_ro.values()) / 12
+        base_export = sum(sku_monthly_export.values()) / 12
+        split = split_with_safety(
+            sku_monthly_ro, sku_monthly_export, lead_days, available,
+            base_ro, base_export, nou_params["coef_siguranta"],
+            int(nou_params["perioada_acoperire_luni"] * 30), bax.get(_normalize_sku(sku)),
+            monthly_piete=sku_data.get('piete'))
+        suggested_ro = split['suggested_ro']
+        suggested_export = split['suggested_export']
         demand_ro = split['demand_ro']
         demand_export = split['demand_export']
         suggested_total = suggested_ro + suggested_export
@@ -439,7 +354,7 @@ def _moq_floor(raw: float, moq) -> float:
 def split_with_safety(monthly_ro, monthly_export, lead_days, available,
                       base_ro, base_export, coef, coverage_days, buc_cutie,
                       moq=None, monthly_piete=None):
-    """Like _ro_hu_split, but adds a coef x forecast safety stock to each
+    """RO-first demand split: adds a coef x forecast safety stock to each
     market's demand before subtracting available stock, applies the supplier
     MOQ floor (spec §8), then rounds each suggestion up to the next full bax
     (case) size.

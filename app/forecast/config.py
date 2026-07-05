@@ -13,6 +13,9 @@ DEFAULTS = {
     "oos_prag_pct": 50.0, "rampup_luni": 3.0, "plafon_varf_initial": 2.0,
     "factor_marime_min": 0.25, "factor_marime_max": 4.0,
     "prag_neutru_multi_client": 70.0,
+    # Decizia 11: abaterea (%) preț factură vs. comandă care declanșează alerta.
+    # Momentan doar stocată (consumatorul — alerta de preț la recepție — urmează).
+    "prag_alerta_pret_pct": 1.0,
 }
 
 

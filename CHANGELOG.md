@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Forecast finalized: client × article is now the default; legacy model, compare & velocity toggle removed (2026-07-05)
+
+Owner GO after dev validation. The client × article model is now the **only** forecast model; the transitional scaffolding is gone.
+
+- **Legacy `actual` model deleted** — `forecast_logic._monthly_sales_by_sku` and `_ro_hu_split` removed; `build_suggestion` and `queries.forecast_stoc_extended` lost their `model` parameter and now always run the pair engine. `?model=nou`/`?model=actual` and the `?compare=1` view (route branch, `suggested_ro_nou`/`Δ RO` columns, the "Model actual / Model nou" and "Comparație" buttons) are all removed from `app/blueprints/forecast.py` and `forecast.html`.
+- **`3 ani / 90 zile` velocity toggle removed** — `forecast_stoc_extended` lost its `vel` parameter; Vânz./lună + Zile stoc on the page **and** the Excel export now always compute on the seasonal mean over the configured `fereastra_luni` window (Setări forecast). The Excel export also emits one `Sug. <țară>` column per active export market (was fixed `Sug. HU`).
+- **Decision 9 (RO/export split)** — confirmed **implemented** as the multi-country columns (Sug. RO + one per export market); dropped from the open list.
+- **Decision 11 (price-diff alert)** — set to **1%**, stored as `prag_alerta_pret_pct` in `forecast_config` defaults (`app/forecast/config.py`) and editable on `/forecast/setari`. No consumer yet — dormant until the receipt price-alert (F2) lands, so it's configured rather than hardcoded.
+- **Decisions 6, 12, 13, 14 → backlog** — MOQ (6), dead-stock + ERP lot/BBD report (12+13, one implementation), and a new **"Notifications"** umbrella (14). See `docs/BACKLOG.md` §Aprovizionare — planned components. `app/templates/decision_torb.html` + `testing_checklist.html` updated to reflect all 14 decisions as resolved or scheduled.
+- Tests updated for the single-model world: velocity/compare/model-param tests removed or repointed; `test_ro_hu_split` migrated to `split_with_safety` (coef=0); a stale `zile_stoc` fixture refreshed with recent sales (the pair engine now correctly marks a 2025-only SKU INACTIV). 222 passing.
+
 ### Owner feedback round: forecast visibility, setari UX, nelistate fix (2026-07-04)
 
 Six-item owner list (evaluated on dev :5001). Items delivered:

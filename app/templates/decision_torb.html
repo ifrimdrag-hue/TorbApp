@@ -243,15 +243,15 @@
           <tr><td class="num-cell">3</td><td>Definiția „Critic"</td><td class="rec-cell resolved">Zile stoc &lt; lead time (pe prognoză sezonieră)</td></tr>
           <tr><td class="num-cell">4</td><td>Baza de vânzări afișată</td><td class="rec-cell resolved">3 vizualizări, implicit „3 ani"</td></tr>
           <tr><td class="num-cell">5</td><td>Luni fără stoc (rupturi)</td><td class="rec-cell resolved">„Luni neutre" pe 3 niveluri — <b>de confirmat datele</b></td></tr>
-          <tr><td class="num-cell">6</td><td>Cantitate minimă de comandă (MOQ)</td><td class="rec-cell pending">Așteptăm lista MOQ de la dvs.</td></tr>
+          <tr><td class="num-cell">6</td><td>Cantitate minimă de comandă (MOQ)</td><td class="rec-cell pending">→ Backlog: implementare separată (mai multe detalii urmează)</td></tr>
           <tr><td class="num-cell">7</td><td>Confirmarea delistării</td><td class="rec-cell resolved">Auto la +90 zile, cu confirmare manuală</td></tr>
           <tr><td class="num-cell">8</td><td>Estimare pentru articol nou-listat</td><td class="rec-cell resolved">Analogie × factor de mărime + ramp-up 3 luni</td></tr>
-          <tr><td class="num-cell">9</td><td>Sugestie separată RO vs Export HU</td><td class="rec-cell pending">Documentele nu o menționează — o păstrăm?</td></tr>
+          <tr><td class="num-cell">9</td><td>Sugestie separată RO vs piețe export</td><td class="rec-cell resolved">Implementat — coloane RO + o coloană per piață export</td></tr>
           <tr><td class="num-cell">10</td><td>Momentul recalculării</td><td class="rec-cell resolved">Job programat, noaptea</td></tr>
-          <tr><td class="num-cell">11</td><td>Prag alertă diferență de preț</td><td class="rec-cell pending">Ce abatere (%) declanșează alerta?</td></tr>
-          <tr><td class="num-cell">12</td><td>Prag valoric „stoc mort"</td><td class="rec-cell pending">De la ce valoare (lei) alertăm?</td></tr>
-          <tr><td class="num-cell">13</td><td>Raport ERP pe loturi + valabilitate</td><td class="rec-cell pending">Precondiție F4 — îl obțineți din ERP</td></tr>
-          <tr><td class="num-cell">14</td><td>Cum vă anunțăm (notificări)</td><td class="rec-cell pending">În aplicație / e-mail / ambele?</td></tr>
+          <tr><td class="num-cell">11</td><td>Prag alertă diferență de preț</td><td class="rec-cell resolved">1%, configurabil în Setări forecast</td></tr>
+          <tr><td class="num-cell">12</td><td>Prag valoric „stoc mort"</td><td class="rec-cell pending">→ Backlog: împreună cu 13 (o implementare)</td></tr>
+          <tr><td class="num-cell">13</td><td>Raport ERP pe loturi + valabilitate</td><td class="rec-cell pending">→ Backlog: împreună cu 12 (precondiție F4)</td></tr>
+          <tr><td class="num-cell">14</td><td>Cum vă anunțăm (notificări)</td><td class="rec-cell pending">→ Backlog: item „Notificări"</td></tr>
         </tbody>
       </table>
     </div>
@@ -400,9 +400,9 @@
   </div>
 
   <div class="masthead" style="border-bottom:1px solid var(--warn); margin:3.6rem 0 2.2rem; padding-bottom:1.3rem;">
-    <p class="kicker" style="color:var(--warn);">Rămân de decis</p>
-    <h2 style="font-family:var(--serif); font-weight:700; font-size:clamp(1.5rem,4vw,2rem); line-height:1.15; margin:.2rem 0 .6rem;">Punctele care depind de datele sau de alegerea dvs.</h2>
-    <p class="lede" style="max-width:48ch;">Documentele nu le acoperă — fie ne trebuie o listă/valoare de la dvs., fie o preferință de business. Până la răspuns, implementăm ce nu depinde de ele.</p>
+    <p class="kicker" style="color:var(--warn);">Închise recent &amp; planificate</p>
+    <h2 style="font-family:var(--serif); font-weight:700; font-size:clamp(1.5rem,4vw,2rem); line-height:1.15; margin:.2rem 0 .6rem;">Ce s-a decis la ultima rundă</h2>
+    <p class="lede" style="max-width:48ch;">Punctele 9 și 11 s-au rezolvat (9 e deja implementat, 11 are prag de pornire 1%, reglabil). Restul — 6, 12, 13, 14 — au primit o direcție și sunt trecute în backlog pentru o implementare dedicată, în ordinea fazelor.</p>
   </div>
 
   <div class="decisions">
@@ -412,83 +412,44 @@
       <div class="eyebrow-row">
         <span class="index">6</span>
         <span class="eyebrow">Cantitate minimă de comandă</span>
-        <span class="status-open">De decis</span>
+        <span class="status-open">În backlog</span>
       </div>
       <h3>Cantitatea minimă de comandă (MOQ) impusă de furnizori</h3>
-      <p>Sugestia se rotunjește în sus la multiplul de <b>bax</b> — asta o facem deja din datele existente. Ce nu avem este <b>MOQ</b>-ul: cantitatea minimă sub care unii furnizori nu acceptă comandă pentru un articol. Specificația o cere în formulă (§8), dar valorile trebuie să vină de la dvs.</p>
-      <p class="example">Exemplu: dacă un furnizor cere minim <b>X cutii</b> per articol, fără MOQ sistemul poate sugera o cantitate pe care furnizorul o refuză.</p>
-
-      <p class="qlabel">Întrebarea</p>
-      <p class="question">Aveți, per furnizor sau per articol, o cantitate minimă de comandă (MOQ) pe care să o respectăm?</p>
-
-      <ul class="options">
-        <li class="opt rec">
-          <span class="opt-badge">A</span>
-          <span class="opt-body"><span class="otitle">Ne dați lista MOQ</span><span class="tag">Recomandat</span><br>Pe furnizor sau pe articol, acolo unde există; o folosim ca prag minim în sugestie. Rotunjirea la bax rămâne oricum din datele existente.</span>
-        </li>
-        <li class="opt">
-          <span class="opt-badge">B</span>
-          <span class="opt-body"><span class="otitle">Rotunjim doar la bax, fără MOQ</span><br>Mai simplu — folosim doar multiplul de bax, fără prag minim de cantitate.</span>
-        </li>
-        <li class="opt">
-          <span class="opt-badge">C</span>
-          <span class="opt-body"><span class="otitle">MOQ implicit, configurabil</span><br>Pornim de la o valoare implicită per furnizor, pe care o ajustați în ecranul de configurare.</span>
-        </li>
-      </ul>
-
-      <div class="why">
-        <span class="why-label">De ce A</span>
-        <span>MOQ-ul, acolo unde furnizorul îl impune, evită comenzi respinse — dar are nevoie de lista dvs. Fără ea, mergem pe B până când o primim.</span>
+      <p>Sugestia se rotunjește deja în sus la multiplul de <b>bax</b>, iar mecanismul de prag MOQ e pregătit în motor (inert până apar datele). Cum urmează <b>mai multe detalii</b> despre cum arată MOQ-ul pe furnizor/articol, punctul intră în <b>backlog ca implementare dedicată</b> — îl reluăm când primim lista și specificul.</p>
+      <div class="resolution">
+        <span class="res-label">Direcție</span>
+        MOQ = prag minim în sugestie (peste rotunjirea la bax). <b>Trecut în backlog</b>; revenim cu implementarea completă la primirea listei MOQ și a detaliilor.
       </div>
     </article>
 
     <!-- 9 -->
-    <article class="card open">
+    <article class="card done">
       <div class="eyebrow-row">
         <span class="index">9</span>
         <span class="eyebrow">Piața RO vs Export</span>
-        <span class="status-open">De decis</span>
+        <span class="status-done">Rezolvat</span>
       </div>
-      <h3>Păstrăm sugestia separată pentru RO și pentru Export HU?</h3>
-      <p>Tool-ul actual calculează două sugestii: una pentru piața RO și una pentru clienții de Export HU (Brandmix, Hun-Trade), pentru că se comandă și se facturează diferit. <b>Nici Brief-ul, nici Specificația nu menționează această separare</b> — vorbesc doar de „client × articol". Vrem să știm dacă o păstrăm.</p>
-      <p class="example">Exemplu: azi sistemul arată pe coloane distincte <b>„Sug. RO"</b> și <b>„Sug. Export HU"</b> pentru fiecare articol.</p>
-
-      <p class="qlabel">Întrebarea</p>
-      <p class="question">În noul model, păstrăm sugestia separată RO / Export HU?</p>
-
-      <ul class="options">
-        <li class="opt rec">
-          <span class="opt-badge">A</span>
-          <span class="opt-body"><span class="otitle">Păstrăm separarea, ca acum</span><span class="tag">Recomandat</span><br>Aceleași două coloane, dar cu calcul pe client × articol dedesubt. Vizual nu se schimbă nimic.</span>
-        </li>
-        <li class="opt">
-          <span class="opt-badge">B</span>
-          <span class="opt-body"><span class="otitle">O singură sugestie totală</span><br>Renunțăm la separare. Mai simplu, dar pierdem distincția utilă la comandă și facturare.</span>
-        </li>
-      </ul>
-
-      <div class="why">
-        <span class="why-label">De ce A</span>
-        <span>Separarea reflectă un flux real de business (comandă și facturare diferite); noul model o poate păstra fără efort suplimentar. Confirmați doar că mai e valabilă.</span>
+      <h3>Sugestie separată pentru RO și pentru piețele de export</h3>
+      <div class="resolution">
+        <span class="res-label">Implementat</span>
+        Păstrăm separarea și am extins-o: pe lângă <b>Sug. RO</b>, fiecare piață de export configurată în Setări apare pe <b>coloana ei</b> (de ex. Sug. HU, Sug. DE), fiecare cu istoric și sugestie proprie. Calculul din spate e pe client × articol; separarea reflectă fluxul real de comandă și facturare.
       </div>
+      <p class="source">Sursă: decizia proprietarului + modelul multi-țară (2026-07-04). Țările și alocările de clienți se gestionează din <code>/forecast/setari</code>.</p>
     </article>
 
     <!-- 11 -->
-    <article class="card open">
+    <article class="card done">
       <div class="eyebrow-row">
         <span class="index">11</span>
         <span class="eyebrow">Diferențe de preț la achiziție</span>
-        <span class="status-open">De decis</span>
+        <span class="status-done">Rezolvat</span>
       </div>
       <h3>De la ce diferență de preț vă alertăm?</h3>
-      <p>La încărcare, prețul final de la furnizor poate diferi de cel din comandă. Sistemul evidențiază diferența într-un raport dedicat și ridică o alertă „Atenție" când abaterea depășește un prag. Pragul e lăsat „de stabilit" în Brief.</p>
-      <p class="example">Exemplu: comandă la 10 lei/buc, factură la 10,80 lei/buc = +8%. Peste pragul ales, comanda apare în Centrul de alerte cu impactul pe costul de achiziție.</p>
-
-      <p class="qlabel">Întrebarea</p>
-      <p class="question">Ce abatere de preț (%) față de comandă declanșează alerta?</p>
-      <div class="why">
-        <span class="why-label">Propunere</span>
-        <span>Un punct de plecare de <b>5%</b>, configurabil. Ne spuneți valoarea pe care o considerați semnificativă în practică — poate fi și pe categorii de furnizori.</span>
+      <p>La încărcare, prețul final de la furnizor poate diferi de cel din comandă. Sistemul va evidenția diferența și va ridica o alertă când abaterea depășește pragul stabilit.</p>
+      <p class="example">Exemplu: comandă la 10 lei/buc, factură la 10,10 lei/buc = +1% → atinge pragul și comanda apare în Centrul de alerte.</p>
+      <div class="resolution">
+        <span class="res-label">Decizie</span>
+        Prag <b>1%</b>, salvat în configurare (nu codat fix) — reglabil oricând din <code>/forecast/setari</code> („Prag alertă diferență preț"). Alerta propriu-zisă la recepție se livrează odată cu componenta de recepție (F2).
       </div>
     </article>
 
@@ -497,17 +458,13 @@
       <div class="eyebrow-row">
         <span class="index">12</span>
         <span class="eyebrow">Stoc mort</span>
-        <span class="status-open">De decis</span>
+        <span class="status-open">În backlog</span>
       </div>
       <h3>De la ce valoare semnalăm „stoc mort"?</h3>
-      <p>Un articol devenit INACTIV care rămâne cu stoc pe raft imobilizează bani. Sistemul îl semnalează în Centrul de alerte când valoarea stocului rămas (cantitate × cost) depășește un prag. Pragul valoric e „de stabilit" în Brief.</p>
-      <p class="example">Exemplu: un ceai scos din vânzare, cu 400 buc rămase × 12 lei = 4.800 lei imobilizați → alertă „stoc mort".</p>
-
-      <p class="qlabel">Întrebarea</p>
-      <p class="question">De la ce valoare (lei) a stocului rămas pe un articol inactiv vreți să apară alerta?</p>
-      <div class="why">
-        <span class="why-label">Propunere</span>
-        <span>Nu avem o valoare implicită sănătoasă fără să știm ordinele dvs. de mărime. Ne dați o cifră de pornire (ex. 1.000 / 5.000 lei), configurabilă ulterior.</span>
+      <p>Un articol devenit INACTIV care rămâne cu stoc pe raft imobilizează bani. Semnalul „stoc mort" din Centrul de alerte merge împreună cu componenta de loturi &amp; valabilitate (punctul 13) — se implementează în aceeași fază.</p>
+      <div class="resolution">
+        <span class="res-label">Direcție</span>
+        <b>Trecut în backlog, împreună cu punctul 13</b>, ca o singură implementare. Pragul valoric (lei) va fi configurabil; stabilim cifra de pornire la momentul implementării.
       </div>
     </article>
 
@@ -516,17 +473,13 @@
       <div class="eyebrow-row">
         <span class="index">13</span>
         <span class="eyebrow">Precondiție F4 · loturi &amp; valabilitate</span>
-        <span class="status-open">De decis</span>
+        <span class="status-open">În backlog</span>
       </div>
       <h3>Raportul de stoc din ERP, defalcat pe loturi cu termen de valabilitate</h3>
-      <p>Componenta F4 (stoc pe loturi, risc de expirare, verificare FEFO, „stoc util" în sugestie) are nevoie de un raport ERP care conține <b>cantitățile pe loturi, cu data de expirare (BBD) per lot</b>. Raportul actual nu are aceste coloane. Noi specificăm formatul dorit (minim: articol_id, lot, cantitate, data expirării, opțional data recepției lotului), dar raportul îl obțineți dvs. din ERP.</p>
-      <p class="example">Fără el, sistemul tratează marfa care va expira ca integral vandabilă și poate bloca reaprovizionarea pe baza ei.</p>
-
-      <p class="qlabel">Ce vă cerem</p>
-      <p class="question">Confirmați că puteți obține din ERP raportul pe loturi cu BBD? Îl comandați în paralel cu Faza 1, ca F4 să nu întârzie.</p>
-      <div class="why">
-        <span class="why-label">De ce acum</span>
-        <span>E singura dependență externă a proiectului. Formatul îl trimitem în primele 2 săptămâni, ca modificarea raportului să fie gata până ajungem la Faza 3 (F4).</span>
+      <p>Componenta F4 (stoc pe loturi, risc de expirare, verificare FEFO, „stoc util" în sugestie) are nevoie de un raport ERP cu <b>cantitățile pe loturi și data de expirare (BBD) per lot</b>. Raportul actual nu are aceste coloane.</p>
+      <div class="resolution">
+        <span class="res-label">Direcție</span>
+        <b>Trecut în backlog, împreună cu punctul 12</b> (aceeași implementare). Formatul dorit (articol_id, lot, cantitate, data expirării, opțional data recepției) îl trimitem la demararea fazei, ca raportul din ERP să fie pregătit la timp.
       </div>
     </article>
 
@@ -535,40 +488,21 @@
       <div class="eyebrow-row">
         <span class="index">14</span>
         <span class="eyebrow">Notificări</span>
-        <span class="status-open">De decis</span>
+        <span class="status-open">În backlog</span>
       </div>
       <h3>Cum vreți să fiți anunțați de alertele importante</h3>
-      <p>Alertele critice apar oricum pe dashboard la deschiderea aplicației. Întrebarea e dacă vreți și o notificare <b>împinsă</b> către dvs. pentru: comenzi întârziate, excepții nerezolvate, recepții scadente neoperate, loturi la risc de expirare.</p>
-
-      <p class="qlabel">Întrebarea</p>
-      <p class="question">Ce canal de notificare preferați?</p>
-
-      <ul class="options">
-        <li class="opt rec">
-          <span class="opt-badge">A</span>
-          <span class="opt-body"><span class="otitle">Doar în aplicație (dashboard + Centru de alerte)</span><span class="tag">Cel mai simplu</span><br>Fără dependențe externe; vedeți totul la deschiderea aplicației.</span>
-        </li>
-        <li class="opt">
-          <span class="opt-badge">B</span>
-          <span class="opt-body"><span class="otitle">În aplicație + e-mail zilnic</span><br>Un rezumat pe e-mail cu alertele critice și excepțiile deschise, pentru cine nu intră zilnic în aplicație.</span>
-        </li>
-        <li class="opt">
-          <span class="opt-badge">C</span>
-          <span class="opt-body"><span class="otitle">Altceva</span><br>Dacă folosiți deja un canal (WhatsApp, Teams etc.), ni-l spuneți și evaluăm efortul.</span>
-        </li>
-      </ul>
-
-      <div class="why">
-        <span class="why-label">Notă</span>
-        <span>Nu blochează forecast-ul — ține de F2–F4. O clarificăm acum ca să proiectăm corect Centrul de alerte.</span>
+      <p>Alertele critice apar oricum pe dashboard la deschiderea aplicației. Notificarea <b>împinsă</b> (comenzi întârziate, excepții nerezolvate, recepții scadente, loturi la risc de expirare) devine un item de sine stătător.</p>
+      <div class="resolution">
+        <span class="res-label">Direcție</span>
+        <b>Trecut în backlog ca item „Notificări"</b> — o singură componentă care adună tot ce ține de notificare (canal în aplicație / e-mail / altul, tipuri de alerte, frecvență). O detaliem când proiectăm Centrul de alerte.
       </div>
     </article>
 
   </div>
 
   <section class="closing">
-    <h2>Cum răspundeți</h2>
-    <p>La deciziile 1–10 e nevoie doar de o confirmare dacă ceva nu reflectă intenția dvs. Punctele care mai așteaptă răspuns: <b>6</b> (lista MOQ), <b>9</b> (păstrăm split RO/Export?), <b>11</b> (prag % diferență preț), <b>12</b> (prag lei stoc mort), <b>13</b> (confirmarea raportului ERP pe loturi) și <b>14</b> (canal de notificare). Până la răspuns, implementăm tot ce nu depinde de ele; cifrele sugestiei rămân sub control — le comparăm înainte/după.</p>
+    <h2>Unde suntem</h2>
+    <p>Toate cele 14 puncte au acum o rezoluție. <b>9</b> (split RO / piețe export) și <b>11</b> (prag 1% diferență preț, configurabil) sunt rezolvate; <b>6</b> (MOQ), <b>12</b>+<b>13</b> (stoc mort + loturi/valabilitate, o implementare) și <b>14</b> (Notificări) sunt trecute în backlog pentru faze dedicate. Modelul client × articol e acum modelul implicit al paginii de forecast.</p>
   </section>
 
   <p class="foot">Document intern de decizie · surse: Brief Modul Aprovizionare v1.0 · Specificatie Forecast v1.0 · auditul paginii /forecast</p>

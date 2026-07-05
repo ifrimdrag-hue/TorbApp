@@ -85,18 +85,19 @@ def test_zile_stoc_excludes_transit(db_path, client):
         VALUES (?, 'B2-001', 'B2-001', 'SKU-B2-001', 'TestBrandB2', 'Ceai',
                 30, 10.0, '2026-06-01')
     """, (snap,))
-    # 3 years of sales so the 3-year monthly average kicks in and overwrites zile_stoc
-    for luna in range(1, 13):
+    # 12 recent monthly sales (30/mo) so the pair stays ACTIVE under the
+    # client×article model and the seasonal average drives zile_stoc.
+    for k in range(12):
         conn.execute("""
             INSERT INTO tranzactii (luna, an, data_dl, sku, furnizor, cantitate,
                                      cod_produs, client, cod_client, agent,
                                      pret_vanzare, tva_pct, pret_cumparare,
                                      val_bruta, val_neta, val_achizitie, marja_bruta, discount_pct)
-            VALUES (:luna, 2025, '2025-' || printf('%02d', :luna) || '-10',
+            VALUES (1, 2026, date('now', 'start of month', :mod, '+9 days'),
                     'SKU-B2-001', 'TestBrandB2', 30,
                     'B2-001', 'Client Test', 'C001', 'Agent Test',
                     10, 0.09, 5, 300, 275, 150, 125, 0)
-        """, {'luna': luna})
+        """, {'mod': f'-{k} months'})
     # An active in-transit order for the same SKU — must NOT reduce zile_stoc
     conn.execute("""
         INSERT INTO comenzi_furnizori (nr_comanda, furnizor, status, data_estimata_livrare)
@@ -151,9 +152,9 @@ def test_transit_eta_prefers_eta_column(db_path, client):
     )
 
 
-def test_monthly_sales_by_sku_survives_quote_in_export_code(db_path, client):
+def test_pair_engine_survives_quote_in_client_code(db_path, client):
     conn = _conn(db_path)
-    # A client code containing a single quote — breaks the old f-string-interpolated SQL
+    # A client code containing a single quote must not break the parameterized SQL.
     conn.execute("""
         INSERT INTO clienti_export (tara_id, cod_client, nume_client, activ)
         VALUES (1, "O'BRIEN", 'OBrien Ltd', 1)
@@ -163,107 +164,16 @@ def test_monthly_sales_by_sku_survives_quote_in_export_code(db_path, client):
                                  cod_produs, client, cod_client, agent,
                                  pret_vanzare, tva_pct, pret_cumparare,
                                  val_bruta, val_neta, val_achizitie, marja_bruta, discount_pct)
-        VALUES (1, 2025, '2025-01-10', 'SKU-C3-001', 'TestBrandC3', 20,
+        VALUES (1, 2026, date('now', '-20 days'), 'SKU-C3-001', 'TestBrandC3', 20,
                 'C3-001', 'OBrien Ltd', "O'BRIEN", 'Agent Test',
                 10, 0.09, 5, 200, 180, 100, 80, 0)
     """)
     conn.commit()
     conn.close()
 
-    from forecast import forecast_logic
-    result = forecast_logic._monthly_sales_by_sku('TestBrandC3')  # must not raise
+    from forecast import pair_engine, config
+    result = pair_engine.article_monthly_profiles('TestBrandC3', config.get_params())
     assert 'SKU-C3-001' in result
-    assert result['SKU-C3-001']['export'].get(1) == 20, "sale should be attributed to export (O'BRIEN is active)"
-    assert result['SKU-C3-001']['ro'].get(1, 0) == 0
-
-
-def test_forecast_stoc_extended_velocity_mode(db_path, client):
-    conn = _conn(db_path)
-    snap = _next_snapshot(conn)
-    conn.execute("""
-        INSERT INTO stoc (data_snapshot, cod_produs, cod_mare, sku, furnizor, gama,
-                           cantitate, pret_achizitie, data_intrare)
-        VALUES (?, 'VEL-1', 'VEL-1', 'SKU-VEL-1', 'TestBrandVEL', 'Ceai',
-                100, 10.0, '2026-06-01')
-    """, (snap,))
-
-    def _sale(data_expr, an, luna, qty, params=()):
-        conn.execute(f"""
-            INSERT INTO tranzactii (luna, an, data_dl, sku, furnizor, cantitate,
-                                     cod_produs, client, cod_client, agent,
-                                     pret_vanzare, tva_pct, pret_cumparare,
-                                     val_bruta, val_neta, val_achizitie, marja_bruta, discount_pct)
-            VALUES (:luna, :an, {data_expr}, 'SKU-VEL-1', 'TestBrandVEL', :qty,
-                    'VEL-1', 'Client Test', 'C001', 'Agent Test',
-                    10, 0.09, 5, 300, 275, 150, 125, 0)
-        """, {'luna': luna, 'an': an, 'qty': qty, **dict(params)})
-
-    # Recent sales (last 90 days): 90 units total -> 90-day velocity = 30/month
-    for off in ('-10 days', '-40 days', '-70 days'):
-        _sale("date('now', :off)", 2026, 1, 30, (('off', off),))
-    # Older sales within the 3-year window but outside 90 days -> lift the 3-year avg
-    for an in (2024, 2025):
-        for luna in range(1, 13):
-            _sale("printf('%04d-%02d-15', :an, :luna)", an, luna, 50)
-    conn.commit()
-    conn.close()
-
-    import queries
-    r90 = {r['sku']: r for r in
-           queries.forecast_stoc_extended(furnizor='TestBrandVEL', vel='90zile')}['SKU-VEL-1']
-    r3 = {r['sku']: r for r in
-          queries.forecast_stoc_extended(furnizor='TestBrandVEL', vel='3ani')}['SKU-VEL-1']
-
-    assert r90['vanzari_luna_avg'] == 30.0, "90zile mode must show the raw 90-day velocity"
-    assert r3['vanzari_luna_avg'] != r90['vanzari_luna_avg'], (
-        "3ani mode must show the seasonal 3-year velocity, different from 90-day"
-    )
-    # zile_stoc follows the selected velocity (same 100-unit stock, different divisor)
-    assert r90['zile_stoc'] != r3['zile_stoc']
-    # Default (no vel arg) preserves the historical 3-year behaviour
-    rdef = {r['sku']: r for r in
-            queries.forecast_stoc_extended(furnizor='TestBrandVEL')}['SKU-VEL-1']
-    assert rdef['vanzari_luna_avg'] == r3['vanzari_luna_avg']
-
-
-def test_forecast_export_honors_velocity_mode(db_path, client):
-    import io
-    conn = _conn(db_path)
-    snap = _next_snapshot(conn)
-    conn.execute("""
-        INSERT INTO stoc (data_snapshot, cod_produs, cod_mare, sku, furnizor, gama,
-                           cantitate, pret_achizitie, data_intrare)
-        VALUES (?, 'VELX-1', 'VELX-1', 'SKU-VELX-1', 'TestBrandVELX', 'Ceai',
-                100, 10.0, '2026-06-01')
-    """, (snap,))
-    for off in ('-10 days', '-40 days', '-70 days'):
-        conn.execute("""
-            INSERT INTO tranzactii (luna, an, data_dl, sku, furnizor, cantitate,
-                                     cod_produs, client, cod_client, agent,
-                                     pret_vanzare, tva_pct, pret_cumparare,
-                                     val_bruta, val_neta, val_achizitie, marja_bruta, discount_pct)
-            VALUES (1, 2026, date('now', :off), 'SKU-VELX-1', 'TestBrandVELX', 30,
-                    'VELX-1', 'Client Test', 'C001', 'Agent Test',
-                    10, 0.09, 5, 300, 275, 150, 125, 0)
-        """, {'off': off})
-    conn.commit()
-    conn.close()
-
-    import openpyxl
-    resp = client.get('/export/forecast?brand=TestBrandVELX&vel=90zile')
-    assert resp.status_code == 200
-    ws = openpyxl.load_workbook(io.BytesIO(resp.data), data_only=True).active
-    headers = [str(c.value or '') for c in next(ws.iter_rows(min_row=1, max_row=1))]
-    vcol = next(i for i, h in enumerate(headers) if h.startswith('Vânz./lună'))
-    assert '90 zile' in headers[vcol], f"export header should name the mode: {headers[vcol]}"
-    # find our SKU row and check the velocity value = 90/3 = 30
-    sku_col = headers.index('SKU')
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        if row[sku_col] == 'SKU-VELX-1':
-            assert row[vcol] == 30, f"90-day velocity should be 30, got {row[vcol]}"
-            break
-    else:
-        raise AssertionError('SKU-VELX-1 not found in export')
 
 
 def test_listing_changes_keys_are_normalized(db_path, client):
