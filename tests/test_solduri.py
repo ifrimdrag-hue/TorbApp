@@ -56,20 +56,24 @@ def _seed(rows):
 # ── aging KPI ────────────────────────────────────────────────────────────────
 
 def test_kpi_buckets():
+    # disjoint ranges: 0-7 / 8-30 / 31-60 / >60 on each side
     _seed([(0, 100), (5, 100), (20, 100), (45, 100), (100, 100),
            (-3, 100), (-15, 100), (-50, 100), (-200, 100), (-10, -40)])
     k = queries.solduri_kpi()
     assert round(k["nesc7"]) == 200
-    assert round(k["nesc30"]) == 300
-    assert round(k["nesc60"]) == 400
+    assert round(k["nesc30"]) == 100
+    assert round(k["nesc60"]) == 100
+    assert round(k["nesc60p"]) == 100
     assert round(k["scad7"]) == 100
-    assert round(k["scad30"]) == 160
-    assert round(k["scad60"]) == 260
+    assert round(k["scad30"]) == 60
+    assert round(k["scad60"]) == 100
+    assert round(k["scad60p"]) == 100
     assert round(k["total_scadent"]) == 360
-    assert round(k["catchall"]) == 200
     assert round(k["total_piata"]) == 860
-    # reconciliation identity
-    assert round(k["nesc60"] + k["scad60"] + k["catchall"], 2) == round(k["total_piata"], 2)
+    # reconciliation identity: the 8 disjoint buckets cover everything
+    parts = ("nesc7", "nesc30", "nesc60", "nesc60p",
+             "scad7", "scad30", "scad60", "scad60p")
+    assert round(sum(k[p] for p in parts), 2) == round(k["total_piata"], 2)
 
 
 def test_kpi_scoped_to_filters():
@@ -96,8 +100,8 @@ def test_by_client_shapes_and_filter():
     _seed([(0, 100), (-3, 50), (-200, 70)])
     rows = queries.solduri_by_client()
     assert rows and set(rows[0]) >= {
-        "numecli", "codcli", "numeag", "total", "nesc7", "scad7",
-        "plafon", "zile_restanta_max", "depasit_plafon"}
+        "numecli", "codcli", "numeag", "total", "nesc7", "nesc60p",
+        "scad7", "scad60p", "plafon", "zile_restanta_max", "depasit_plafon"}
     assert round(sum(r["total"] for r in rows), 2) == 220.0
     r7 = queries.solduri_by_client(bucket="scad7")
     assert round(sum(r["total"] for r in r7), 2) == 50.0

@@ -4,8 +4,8 @@
 {% macro money(v) %}{{ v | ron }}{% endmacro %}
 
 {% block content %}
-{% set nesc_cards = [('nesc7', 'Nescadent ≤7 zile'), ('nesc30', 'Nescadent ≤30 zile'), ('nesc60', 'Nescadent ≤60 zile')] %}
-{% set scad_cards = [('scad7', 'Scadent ≤7 zile'), ('scad30', 'Scadent ≤30 zile'), ('scad60', 'Scadent ≤60 zile')] %}
+{% set nesc_cards = [('nesc7', 'În termen 1-7 zile'), ('nesc30', 'În termen 8-30 zile'), ('nesc60', 'În termen 31-60 zile'), ('nesc60p', 'În termen >60 zile')] %}
+{% set scad_cards = [('scad7', 'Depășit 1-7 zile'), ('scad30', 'Depășit 8-30 zile'), ('scad60', 'Depășit 31-60 zile'), ('scad60p', 'Depășit >60 zile')] %}
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0 fw-bold">
@@ -39,7 +39,7 @@
 <!-- ── KPI cards ── -->
 <div class="row g-2 mb-2">
   {% for key, label in nesc_cards %}
-  <div class="col-6 col-lg-4">
+  <div class="col-6 col-lg-3">
     <a href="{{ url_for('solduri.solduri', view=view, bucket=key, agent=agent, q=q) }}"
        class="card border-0 shadow-sm h-100 text-decoration-none {% if bucket == key %}border-primary border-2{% endif %}"
        style="{% if bucket == key %}outline:2px solid var(--bs-primary){% endif %}">
@@ -54,7 +54,7 @@
 
 <div class="row g-2 mb-2">
   {% for key, label in scad_cards %}
-  <div class="col-6 col-lg-4">
+  <div class="col-6 col-lg-3">
     <a href="{{ url_for('solduri.solduri', view=view, bucket=key, agent=agent, q=q) }}"
        class="card border-0 shadow-sm h-100 text-decoration-none {% if bucket == key %}border-danger border-2{% endif %}"
        style="{% if bucket == key %}outline:2px solid var(--bs-danger){% endif %}">
@@ -68,27 +68,17 @@
 </div>
 
 <div class="row g-2 mb-3">
-  <div class="col-6 col-lg-4">
+  <div class="col-6 col-lg-6">
     <a href="{{ url_for('solduri.solduri', view=view, bucket='total_scadent', agent=agent, q=q) }}"
        class="card border-0 shadow-sm h-100 text-decoration-none {% if bucket == 'total_scadent' %}border-danger border-2{% endif %}"
        style="{% if bucket == 'total_scadent' %}outline:2px solid var(--bs-danger){% endif %}">
       <div class="card-body py-2">
-        <div class="text-muted small">Total scadent (toate restanțele)</div>
+        <div class="text-muted small">Total scadență depășită</div>
         <div class="h5 fw-bold mb-0 text-danger">{{ kpi['total_scadent'] | ron }}</div>
       </div>
     </a>
   </div>
-  <div class="col-6 col-lg-4">
-    <a href="{{ url_for('solduri.solduri', view=view, bucket='catchall', agent=agent, q=q) }}"
-       class="card border-0 shadow-sm h-100 text-decoration-none {% if bucket == 'catchall' %}border-secondary border-2{% endif %}"
-       style="{% if bucket == 'catchall' %}outline:2px solid var(--bs-secondary){% endif %}">
-      <div class="card-body py-2">
-        <div class="text-muted small">Neîncadrate (>60 zile viitor / restanță)</div>
-        <div class="h5 fw-bold mb-0 text-secondary">{{ kpi['catchall'] | ron }}</div>
-      </div>
-    </a>
-  </div>
-  <div class="col-12 col-lg-4">
+  <div class="col-6 col-lg-6">
     <div class="card border-0 shadow-sm h-100 bg-dark text-white">
       <div class="card-body py-2">
         <div class="small opacity-75">
@@ -148,14 +138,14 @@
         {% elif view == 'agent' %}
         <tr>
           <th>Agent</th><th class="text-end">Clienți</th><th class="text-end">Total</th>
-          <th class="text-end">Nesc ≤7</th><th class="text-end">≤30</th><th class="text-end">≤60</th>
-          <th class="text-end">Scad ≤7</th><th class="text-end">≤30</th><th class="text-end">≤60</th>
+          <th class="text-end">În termen 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
+          <th class="text-end">Depășit 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
         </tr>
         {% else %}
         <tr>
           <th>Client</th><th>Agent</th><th class="text-end">Total</th>
-          <th class="text-end">Nesc ≤7</th><th class="text-end">≤30</th><th class="text-end">≤60</th>
-          <th class="text-end">Scad ≤7</th><th class="text-end">≤30</th><th class="text-end">≤60</th>
+          <th class="text-end">În termen 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
+          <th class="text-end">Depășit 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
           <th class="text-end">Plafon</th><th class="text-end">Zile restanță</th>
         </tr>
         {% endif %}
@@ -196,9 +186,11 @@
           <td class="text-end small text-primary">{{ r.nesc7 | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc30 | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc60 | ron }}</td>
+          <td class="text-end small text-primary">{{ r.nesc60p | ron }}</td>
           <td class="text-end small text-danger">{{ r.scad7 | ron }}</td>
           <td class="text-end small text-danger">{{ r.scad30 | ron }}</td>
           <td class="text-end small text-danger">{{ r.scad60 | ron }}</td>
+          <td class="text-end small text-danger">{{ r.scad60p | ron }}</td>
         </tr>
         {% endfor %}
         {% else %}
@@ -222,9 +214,11 @@
           <td class="text-end small text-primary">{{ r.nesc7 | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc30 | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc60 | ron }}</td>
+          <td class="text-end small text-primary">{{ r.nesc60p | ron }}</td>
           <td class="text-end small text-danger">{{ r.scad7 | ron }}</td>
           <td class="text-end small text-danger">{{ r.scad30 | ron }}</td>
           <td class="text-end small text-danger">{{ r.scad60 | ron }}</td>
+          <td class="text-end small text-danger">{{ r.scad60p | ron }}</td>
           <td class="text-end small">
             {% if r.depasit_plafon %}
             <span class="badge bg-danger" title="Sold peste plafon">{{ r.plafon | ron }}</span>
@@ -237,7 +231,7 @@
         {% endfor %}
         {% endif %}
         {% if not rows %}
-        <tr><td colspan="11" class="text-center text-muted py-3">Niciun rezultat pentru filtrele curente.</td></tr>
+        <tr><td colspan="13" class="text-center text-muted py-3">Niciun rezultat pentru filtrele curente.</td></tr>
         {% endif %}
       </tbody>
     </table>

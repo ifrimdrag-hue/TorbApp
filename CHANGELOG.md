@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Solduri: disjoint aging buckets + new terminology (2026-07-06)
+
+Owner changed the aging rule and vocabulary, applied module-wide (cards, all three table views, client page, invoice category labels, Excel exports).
+
+- **Buckets are now disjoint ranges** instead of nested/cumulative: **1-7 / 8-30 / 31-60 / >60 zile** on each side (keys `nesc7/nesc30/nesc60/nesc60p` + `scad7/scad30/scad60/scad60p`). Every document falls in exactly one bucket, so the 8 cards sum exactly to Total în piață — the "Neîncadrate" catch-all card is gone (its `>60` content now lives in the two `>60` buckets). Due today (d=0) still counts as in-term.
+- **Terminology**: "Nescadent" → **"În termen"**, "Scadent" → **"Scadență depășită"** (per-invoice category label: "Depășit N zile"); the "Total scadent (toate restanțele)" card is now "Total scadență depășită".
+- Client/agent views grew to 8 bucket columns; KPI rows of 4 cards per side. Old `?bucket=` links keep working for surviving keys (`scad30` etc. now mean the disjoint range).
+- Files: `app/queries/solduri.py` (predicates, labels, bucket columns), `app/templates/solduri_neincasate.html`, `solduri_client.html`. Tests updated for disjoint sums + new reconciliation identity (258 passing). Domain rules: `docs/BUSINESS_LOGIC.md` §9.
+
 ### Pricing module F4+F5: article-creation sheets + supplier price updates with diff (2026-07-06)
 
 Closes the phased plan (`docs/plans/2026-07-05-modul-pricing-ofertare.md` §5 — all phases delivered).

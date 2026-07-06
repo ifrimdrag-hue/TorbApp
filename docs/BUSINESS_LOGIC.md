@@ -339,12 +339,15 @@ Turns the consolidated ERP receivables report into an aging dashboard
 current date). Per row `d = zile de la azi până la scadență` (negative ⇒ overdue). Every row,
 including negatives, is bucketed by `d`, so the cards reconcile exactly to Total în piață.
 
-- **Nescadent** (not yet due, nested/cumulative): `0 ≤ d ≤ 7` · `≤ 30` · `≤ 60`. Due *today*
-  (d=0) counts here — never overdue.
-- **Scadent** (overdue, nested): `1 ≤ −d ≤ 7` · `≤ 30` · `≤ 60`.
-- **Total scadent** = all overdue (`−d ≥ 1`, no cap).
-- **Neîncadrate** (catch-all) = `d > 60` (future) **+** `−d > 60` (deep overdue).
-- Reconciliation identity (enforced by test): `nesc≤60 + scad≤60 + catchall = Total în piață`.
+- Buckets are **disjoint ranges** on each side (owner decision 2026-07-06; replaced the
+  original nested/cumulative ≤7/≤30/≤60 + catch-all layout):
+  **În termen** (not yet due): `0–7` · `8–30` · `31–60` · `>60` zile until due. Due *today*
+  (d=0) counts in `1-7` — never overdue. **Scadență depășită** (overdue): `1–7` · `8–30` ·
+  `31–60` · `>60` zile late.
+- UI terminology (owner decision 2026-07-06): **"În termen"** (formerly "Nescadent") and
+  **"Scadență depășită"** / per-invoice label **"Depășit N zile"** (formerly "Scadent").
+- **Total scadență depășită** = all overdue (`−d ≥ 1`, no cap).
+- Reconciliation identity (enforced by test): the 8 disjoint buckets sum to `Total în piață`.
 
 **Views** (`/solduri-neincasate?view=`): per **client**, per **agent** (both with per-bucket
 columns + oldest-overdue days + `plafon` over-ceiling flag), and flat per **factură** (sortable by
