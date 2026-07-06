@@ -47,6 +47,7 @@ def preturi_sku(sku):
     return render_template('preturi_sku.html',
         an=an, prod=prod, client_prices=client_prices,
         rate=rate, client_opts=client_opts, praguri=praguri, cond_map=cond_map,
+        poza=queries.produs_poza(sku),
     )
 
 
@@ -241,7 +242,12 @@ def api_preturi_articol_nou():
 def preturi_simulator():
     an         = int(request.args.get('an', datetime.date.today().year))
     cod_client = request.args.get('client', '').strip() or None
-    client_opts = queries.clients_list(an)
+    client_opts = list(queries.clients_list(an))
+    cunoscuti   = {c['cod_client'] for c in client_opts}
+    client_opts += [{'cod_client': p['cod_client'],
+                     'client': p['nume_client'] + ' [prospect]'}
+                    for p in queries.clienti_prospecti_list()
+                    if p['cod_client'] not in cunoscuti]
     articole, cond_map, praguri = [], {}, pricing_engine.praguri_marja()
     if cod_client:
         articole = queries.simulator_articole(an, cod_client)
@@ -332,6 +338,114 @@ def propunere_listare_xlsx(id):
     wb = listare_export.build_listare(data, template, valabil)
     nume = (data['nume_client'] or '').split()[0].lower() or data['propunere']['cod_client']
     return _send_wb(wb, f'lista_pret_{nume}_{valabil or id}.xlsx')
+
+
+# ── Clienti prospect / poze / import oferta furnizor ────────────────────────
+
+@pricing_bp.route('/api/preturi/clienti-prospect', methods=['POST'])
+def api_client_prospect():
+    d = request.get_json(silent=True) or {}
+    cod, err = queries.client_prospect_create(d.get('nume'))
+    if err:
+        return jsonify({'error': err}), 400
+    return jsonify({'ok': True, 'cod_client': cod})
+
+
+@pricing_bp.route('/api/preturi/poza/<path:sku>', methods=['POST'])
+def api_produs_poza(sku):
+    import os
+    import re as _re
+    from paths import BASE_DIR
+    img_dir = os.path.join(BASE_DIR, 'app', 'static', 'product_images')
+    safe = _re.sub(r'[^A-Za-z0-9_-]', '_', sku)
+    try:
+        f = request.files.get('file')
+        if f and f.filename:
+            ext = os.path.splitext(f.filename)[1].lower()
+            if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp'):
+                return jsonify({'error': 'Format imagine neacceptat.'}), 400
+            os.makedirs(img_dir, exist_ok=True)
+            rel = f'app/static/product_images/{safe}{ext}'
+            f.save(os.path.join(BASE_DIR, rel))
+            queries.produs_poza_set(sku, path=rel)
+            return jsonify({'ok': True, 'src': f'/static/product_images/{safe}{ext}'})
+        d = request.get_json(silent=True) or {}
+        url = (d.get('url') or '').strip()
+        if not url:
+            return jsonify({'error': 'Incarca un fisier sau da un URL.'}), 400
+        import requests as _rq
+        resp = _rq.get(url, timeout=8)
+        resp.raise_for_status()
+        ext = os.path.splitext(url.split('?')[0])[1].lower()
+        if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp'):
+            ext = '.jpg'
+        os.makedirs(img_dir, exist_ok=True)
+        rel = f'app/static/product_images/{safe}{ext}'
+        with open(os.path.join(BASE_DIR, rel), 'wb') as out:
+            out.write(resp.content)
+        queries.produs_poza_set(sku, path=rel, url_sursa=url)
+        return jsonify({'ok': True, 'src': f'/static/product_images/{safe}{ext}'})
+    except Exception as e:
+        logger.exception("api_produs_poza failed sku=%s", sku)
+        return jsonify({'error': str(e)}), 400
+
+
+@pricing_bp.route('/preturi/import-oferta')
+def preturi_import_oferta():
+    an = int(request.args.get('an', datetime.date.today().year))
+    rate = {r['moneda']: r['curs_ron'] for r in queries.rate_schimb_list(an)}
+    return render_template('preturi_import_oferta.html', an=an, rate=rate,
+                           atribute=queries.produse_atribute_distincte())
+
+
+@pricing_bp.route('/api/preturi/import-oferta', methods=['POST'])
+def api_import_oferta():
+    import supplier_offer
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'Incarca fisierul cu oferta.'}), 400
+    data = f.read()
+    try:
+        if request.form.get('actiune') == 'preview':
+            return jsonify({'ok': True, **supplier_offer.preview(f.filename, data)})
+
+        mapping = {k: request.form.get(f'col_{k}') for k in
+                   ('cod', 'denumire', 'pret', 'ean', 'gramaj', 'buc_bax')}
+        randuri = supplier_offer.parse_rows(
+            f.filename, data, mapping, request.form.get('rand_start', 2))
+        furnizor = (request.form.get('furnizor') or '').strip()
+        moneda   = request.form.get('moneda', 'EUR')
+        curs     = float(request.form.get('curs'))
+        transport = float(request.form.get('transport_pct', 10))
+        taxa      = float(request.form.get('taxa_vamala_pct', 0))
+        an        = int(request.form.get('an', datetime.date.today().year))
+        if not furnizor:
+            return jsonify({'error': 'Numele furnizorului este obligatoriu.'}), 400
+        if not randuri:
+            return jsonify({'error': 'Nicio linie valida gasita - verifica '
+                            'maparea coloanelor si randul de start.'}), 400
+
+        create, sarite = 0, []
+        for r in randuri:
+            err = queries.produs_create({
+                'sku': r['cod'], 'descriere': r['denumire'],
+                'furnizor': furnizor, 'gama': furnizor, 'potential': True,
+                'ean': r['ean'], 'gramaj': r['gramaj'],
+                'buc_cutie': int(r['buc_bax']) if r['buc_bax'] else None,
+                'logistica': {'buc_bax': int(r['buc_bax']) if r['buc_bax'] else None},
+                'landing': {'an': an, 'moneda': moneda, 'pret_valuta': r['pret'],
+                            'curs': curs, 'transport_pct': transport,
+                            'taxa_vamala_pct': taxa},
+            })
+            if err:
+                sarite.append(f"{r['cod']}: {err}")
+            else:
+                create += 1
+        return jsonify({'ok': True, 'create': create, 'sarite': sarite[:30],
+                        'nr_sarite': len(sarite)})
+    except Exception as e:
+        logger.exception("api_import_oferta failed")
+        return jsonify({'error': str(e)}), 400
 
 
 @pricing_bp.route('/preturi/propuneri/<int:id>/oferta.xlsx')

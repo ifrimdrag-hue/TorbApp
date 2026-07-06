@@ -351,3 +351,51 @@ columns + oldest-overdue days + `plafon` over-ceiling flag), and flat per **fact
 scadență). Clicking an aging card filters the table to that bucket and scopes the shown totals to
 the clicked card. Logic in `app/queries/solduri.py`; the reference date is a one-line change there
 if the owner ever wants it frozen to `data_raport` instead of today.
+
+## 10. Pricing & offers module (2026-07-06 → )
+
+Commercial flow from purchase price to client files. Strategy + owner decisions:
+`docs/plans/2026-07-05-modul-pricing-ofertare.md`; delivery history in `CHANGELOG.md`.
+
+**Margin convention** — margin is relative to the *selling* price:
+`marja = (pret − landing) / pret` (landing 48.3 → price 69 at 30%). Net margin =
+gross margin % − effective commercial conditions % (conditions are % of invoiced
+value; fixed-amount conditions are yearly lump sums settled at client P&L level,
+never per unit). All math in `app/pricing_engine.py` (pure, tested).
+
+**Thresholds are data, not code** — `pricing_config` (gama='' = global default,
+per-gama override): `marja_minima_pct` (30) and `marja_aprobare_pct` (25 — below
+this the director must approve). UI colors and proposal verdicts
+(`ok`/`atentie`/`aprobare_director`) derive from these rows.
+
+**Commercial conditions** — `conditii_comerciale` rows scope by client/furnizor/
+categorie/sku (NULL = wildcard); the effective % for an article×client is the SUM
+of all matching pct rows (`pricing_engine.cond_effective`). The 2026 seeds are one
+total % per client ("de defalcat" — owner still owes the itemization). Do NOT join
+`cond_resolved` on `produse.furnizor` — ERP spells `Toras`, produse has both
+spellings (`docs/BACKLOG.md` #13).
+
+**Article types** — `produse.potential = 1` marks an article that is not in stock:
+from a supplier's portfolio or a new supplier's price offer, priced for Romania and
+offerable to clients; flip to 0 when it becomes a stocked article. Created via
+`/preturi/nou` (checkbox) or the supplier-offer import (`/preturi/import-oferta`,
+parser `app/supplier_offer.py` — arbitrary xls/xlsx, columns mapped by letter).
+
+**Clients** — `clienti_pricing` holds per-client pricing settings: `template_listare`
+(which xls layout the client's file uses — kaufland_modificare / selgros_lista /
+fildas_lista / sezamo_lista / generic) and `marja_raft_pct` (simulation-only shelf
+margin). **Prospect clients** (not in the ERP yet) get generated codes
+`PROSPECT-<n>` here and behave like any client in the simulator/offers; when the
+prospect becomes a real ERP client its code changes — proposals keep the old code.
+
+**Proposals** (`propuneri_pret` + `_linii`) — a saved simulation per client; margins
+and verdicts are recomputed **server-side** at save time (client sends only
+sku + price). They feed the two client files: listing/price-change xls (per
+template) and the photo offer (`app/exports/listare_export.py`).
+
+**Photos** (`produse_media`) — one `principala=1` row per SKU; `path` = local file
+under `app/static/product_images/`, `url_sursa` = origin URL. Sources: manual
+upload/URL on `/preturi/<sku>`; for Basilur articles the UI links to a
+basilurtea.com product search (owner decision 2026-07-06: that site only covers
+Basilur; everything else is uploaded manually). URL-only photos are downloaded and
+cached on first offer generation.

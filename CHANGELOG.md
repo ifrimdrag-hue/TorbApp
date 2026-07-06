@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Pricing module round 4: prospect clients, potential articles, supplier offer import, product photos (2026-07-06)
+
+Owner requests: offers for clients not yet in the ERP, articles not yet in stock (supplier portfolios / new-supplier price offers priced for Romania), photos from basilurtea.com for Basilur + manual upload for the rest.
+
+- **Prospect clients** — "Client nou (prospect)" on the simulator registers a client that doesn't exist in `tranzactii` (`clienti_pricing`, generated code `PROSPECT-<n>`, generic listing template; same name → same code). Prospects appear in the client dropdown tagged `[prospect]`, get proposals, listings and offers like any client; name resolution in proposals/exports falls back from `tranzactii` to `clienti_pricing`.
+- **Potential articles** — `produse.potential` (migration 0027) marks not-in-stock articles; created from `/preturi/nou` (checkbox) or imported. Tagged `potențial` in the simulator; priced and offered like regular articles.
+- **Supplier offer import** (`/preturi/import-oferta`) — upload an arbitrary xls/xlsx price offer from a (new) supplier, preview the grid, map columns by letter (cod/denumire/preț + optional EAN/gramaj/buc-bax), set currency/rate/transport/duty → articles enter the catalog as potential with landing computed (`app/supplier_offer.py`). Existing SKUs are skipped and reported, never overwritten. Verified against the real Ipek order file (10/10 valid lines parsed).
+- **Product photos** — photo card on `/preturi/<sku>`: file upload or image URL (downloaded server-side) → `app/static/product_images/<sku>.<ext>` + `produse_media` (`principala=1`, history kept). Basilur articles get a basilurtea.com product-search link for copy-pasting the image URL (owner: that site covers only Basilur; the rest is manual).
+- Tests: 254 passing (4 new). Domain rules documented in `docs/BUSINESS_LOGIC.md` §10; data-layer notes in `docs/TECHNICAL.md` §Data.
+
 ### Pricing module F3: client xls files from proposals — listing templates + photo offer (2026-07-06)
 
 - **`app/exports/listare_export.py`** — data-driven client file generation from a saved proposal. Layouts replicate the real files each retailer expects: `kaufland_modificare` (price-change form: cod articol/Kaufland, old/new list+invoice price, valabil de la), `selgros_lista` (vendor header block, UC/UV, case+unit list and net prices, EAN, pallet count), `fildas_lista` (cod furnizor, gramaj, old/new invoice price), `sezamo_lista` (client internal code), `generic` fallback. Template per client lives in `clienti_pricing.template_listare` (migration 0026 seeds Kaufland/Selgros/Fildas/Sezamo by name lookup, NULLs only — UI-set values win).

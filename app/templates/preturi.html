@@ -11,6 +11,9 @@
     <a href="/preturi/nou?an={{ an }}" class="btn btn-sm btn-success">
       <i class="bi bi-plus-lg me-1"></i>Articol nou
     </a>
+    <a href="/preturi/import-oferta?an={{ an }}" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-file-earmark-arrow-up me-1"></i>Import ofertă furnizor
+    </a>
     <!-- Cursuri rapide -->
     {% for moneda, curs in rate.items() %}
     {% if moneda != 'RON' %}

@@ -36,6 +36,23 @@ taken from the file's `scadenta` column (which only holds the term in days). Rea
 `app/queries/solduri.py`, shown on `/solduri-neincasate`. Aging bucket rules:
 `docs/BUSINESS_LOGIC.md` §Solduri neîncasate.
 
+Pricing-module tables (migrations 0022–0027): `produse_logistica` (1:1 dims/CBM/weights),
+`produse_media` (photos: local `path` under `app/static/product_images/` — created at
+runtime, files never committed — and/or `url_sursa`),
+`coduri_client_articol` (per-client internal codes), `pricing_config` (margin thresholds,
+gama-scoped), `clienti_pricing` (listing template + prospect clients `PROSPECT-<n>`),
+`propuneri_pret`/`_linii` (saved simulations), `produse.potential` flag (0027).
+Migration **0024 is a data seed** — `migrations/seed/0024_pricing_seed.json` carries the
+locally-imported pricing rows to dev/prod because the source Excels
+(`Date pricinng&Logistica&Ofertare/`, gitignored) exist only on the owner's Mac and there
+is no SSH path; INSERT OR IGNORE, skipped when `produse` is empty (test DBs). CAUTION:
+`.gitignore`'s `data/` rule matches at any depth — never put committed files in a
+directory named `data/` (that's why the seed lives in `migrations/seed/`).
+One-off import script: `etl/import_pricing_f0.py` (+`--seed-conditii`); ad-hoc supplier
+price offers are imported at runtime via `/preturi/import-oferta`
+(`app/supplier_offer.py`, xls/xlsx, letter-mapped columns → potential articles + landing).
+Domain rules: `docs/BUSINESS_LOGIC.md` §10.
+
 Migrations are versioned in `migrations/` (`NNNN_YYYYMMDD_description.py`), applied automatically on Flask startup and explicitly in CI before service restart. `schema_version` table tracks applied versions; the runner is idempotent.
 
 ### Rebuild pipeline (`etl/rebuild_db.py`)

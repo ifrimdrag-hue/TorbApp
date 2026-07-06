@@ -29,6 +29,43 @@
   <!-- ── Col stânga: Landing cost + Produs ── -->
   <div class="col-lg-5">
 
+    <!-- Poza articol -->
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-image me-1 text-primary"></i> Poză articol
+      </div>
+      <div class="card-body">
+        <div class="d-flex gap-3 align-items-start">
+          <div id="poza-box" style="width:110px;min-width:110px">
+            {% if poza and poza.path %}
+            <img src="/{{ poza.path.replace('app/', '', 1) }}" class="img-fluid rounded border" alt="poza {{ prod.sku }}">
+            {% elif poza and poza.url_sursa %}
+            <img src="{{ poza.url_sursa }}" class="img-fluid rounded border" alt="poza {{ prod.sku }}">
+            {% else %}
+            <div class="text-center text-muted border rounded py-4 small">fără poză</div>
+            {% endif %}
+          </div>
+          <div class="flex-grow-1">
+            <label class="form-label small mb-0">Încarcă fișier</label>
+            <input id="poza-file" type="file" accept=".jpg,.jpeg,.png,.gif,.webp"
+                   class="form-control form-control-sm mb-2">
+            <label class="form-label small mb-0">sau URL imagine</label>
+            <div class="input-group input-group-sm">
+              <input id="poza-url" class="form-control" placeholder="https://...">
+              <button class="btn btn-outline-primary" onclick="salveazaPoza()">Salvează</button>
+            </div>
+            {% if (prod.gama or prod.furnizor or '') | lower == 'basilur' %}
+            <a class="small d-inline-block mt-2" target="_blank"
+               href="https://www.basilurtea.com/?s={{ prod.sku.split('-')[0] }}&post_type=product">
+              <i class="bi bi-search"></i> Caută pe basilurtea.com și copiază URL-ul pozei
+            </a>
+            {% endif %}
+            <div id="poza-msg" class="small mt-1"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Landing cost card -->
     <div class="card shadow-sm border-0 mb-3">
       <div class="card-header bg-white fw-semibold">
@@ -446,6 +483,37 @@ async function savePret() {
   const data = await resp.json();
   if (data.ok) location.reload();
   else { msg.className = 'small text-danger'; msg.textContent = data.error; }
+}
+
+// ── Poză articol ─────────────────────────────────────────────────────────────
+async function salveazaPoza() {
+  const msg = document.getElementById('poza-msg');
+  const f = document.getElementById('poza-file').files[0];
+  const url = document.getElementById('poza-url').value.trim();
+  let resp;
+  msg.className = 'small mt-1 text-muted'; msg.textContent = 'Se salvează...';
+  if (f) {
+    const fd = new FormData();
+    fd.append('file', f);
+    resp = await fetch('/api/preturi/poza/' + encodeURIComponent(SKU), {method: 'POST', body: fd});
+  } else if (url) {
+    resp = await fetch('/api/preturi/poza/' + encodeURIComponent(SKU), {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url})
+    });
+  } else {
+    msg.className = 'small mt-1 text-danger';
+    msg.textContent = 'Alege un fișier sau dă un URL.';
+    return;
+  }
+  const data = await resp.json();
+  if (data.ok) {
+    document.getElementById('poza-box').innerHTML =
+      '<img src="' + data.src + '?t=' + Date.now() + '" class="img-fluid rounded border">';
+    msg.className = 'small mt-1 text-success'; msg.textContent = 'Poza salvată.';
+  } else {
+    msg.className = 'small mt-1 text-danger'; msg.textContent = data.error;
+  }
 }
 
 // ── Simulator ────────────────────────────────────────────────────────────────

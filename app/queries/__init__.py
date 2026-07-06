@@ -89,6 +89,10 @@ from queries.pricing import (
     propunere_create as propunere_create,
     propunere_delete as propunere_delete,
     propunere_linii_export as propunere_linii_export,
+    clienti_prospecti_list as clienti_prospecti_list,
+    client_prospect_create as client_prospect_create,
+    produs_poza as produs_poza,
+    produs_poza_set as produs_poza_set,
 )
 from queries.orders import (
     termene_aprovizionare_list as termene_aprovizionare_list,

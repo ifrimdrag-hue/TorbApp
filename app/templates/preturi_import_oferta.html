@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% block title %}Import ofertă furnizor — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold">
+    <i class="bi bi-file-earmark-arrow-up text-primary"></i> Import ofertă furnizor
+  </h4>
+  <a href="/preturi?an={{ an }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Înapoi la catalog
+  </a>
+</div>
+
+<div class="alert alert-light border small">
+  Încarcă oferta de preț primită de la un furnizor (nou sau existent), mapează coloanele
+  și articolele intră în catalog ca <span class="badge bg-info text-dark">potențial</span>
+  (nu sunt în stoc), cu landing cost calculat — gata de simulat prețuri pentru România
+  și de pus în oferte către clienți.
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small mb-0">Fișier ofertă (.xls / .xlsx)</label>
+        <input id="i-file" type="file" accept=".xls,.xlsx" class="form-control form-control-sm">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary" onclick="previzualizeaza()">
+          <i class="bi bi-eye me-1"></i>Previzualizează
+        </button>
+      </div>
+      <div class="col-auto"><span id="i-msg" class="small"></span></div>
+    </div>
+  </div>
+</div>
+
+<div id="zona-preview" class="d-none">
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-white fw-semibold">Primele rânduri din fișier</div>
+    <div class="table-responsive" style="max-height:40vh">
+      <table class="table table-sm table-bordered mb-0" id="grid"></table>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-white fw-semibold">Mapare coloane & parametri import</div>
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-auto">
+          <label class="form-label small mb-0">Coloana cod *</label>
+          <input id="c-cod" class="form-control form-control-sm" style="width:70px" placeholder="A">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">Denumire *</label>
+          <input id="c-denumire" class="form-control form-control-sm" style="width:70px" placeholder="B">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">Preț *</label>
+          <input id="c-pret" class="form-control form-control-sm" style="width:70px" placeholder="C">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">EAN</label>
+          <input id="c-ean" class="form-control form-control-sm" style="width:70px">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">Gramaj</label>
+          <input id="c-gramaj" class="form-control form-control-sm" style="width:70px">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">Buc/bax</label>
+          <input id="c-buc-bax" class="form-control form-control-sm" style="width:70px">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">Primul rând cu date</label>
+          <input id="c-start" type="number" min="1" value="2" class="form-control form-control-sm" style="width:80px">
+        </div>
+      </div>
+      <hr class="my-3">
+      <div class="row g-2 align-items-end">
+        <div class="col-auto">
+          <label class="form-label small mb-0">Furnizor *</label>
+          <input id="p-furnizor" class="form-control form-control-sm" list="dl-furnizor"
+                 placeholder="nume furnizor (nou sau existent)">
+          <datalist id="dl-furnizor">
+            {% for v in atribute.furnizor %}<option value="{{ v }}">{% endfor %}
+          </datalist>
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">Monedă</label>
+          <select id="p-moneda" class="form-select form-select-sm">
+            {% for m in ['EUR','USD','PLN','RON'] %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">Curs RON</label>
+          <input id="p-curs" type="number" step="0.0001" class="form-control form-control-sm" style="width:100px">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">Transport %</label>
+          <input id="p-transport" type="number" step="0.1" value="10" class="form-control form-control-sm" style="width:90px">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">Taxă vamală %</label>
+          <input id="p-taxa" type="number" step="0.1" value="0" class="form-control form-control-sm" style="width:90px">
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-sm btn-success" onclick="importa()">
+            <i class="bi bi-download me-1"></i>Importă articolele
+          </button>
+        </div>
+      </div>
+      <div id="rezultat" class="small mt-3"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const AN = {{ an }};
+const RATE = {{ rate | tojson }};
+
+document.getElementById('p-moneda').addEventListener('change', function() {
+  if (RATE[this.value]) document.getElementById('p-curs').value = RATE[this.value];
+});
+if (RATE['EUR']) document.getElementById('p-curs').value = RATE['EUR'];
+
+function litera(n) { return String.fromCharCode(65 + n); }
+
+async function previzualizeaza() {
+  const msg = document.getElementById('i-msg');
+  const f = document.getElementById('i-file').files[0];
+  if (!f) { msg.className = 'small text-danger'; msg.textContent = 'Alege fișierul.'; return; }
+  msg.className = 'small text-muted'; msg.textContent = 'Se citește...';
+  const fd = new FormData();
+  fd.append('file', f); fd.append('actiune', 'preview');
+  const resp = await fetch('/api/preturi/import-oferta', {method: 'POST', body: fd});
+  const data = await resp.json();
+  if (!data.ok) { msg.className = 'small text-danger'; msg.textContent = data.error; return; }
+  msg.className = 'small text-success';
+  msg.textContent = data.total_rows + ' rânduri în fișier.';
+  const nCols = Math.max(...data.rows.map(r => r.length), 1);
+  let html = '<thead class="table-secondary"><tr><th class="text-muted">#</th>' +
+    [...Array(nCols)].map((_, i) => '<th>' + litera(i) + '</th>').join('') + '</tr></thead><tbody>';
+  data.rows.forEach((row, i) => {
+    html += '<tr><td class="text-muted">' + (i + 1) + '</td>' +
+      [...Array(nCols)].map((_, c) => '<td class="small">' +
+        (row[c] ? String(row[c]).replace(/</g, '&lt;') : '') + '</td>').join('') + '</tr>';
+  });
+  document.getElementById('grid').innerHTML = html + '</tbody>';
+  document.getElementById('zona-preview').classList.remove('d-none');
+}
+
+async function importa() {
+  const out = document.getElementById('rezultat');
+  const f = document.getElementById('i-file').files[0];
+  if (!f) { out.className = 'small text-danger mt-3'; out.textContent = 'Alege fișierul.'; return; }
+  const fd = new FormData();
+  fd.append('file', f);
+  fd.append('actiune', 'import');
+  fd.append('an', AN);
+  ['cod', 'denumire', 'pret', 'ean', 'gramaj', 'buc_bax'].forEach(k =>
+    fd.append('col_' + k, document.getElementById('c-' + k.replace('_', '-')).value));
+  fd.append('rand_start', document.getElementById('c-start').value);
+  fd.append('furnizor', document.getElementById('p-furnizor').value);
+  fd.append('moneda', document.getElementById('p-moneda').value);
+  fd.append('curs', document.getElementById('p-curs').value);
+  fd.append('transport_pct', document.getElementById('p-transport').value);
+  fd.append('taxa_vamala_pct', document.getElementById('p-taxa').value);
+  out.className = 'small text-muted mt-3'; out.textContent = 'Se importă...';
+  const resp = await fetch('/api/preturi/import-oferta', {method: 'POST', body: fd});
+  const data = await resp.json();
+  if (!data.ok) { out.className = 'small text-danger mt-3'; out.textContent = data.error; return; }
+  out.className = 'small text-success mt-3';
+  out.innerHTML = '<b>' + data.create + '</b> articole importate ca potențiale' +
+    (data.nr_sarite ? ' · <span class="text-warning">' + data.nr_sarite +
+      ' sărite:</span><br>' + data.sarite.map(s => s.replace(/</g, '&lt;')).join('<br>') : '') +
+    '<br><a href="/preturi?an=' + AN + '&furnizor=' +
+    encodeURIComponent(document.getElementById('p-furnizor').value) +
+    '">Vezi în catalog</a> · <a href="/preturi/simulator?an=' + AN +
+    '">Deschide simulatorul</a>';
+}
+</script>
+{% endblock %}

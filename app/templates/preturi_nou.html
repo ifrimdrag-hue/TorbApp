@@ -101,6 +101,15 @@
             <input id="f-poza" class="form-control form-control-sm"
                    placeholder="https://... (opțional)">
           </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input id="f-potential" class="form-check-input" type="checkbox">
+              <label class="form-check-label small" for="f-potential">
+                Articol <b>potențial</b> — nu e în stoc, din portofoliul furnizorului
+                (poate fi pus în oferte și simulări de preț)
+              </label>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -235,6 +244,7 @@ async function salveazaArticol() {
     hs_code: txt('f-hs'), taxa_vamala_pct: nr('f-taxa') || 0,
     origine: document.getElementById('f-origine').value, tara_origine: txt('f-tara'),
     poza_url: txt('f-poza'),
+    potential: document.getElementById('f-potential').checked,
     logistica: {
       unit_net_kg: nr('f-unit-net'), unit_gross_kg: nr('f-unit-gross'),
       buc_bax: nr('f-buc-bax'), bax_palet: nr('f-bax-palet'),

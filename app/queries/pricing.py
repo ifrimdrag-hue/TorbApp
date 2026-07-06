@@ -250,14 +250,15 @@ def produs_create(d):
         db.execute("""
             INSERT INTO produse (sku, descriere, furnizor, brand, categorie,
                 gramaj, buc_cutie, ean, tva_pct, hs_code, taxa_vamala_mfn_pct,
-                taxa_vamala_pct, origine, tara_origine, activ, gama)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
+                taxa_vamala_pct, origine, tara_origine, activ, gama, potential)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
         """, (sku, d.get('descriere'), d.get('furnizor'), d.get('brand'),
               d.get('categorie'), d.get('gramaj'), d.get('buc_cutie'),
               d.get('ean'), d.get('tva_pct', 0.09), d.get('hs_code'),
               d.get('taxa_vamala_mfn_pct', 0), d.get('taxa_vamala_pct', 0),
               d.get('origine', 'import_extraeu'), d.get('tara_origine'),
-              d.get('gama') or d.get('furnizor')))
+              d.get('gama') or d.get('furnizor'),
+              1 if d.get('potential') else 0))
         log = d.get('logistica') or {}
         if any(v is not None for v in log.values()):
             db.execute("""
@@ -295,12 +296,66 @@ def produse_atribute_distincte():
     return out
 
 
+# ── Clienti prospect (oferte pentru clienti inexistenti in ERP) ─────────────
+
+def clienti_prospecti_list():
+    """clienti_pricing rows that do not exist in tranzactii (prospects)."""
+    return query("""
+        SELECT cp.cod_client, cp.nume_client
+        FROM clienti_pricing cp
+        WHERE cp.activ = 1 AND NOT EXISTS (
+            SELECT 1 FROM tranzactii t WHERE t.cod_client = cp.cod_client)
+        ORDER BY cp.nume_client
+    """)
+
+
+def client_prospect_create(nume):
+    """Register a prospect client; returns its generated code."""
+    nume = (nume or '').strip()
+    if not nume:
+        return None, 'Numele clientului este obligatoriu.'
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT cod_client FROM clienti_pricing WHERE upper(nume_client)=upper(?)",
+            (nume,)).fetchone()
+        if row:
+            return row[0], None
+        n = db.execute("SELECT COUNT(*) FROM clienti_pricing "
+                       "WHERE cod_client LIKE 'PROSPECT-%'").fetchone()[0]
+        cod = f'PROSPECT-{n + 1}'
+        db.execute("INSERT INTO clienti_pricing (cod_client, nume_client,"
+                   " template_listare) VALUES (?, ?, 'generic')", (cod, nume))
+        db.commit()
+        return cod, None
+    finally:
+        db.close()
+
+
+# ── Poze articole ────────────────────────────────────────────────────────────
+
+def produs_poza(sku):
+    rows = query("SELECT * FROM produse_media WHERE sku = :sku AND principala = 1"
+                 " ORDER BY id DESC LIMIT 1", {"sku": sku})
+    return rows[0] if rows else None
+
+
+def produs_poza_set(sku, path=None, url_sursa=None):
+    db = get_db()
+    db.execute("UPDATE produse_media SET principala = 0 WHERE sku = ?", (sku,))
+    db.execute("INSERT INTO produse_media (sku, path, url_sursa, principala)"
+               " VALUES (?,?,?,1)", (sku, path, url_sursa))
+    db.commit()
+    db.close()
+
+
 # ── Simulator + propuneri de pret (F2) ───────────────────────────────────────
 
 def simulator_articole(an, cod_client):
     """Articles with a landing cost, plus the client's and standard price."""
     return query("""
         SELECT p.sku, p.descriere, p.furnizor, p.categorie, p.gama,
+               p.potential,
                cl.landing_cost_ron,
                pvc.pret_vanzare_ron AS pret_client,
                pvs.pret_vanzare_ron AS pret_standard
@@ -325,13 +380,14 @@ def propuneri_list(an=None, cod_client=None):
         filters.append("pp.cod_client = :cod_client")
         params['cod_client'] = cod_client
     return query(f"""
-        SELECT pp.*, t.client,
+        SELECT pp.*, COALESCE(t.client, cp.nume_client) AS client,
                COUNT(li.id) AS nr_linii,
                SUM(CASE WHEN li.verdict = 'aprobare_director' THEN 1 ELSE 0 END)
                    AS nr_sub_aprobare
         FROM propuneri_pret pp
         LEFT JOIN (SELECT DISTINCT cod_client, client FROM tranzactii) t
             ON t.cod_client = pp.cod_client
+        LEFT JOIN clienti_pricing cp ON cp.cod_client = pp.cod_client
         LEFT JOIN propuneri_pret_linii li ON li.propunere_id = pp.id
         WHERE {' AND '.join(filters)}
         GROUP BY pp.id
@@ -401,8 +457,12 @@ def propunere_linii_export(id):
         ORDER BY p.furnizor, li.sku
     """, {"id": id, "cod_client": prop['cod_client']})
     client = query("""
-        SELECT client FROM tranzactii WHERE cod_client = :c LIMIT 1
+        SELECT COALESCE(
+            (SELECT client FROM tranzactii WHERE cod_client = :c LIMIT 1),
+            (SELECT nume_client FROM clienti_pricing WHERE cod_client = :c)
+        ) AS client
     """, {"c": prop['cod_client']})
+    client = [c for c in client if c['client']]
     template = query("""
         SELECT template_listare FROM clienti_pricing WHERE cod_client = :c
     """, {"c": prop['cod_client']})

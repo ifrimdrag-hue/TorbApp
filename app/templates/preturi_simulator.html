@@ -37,6 +37,12 @@
       <div class="col-auto">
         <button class="btn btn-sm btn-primary">Încarcă</button>
       </div>
+      <div class="col-auto">
+        <button type="button" class="btn btn-sm btn-outline-success" onclick="clientNou()"
+                title="Client nou care nu există încă în baza de date — pentru ofertare">
+          <i class="bi bi-person-plus me-1"></i>Client nou (prospect)
+        </button>
+      </div>
       {% if cod_client %}
       <div class="col-auto ms-auto text-muted small">
         Praguri: marjă minimă <b>{{ praguri.minima }}%</b> ·
@@ -119,6 +125,7 @@
           <td class="text-nowrap">
             <a href="/preturi/{{ a.sku }}?an={{ an }}">{{ a.sku }}</a>
             {% if not a.pret_client %}<span class="badge bg-light text-muted" title="Clientul nu are preț propriu; se folosește prețul standard">std</span>{% endif %}
+            {% if a.potential %}<span class="badge bg-info text-dark" title="Articol potențial — nu e în stoc, din portofoliul furnizorului">potențial</span>{% endif %}
           </td>
           <td class="small">{{ a.descriere }}</td>
           <td class="small">{{ a.furnizor }}</td>
@@ -351,6 +358,21 @@ async function sterge(id) {
   if (!confirm('Ștergi propunerea #' + id + '?')) return;
   await fetch('/api/preturi/propuneri/' + id, {method: 'DELETE'});
   location.reload();
+}
+
+async function clientNou() {
+  const nume = prompt('Numele clientului nou (prospect):');
+  if (!nume || !nume.trim()) return;
+  const resp = await fetch('/api/preturi/clienti-prospect', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({nume: nume.trim()})
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    window.location.href = '/preturi/simulator?an=' + AN + '&client=' + data.cod_client;
+  } else {
+    alert(data.error || 'Eroare la creare.');
+  }
 }
 
 function exporta(id, tip) {

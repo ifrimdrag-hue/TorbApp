@@ -93,12 +93,14 @@ Regula de aur (confirmată de owner pe alte module): **nimic hardcodat** — cli
 | **F4 — Definire articol complet** | fișe creare articol per client (model Auchan), upload poze local | după F3 (creare manuală de bază există din F2) |
 | **F5 — Import recurent** | upload liste furnizor cu diff & confirmare + notificare la diferențe față de comenzi (decizia #10) | ultima |
 
-### Punct de reluare (sesiunea următoare — F4/F5)
+### Punct de reluare (sesiunea următoare)
 
-1. Owner validează pe :5001: marja netă per client (/preturi/<sku>), simulatorul, articol nou, **fișierele generate** (butoanele verzi din „Propuneri salvate": listare per template + ofertă cu poze) — de comparat 1:1 cu fișierele reale trimise clienților și de raportat diferențele de layout.
-2. F4: fișe creare articol per client (model `Model_propunere_creare_articol_.xlsx` — Auchan) + upload poze local (`produse_media.path`); pozele din URL se cache-uiesc deja la generarea ofertei.
-3. F5: upload listă preț furnizor → diff cu prețurile curente → confirmare → actualizare landing + notificare când diferă de prețurile din comenzi (decizia #10).
-4. De la owner: defalcarea condițiilor (acum % total per client), poze de pe ce site (decizia #6 a zis „ambele" dar fără sursă concretă), ordinea template-urilor următoare (Auchan? Metro?).
+Runda 4 (2026-07-06) a livrat în plus față de faze: clienți **prospect** (oferte pentru clienți inexistenți în ERP), articole **potențiale** (`produse.potential`, migrația 0027), **import ofertă furnizor nou** (`/preturi/import-oferta` — xls/xlsx arbitrar, mapare coloane pe litere → articole potențiale cu landing calculat) și **poze articol** (upload local / URL pe `/preturi/<sku>`; Basilur: link de căutare pe basilurtea.com — decizia owner: site-ul acoperă doar Basilur, restul manual).
+
+1. Owner validează pe :5001: simulatorul + fișierele generate (comparate 1:1 cu cele reale), un prospect, un import de ofertă furnizor, o poză.
+2. F4 rămas: fișe creare articol per client (model `Model_propunere_creare_articol_.xlsx` — Auchan).
+3. F5 rămas: import recurent listă preț pentru furnizori EXISTENȚI → diff prețuri vechi/noi → confirmare → actualizare landing + notificare când diferă de prețurile din comenzi (decizia #10). (Importul din runda 4 acoperă doar furnizori/articole NOI.)
+4. De la owner: defalcarea condițiilor (acum % total per client), ordinea template-urilor următoare (Auchan? Metro?).
 5. Date de curățat (raport `Date pricinng&Logistica&Ofertare/rapoarte/f0_import_raport.txt`): 51 prețuri achiziție diferite, curs USD 4,5 vs 4,6, 9 SKU buc/bax contradictoriu, Toras/Torras (BACKLOG #13).
 
 Fiecare fază: dezvoltare pe `main` local → teste → push → Dev :5001 → evaluare owner → aprobare prod. Fișierele Excel cu date comerciale rămân **în afara git-ului** (adăugat la `.gitignore`).
