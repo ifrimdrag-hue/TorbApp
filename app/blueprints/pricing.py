@@ -456,3 +456,109 @@ def propunere_oferta_xlsx(id):
     wb = listare_export.build_oferta(data, valabil)
     nume = (data['nume_client'] or '').split()[0].lower() or data['propunere']['cod_client']
     return _send_wb(wb, f'oferta_{nume}_{valabil or id}.xlsx')
+
+
+@pricing_bp.route('/preturi/propuneri/<int:id>/fisa.xlsx')
+def propunere_fisa_xlsx(id):
+    from exports import listare_export
+    data     = _propunere_export_data(id)
+    template = request.args.get('template') or 'generic'
+    valabil  = request.args.get('valabil') or ''
+    wb = listare_export.build_fisa(data, template, valabil)
+    nume = (data['nume_client'] or '').split()[0].lower() or data['propunere']['cod_client']
+    return _send_wb(wb, f'fisa_articole_{nume}_{valabil or id}.xlsx')
+
+
+# ── F5: actualizare preturi furnizor existent (lista oficiala noua) ─────────
+
+@pricing_bp.route('/preturi/actualizare-preturi')
+def preturi_actualizare():
+    an = int(request.args.get('an', datetime.date.today().year))
+    return render_template('preturi_actualizare.html', an=an,
+                           atribute=queries.produse_atribute_distincte())
+
+
+def _rezolva_sku(cod, pe_sku, pe_baza, pe_cod_furnizor):
+    if cod in pe_sku:
+        return cod
+    if cod + '-00' in pe_sku:
+        return cod + '-00'
+    if cod in pe_baza:
+        return pe_baza[cod]
+    return pe_cod_furnizor.get(cod)
+
+
+@pricing_bp.route('/api/preturi/actualizare-preturi', methods=['POST'])
+def api_actualizare_preturi():
+    import re as _re
+    import supplier_offer
+    try:
+        an = int(request.values.get('an', datetime.date.today().year))
+        furnizor = (request.values.get('furnizor') or '').strip()
+        if not furnizor:
+            return jsonify({'error': 'Alege furnizorul.'}), 400
+        curente = {r['sku']: r for r in
+                   queries.furnizor_preturi_curente(furnizor, an)}
+        if not curente:
+            return jsonify({'error': f'Niciun articol pentru {furnizor}.'}), 400
+
+        if request.form.get('actiune') == 'diff':
+            f = request.files.get('file')
+            if not f or not f.filename:
+                return jsonify({'error': 'Incarca fisierul cu lista de pret.'}), 400
+            mapping = {'cod': request.form.get('col_cod'),
+                       'denumire': request.form.get('col_denumire')
+                                   or request.form.get('col_cod'),
+                       'pret': request.form.get('col_pret')}
+            randuri = supplier_offer.parse_rows(
+                f.filename, f.read(), mapping, request.form.get('rand_start', 2))
+            pe_baza = {_re.sub(r'-\d+$', '', s): s for s in curente}
+            pe_cod_furnizor = {r['cod_furnizor']: r['sku']
+                               for r in curente.values() if r['cod_furnizor']}
+            diff, necunoscute = [], []
+            for r in randuri:
+                sku = _rezolva_sku(r['cod'], curente, pe_baza, pe_cod_furnizor)
+                if sku is None:
+                    necunoscute.append(f"{r['cod']} | {r['denumire']}")
+                    continue
+                c = curente[sku]
+                vechi = c['pret_achizitie_valuta']
+                diff.append({
+                    'sku': sku, 'descriere': c['descriere'],
+                    'moneda': c['moneda'], 'pret_vechi': vechi,
+                    'pret_nou': r['pret'],
+                    'delta_pct': round((r['pret'] - vechi) / vechi * 100, 2)
+                                 if vechi else None,
+                    'pret_ultima_comanda': c['pret_ultima_comanda'],
+                    'are_landing': c['landing_cost_ron'] is not None,
+                })
+            return jsonify({'ok': True, 'diff': diff,
+                            'necunoscute': necunoscute[:50],
+                            'nr_necunoscute': len(necunoscute)})
+
+        # actiune=aplica: JSON body with the accepted rows
+        d = request.get_json(silent=True) or {}
+        aplicate, sarite, alerte = 0, [], []
+        for li in d.get('linii', []):
+            c = curente.get(li.get('sku'))
+            pret_nou = float(li.get('pret_nou') or 0)
+            if c is None or not pret_nou:
+                continue
+            if c['landing_cost_ron'] is None or c['curs_ron'] is None:
+                sarite.append(f"{li['sku']}: fara landing existent - "
+                              "introdu-l manual din fisa articolului")
+                continue
+            queries.preturi_update_landing(
+                c['sku'], an, pret_nou, c['moneda'], c['curs_ron'],
+                c['transport_pct'] or 0, c['taxa_vamala_pct'] or 0,
+                c['alte_costuri_ron'] or 0)
+            aplicate += 1
+            ult = c['pret_ultima_comanda']
+            if ult and abs(pret_nou - ult) / ult * 100 > 1:
+                alerte.append(f"{c['sku']}: lista {pret_nou} vs ultima comanda "
+                              f"{ult} ({(pret_nou - ult) / ult * 100:+.1f}%)")
+        return jsonify({'ok': True, 'aplicate': aplicate,
+                        'sarite': sarite[:30], 'alerte': alerte[:50]})
+    except Exception as e:
+        logger.exception("api_actualizare_preturi failed")
+        return jsonify({'error': str(e)}), 400

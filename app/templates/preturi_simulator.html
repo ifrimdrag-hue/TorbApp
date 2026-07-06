@@ -220,6 +220,10 @@
                     onclick="exporta({{ pp.id }}, 'oferta')"
                     title="Ofertă de preț cu poze">
               <i class="bi bi-images"></i></button>
+            <button class="btn btn-xs btn-outline-secondary py-0 px-1"
+                    onclick="exporta({{ pp.id }}, 'fisa')"
+                    title="Fișă creare articole (date logistice pentru listare la client)">
+              <i class="bi bi-card-list"></i></button>
             <button class="btn btn-xs btn-outline-danger py-0 px-1"
                     onclick="sterge({{ pp.id }})" title="Șterge"><i class="bi bi-trash"></i></button>
           </td>
@@ -381,6 +385,12 @@ function exporta(id, tip) {
   const template = document.getElementById('e-template').value;
   if (valabil) params.set('valabil', valabil.split('-').reverse().join('.'));
   if (tip === 'listare' && template) params.set('template', template);
+  if (tip === 'fisa') {
+    // Auchan cere modelul propriu de creare articol; restul primesc fisa generica
+    const client = document.querySelector('select[name=client]');
+    const nume = client && client.selectedOptions[0] ? client.selectedOptions[0].text : '';
+    if (nume.toUpperCase().includes('AUCHAN')) params.set('template', 'auchan_creare');
+  }
   window.location.href = '/preturi/propuneri/' + id + '/' + tip + '.xlsx?' + params;
 }
 </script>

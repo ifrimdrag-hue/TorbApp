@@ -165,6 +165,99 @@ def build_listare(data, template=None, valabil=''):
     return wb
 
 
+# ── article-creation sheets (fisa creare articol, F4) ───────────────────────
+
+def _mm_to_m(v):
+    return round(v / 1000, 3) if v else None
+
+
+def _fisa_auchan(ws, data, valabil):
+    """Key columns of Auchan's 'Model propunere creare articol' sheet.
+    Fields Torb does not hold (ingredients, nutrition) stay empty for
+    manual completion - exactly how the team fills the real file."""
+    ws.cell(1, 1, 'Propunere creare articole - TORB LOGISTIC'
+            f" - {data['nume_client']}").font = TITLE_FONT
+    if valabil:
+        ws.cell(2, 1, f'Data de disponibilitate: {valabil}')
+    cols = ['Denumire articol', 'EAN', 'Cod furnizor', 'Denumire furnizor',
+            'Cod Tarifar', 'Pret achizitie (lista)', 'COTA TVA',
+            'Total shelf life produs (luni)', 'PCB (buc/bax)',
+            'Greutate NETA (kg)', 'Tara de origine', 'Brand / marca',
+            'Buc Greutate Bruta (kg)', 'Buc Greutate Neta (kg)',
+            'Bax Greutate Bruta (kg)', 'Bax Lungime (m)', 'Bax Latime (m)',
+            'Bax Inaltime (m)', 'Nr BAX pe palet', 'Ingrediente', 'Alergeni',
+            'Conditii de pastrare', 'Mod de preparare']
+    _header_row(ws, 4, cols)
+    r = 5
+    for li in data['linii']:
+        ws.cell(r, 1, li['descriere'])
+        ws.cell(r, 2, li['ean'])
+        ws.cell(r, 3, li['sku'])
+        ws.cell(r, 4, 'TORB LOGISTIC SRL')
+        ws.cell(r, 5, li['hs_code'])
+        _num(ws.cell(r, 6), li['pret_propus'])
+        ws.cell(r, 7, f"{(li['tva_pct'] or 0) * 100:g}%")
+        ws.cell(r, 8, li['valabilitate_luni'])
+        ws.cell(r, 9, li['buc_bax'] or li['buc_cutie'])
+        ws.cell(r, 10, li['unit_net_kg'])
+        ws.cell(r, 11, li['tara_origine'])
+        ws.cell(r, 12, li['brand'])
+        ws.cell(r, 13, li['unit_gross_kg'])
+        ws.cell(r, 14, li['unit_net_kg'])
+        ws.cell(r, 15, li['bax_gross_kg'])
+        ws.cell(r, 16, _mm_to_m(li['bax_l_mm']))
+        ws.cell(r, 17, _mm_to_m(li['bax_w_mm']))
+        ws.cell(r, 18, _mm_to_m(li['bax_h_mm']))
+        ws.cell(r, 19, li['bax_palet'])
+        r += 1
+    _autosize(ws, [42, 15, 12, 18, 12, 12, 8, 10, 10, 10, 12, 14,
+                   10, 10, 10, 9, 9, 9, 9, 25, 18, 18, 18])
+
+
+def _fisa_generic(ws, data, valabil):
+    ws.cell(1, 1, 'Fisa creare articole - TORB LOGISTIC'
+            f" - {data['nume_client']}").font = TITLE_FONT
+    if valabil:
+        ws.cell(2, 1, f'Disponibil de la: {valabil}')
+    cols = ['Cod articol', 'Denumire', 'Brand', 'EAN', 'Gramaj', 'Buc/bax',
+            'Bax/palet', 'Cod HS', 'TVA %', 'Tara origine',
+            'Valabilitate (luni)', 'Net/buc (kg)', 'Brut/buc (kg)',
+            'Bax LxlxH (mm)', 'Brut/bax (kg)', 'CBM bax',
+            'Pret propus fara TVA']
+    _header_row(ws, 4, cols)
+    r = 5
+    for li in data['linii']:
+        dims = (f"{li['bax_l_mm']:g}x{li['bax_w_mm']:g}x{li['bax_h_mm']:g}"
+                if li['bax_l_mm'] and li['bax_w_mm'] and li['bax_h_mm'] else None)
+        vals = [li['sku'], li['descriere'], li['brand'], li['ean'],
+                f"{li['gramaj']:g}g" if li['gramaj'] else None,
+                li['buc_bax'] or li['buc_cutie'], li['bax_palet'],
+                li['hs_code'], (li['tva_pct'] or 0) * 100, li['tara_origine'],
+                li['valabilitate_luni'], li['unit_net_kg'],
+                li['unit_gross_kg'], dims, li['bax_gross_kg'], li['bax_cbm']]
+        for c, v in enumerate(vals, 1):
+            ws.cell(r, c, v)
+        _num(ws.cell(r, 17), li['pret_propus'])
+        r += 1
+    _autosize(ws, [12, 42, 14, 15, 9, 8, 9, 11, 7, 12, 10, 10, 10, 15, 10, 9, 14])
+
+
+FISA_TEMPLATES = {
+    'auchan_creare': _fisa_auchan,
+    'generic': _fisa_generic,
+}
+
+
+def build_fisa(data, template=None, valabil=''):
+    """Article-creation sheet for a proposal, in the client's layout."""
+    builder = FISA_TEMPLATES.get(template or 'generic', _fisa_generic)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Creare articole'
+    builder(ws, data, valabil)
+    return wb
+
+
 # ── commercial offer with photos ─────────────────────────────────────────────
 
 def _safe_name(sku):

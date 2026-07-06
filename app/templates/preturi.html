@@ -14,6 +14,9 @@
     <a href="/preturi/import-oferta?an={{ an }}" class="btn btn-sm btn-outline-success">
       <i class="bi bi-file-earmark-arrow-up me-1"></i>Import ofertă furnizor
     </a>
+    <a href="/preturi/actualizare-preturi?an={{ an }}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-arrow-repeat me-1"></i>Actualizare prețuri
+    </a>
     <!-- Cursuri rapide -->
     {% for moneda, curs in rate.items() %}
     {% if moneda != 'RON' %}

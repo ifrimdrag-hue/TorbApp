@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+{% block title %}Actualizare prețuri furnizor — Torb Logistic{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0 fw-bold">
+    <i class="bi bi-arrow-repeat text-primary"></i> Actualizare prețuri furnizor existent
+  </h4>
+  <a href="/preturi?an={{ an }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Înapoi la catalog
+  </a>
+</div>
+
+<div class="alert alert-light border small">
+  Încarcă noua listă oficială de preț a unui furnizor existent. Vezi diferențele
+  față de prețurile curente, alegi ce accepți, iar la aplicare se recalculează
+  landing cost-ul (cursul, transportul și taxele existente se păstrează).
+  Primești alertă când noul preț de listă diferă de prețul din ultima comandă.
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small mb-0">Furnizor *</label>
+        <input id="a-furnizor" class="form-control form-control-sm" list="dl-furnizor">
+        <datalist id="dl-furnizor">
+          {% for v in atribute.furnizor %}<option value="{{ v }}">{% endfor %}
+        </datalist>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-0">Fișier listă preț (.xls/.xlsx)</label>
+        <input id="a-file" type="file" accept=".xls,.xlsx" class="form-control form-control-sm">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-0">Col. cod</label>
+        <input id="a-col-cod" class="form-control form-control-sm" style="width:65px" placeholder="A">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-0">Col. preț</label>
+        <input id="a-col-pret" class="form-control form-control-sm" style="width:65px" placeholder="C">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-0">Primul rând</label>
+        <input id="a-start" type="number" min="1" value="2" class="form-control form-control-sm" style="width:75px">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary" onclick="vezidiff()">
+          <i class="bi bi-file-diff me-1"></i>Vezi diferențele
+        </button>
+      </div>
+      <div class="col-auto"><span id="a-msg" class="small"></span></div>
+    </div>
+  </div>
+</div>
+
+<div id="zona-diff" class="d-none">
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-white d-flex align-items-center">
+      <span class="fw-semibold">Diferențe de preț</span>
+      <span class="ms-auto small text-muted me-3" id="d-sumar"></span>
+      <button class="btn btn-sm btn-success" onclick="aplica()">
+        <i class="bi bi-check2-circle me-1"></i>Aplică liniile bifate
+      </button>
+    </div>
+    <div class="table-responsive" style="max-height:55vh">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-secondary sticky-top">
+          <tr>
+            <th><input type="checkbox" id="d-toate" checked onchange="bifeazaToate()"></th>
+            <th>SKU</th><th>Denumire</th>
+            <th class="text-end">Preț vechi</th>
+            <th class="text-end">Preț nou</th>
+            <th class="text-end">Δ %</th>
+            <th class="text-end">Ultima comandă</th>
+          </tr>
+        </thead>
+        <tbody id="d-body"></tbody>
+      </table>
+    </div>
+    <div id="d-necunoscute" class="card-body border-top small d-none"></div>
+  </div>
+  <div id="d-rezultat" class="small mb-4"></div>
+</div>
+
+<script>
+const AN = {{ an }};
+let DIFF = [];
+
+function fmt(v) { return v == null ? '—' : (+v).toFixed(2); }
+
+async function vezidiff() {
+  const msg = document.getElementById('a-msg');
+  const f = document.getElementById('a-file').files[0];
+  const furnizor = document.getElementById('a-furnizor').value.trim();
+  if (!f || !furnizor) {
+    msg.className = 'small text-danger';
+    msg.textContent = 'Alege furnizorul și fișierul.';
+    return;
+  }
+  msg.className = 'small text-muted'; msg.textContent = 'Se compară...';
+  const fd = new FormData();
+  fd.append('file', f); fd.append('actiune', 'diff');
+  fd.append('an', AN); fd.append('furnizor', furnizor);
+  fd.append('col_cod', document.getElementById('a-col-cod').value);
+  fd.append('col_pret', document.getElementById('a-col-pret').value);
+  fd.append('rand_start', document.getElementById('a-start').value);
+  const resp = await fetch('/api/preturi/actualizare-preturi', {method: 'POST', body: fd});
+  const data = await resp.json();
+  if (!data.ok) { msg.className = 'small text-danger'; msg.textContent = data.error; return; }
+  msg.textContent = '';
+  DIFF = data.diff;
+  const schimbate = DIFF.filter(d => d.delta_pct !== 0 && d.delta_pct !== null);
+  document.getElementById('d-sumar').textContent =
+    DIFF.length + ' articole potrivite · ' + schimbate.length + ' cu preț schimbat · ' +
+    data.nr_necunoscute + ' coduri negăsite';
+  document.getElementById('d-body').innerHTML = DIFF.map((d, i) => {
+    const cls = d.delta_pct > 0 ? 'text-danger' : d.delta_pct < 0 ? 'text-success' : 'text-muted';
+    const alerta = d.pret_ultima_comanda != null && d.pret_nou &&
+      Math.abs(d.pret_nou - d.pret_ultima_comanda) / d.pret_ultima_comanda > 0.01;
+    return '<tr>' +
+      '<td><input type="checkbox" class="d-check" data-i="' + i + '"' +
+        (d.delta_pct !== 0 && d.are_landing ? ' checked' : '') +
+        (!d.are_landing ? ' disabled title="fără landing existent"' : '') + '></td>' +
+      '<td class="text-nowrap">' + d.sku + '</td>' +
+      '<td class="small">' + (d.descriere || '') + '</td>' +
+      '<td class="text-end">' + fmt(d.pret_vechi) + ' ' + (d.moneda || '') + '</td>' +
+      '<td class="text-end fw-semibold">' + fmt(d.pret_nou) + '</td>' +
+      '<td class="text-end fw-bold ' + cls + '">' +
+        (d.delta_pct == null ? '—' : d.delta_pct.toFixed(1) + '%') + '</td>' +
+      '<td class="text-end' + (alerta ? ' text-warning fw-semibold' : '') + '"' +
+        (alerta ? ' title="Diferă de prețul din ultima comandă"' : '') + '>' +
+        fmt(d.pret_ultima_comanda) + (alerta ? ' ⚠' : '') + '</td></tr>';
+  }).join('');
+  const nec = document.getElementById('d-necunoscute');
+  if (data.nr_necunoscute) {
+    nec.classList.remove('d-none');
+    nec.innerHTML = '<b class="text-warning">' + data.nr_necunoscute +
+      ' coduri negăsite în catalog</b> (articole noi? importă-le din „Import ofertă furnizor"):<br>' +
+      data.necunoscute.map(s => s.replace(/</g, '&lt;')).join('<br>');
+  } else nec.classList.add('d-none');
+  document.getElementById('zona-diff').classList.remove('d-none');
+}
+
+function bifeazaToate() {
+  const on = document.getElementById('d-toate').checked;
+  document.querySelectorAll('.d-check:not(:disabled)').forEach(c => c.checked = on);
+}
+
+async function aplica() {
+  const linii = [...document.querySelectorAll('.d-check:checked')]
+    .map(c => DIFF[+c.dataset.i])
+    .map(d => ({sku: d.sku, pret_nou: d.pret_nou}));
+  const out = document.getElementById('d-rezultat');
+  if (!linii.length) { out.className = 'small text-danger mb-4'; out.textContent = 'Nicio linie bifată.'; return; }
+  if (!confirm('Actualizezi prețul de achiziție pentru ' + linii.length + ' articole?')) return;
+  out.className = 'small text-muted mb-4'; out.textContent = 'Se aplică...';
+  const resp = await fetch('/api/preturi/actualizare-preturi?an=' + AN +
+      '&furnizor=' + encodeURIComponent(document.getElementById('a-furnizor').value.trim()), {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({linii})
+  });
+  const data = await resp.json();
+  if (!data.ok) { out.className = 'small text-danger mb-4'; out.textContent = data.error; return; }
+  out.className = 'small mb-4';
+  out.innerHTML = '<span class="text-success"><b>' + data.aplicate +
+    '</b> prețuri actualizate (landing recalculat).</span>' +
+    (data.sarite.length ? '<br><span class="text-warning">Sărite:</span><br>' +
+      data.sarite.join('<br>') : '') +
+    (data.alerte.length ? '<br><span class="text-warning fw-semibold">⚠ Diferențe față de ultima comandă:</span><br>' +
+      data.alerte.join('<br>') : '');
+}
+</script>
+{% endblock %}

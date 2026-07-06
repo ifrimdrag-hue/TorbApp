@@ -93,6 +93,7 @@ from queries.pricing import (
     client_prospect_create as client_prospect_create,
     produs_poza as produs_poza,
     produs_poza_set as produs_poza_set,
+    furnizor_preturi_curente as furnizor_preturi_curente,
 )
 from queries.orders import (
     termene_aprovizionare_list as termene_aprovizionare_list,

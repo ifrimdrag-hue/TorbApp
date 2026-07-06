@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Pricing module F4+F5: article-creation sheets + supplier price updates with diff (2026-07-06)
+
+Closes the phased plan (`docs/plans/2026-07-05-modul-pricing-ofertare.md` §5 — all phases delivered).
+
+- **F4 — Fișă creare articole** (`/preturi/propuneri/<id>/fisa.xlsx`) — third download per proposal: the logistics/master-data sheet a client needs to list new articles. Templates: `auchan_creare` (key columns of Auchan's "Model propunere creare articol": Cod Tarifar, PCB, unit/case weights, case dims in meters, pallet count, VAT, origin — manual fields like Ingrediente/Alergeni left empty, exactly how the team completes the real file; auto-selected when the proposal's client name contains AUCHAN) and `generic` (all held master+logistics data incl. case dims in mm and CBM). Enriched export query now carries hs_code, origin, unit/case weights and dims.
+- **F5 — Actualizare prețuri furnizor existent** (`/preturi/actualizare-preturi`) — upload the supplier's new official price list (any xls/xlsx, letter-mapped cod+preț columns), see the **diff** against current purchase prices (old/new, Δ%, last order price; unknown codes reported with a pointer to the offer import), tick what you accept, apply: `pret_achizitie_valuta` updated and landing recomputed keeping each row's existing currency/rate/transport/duty. Per owner decision #10 the official list is the source and the response **alerts** on every SKU whose new list price differs >1% from the last order price. Supplier codes resolve via SKU, `-00` suffix, or the last order's `cod_furnizor`.
+- Catalog header gains *Actualizare prețuri*; proposals get the fișă button. Tests: 258 passing (4 new: both fișă layouts, diff→apply landing math + last-order alert, unknown-supplier guard). Verified in browser: all three exports (listare/ofertă/fișă Auchan) download from a real proposal.
+
 ### Pricing module round 4: prospect clients, potential articles, supplier offer import, product photos (2026-07-06)
 
 Owner requests: offers for clients not yet in the ERP, articles not yet in stock (supplier portfolios / new-supplier price offers priced for Romania), photos from basilurtea.com for Basilur + manual upload for the rest.

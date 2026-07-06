@@ -296,6 +296,30 @@ def produse_atribute_distincte():
     return out
 
 
+# ── Actualizare preturi furnizor existent (F5) ──────────────────────────────
+
+def furnizor_preturi_curente(furnizor, an):
+    """Current purchase prices + landing params + last order price per SKU
+    of a supplier - the base for the price-update diff."""
+    return query("""
+        SELECT p.sku, p.descriere,
+               cl.moneda, cl.pret_achizitie_valuta, cl.curs_ron,
+               cl.transport_pct, cl.taxa_vamala_pct, cl.alte_costuri_ron,
+               cl.landing_cost_ron,
+               (SELECT cfl.pret_valuta FROM comenzi_furnizori_linii cfl
+                JOIN comenzi_furnizori cf ON cf.id = cfl.comanda_id
+                WHERE cfl.sku = p.sku
+                ORDER BY cf.data_comanda DESC, cfl.id DESC LIMIT 1)
+                   AS pret_ultima_comanda,
+               (SELECT cfl.cod_furnizor FROM comenzi_furnizori_linii cfl
+                WHERE cfl.sku = p.sku AND cfl.cod_furnizor IS NOT NULL
+                ORDER BY cfl.id DESC LIMIT 1) AS cod_furnizor
+        FROM produse p
+        LEFT JOIN costuri_landing cl ON cl.sku = p.sku AND cl.an = :an
+        WHERE p.activ = 1 AND (p.furnizor = :f OR p.gama = :f)
+    """, {"f": furnizor, "an": an})
+
+
 # ── Clienti prospect (oferte pentru clienti inexistenti in ERP) ─────────────
 
 def clienti_prospecti_list():
@@ -442,7 +466,10 @@ def propunere_linii_export(id):
         SELECT li.sku, li.pret_actual, li.pret_propus, li.marja_neta_pct,
                li.verdict,
                p.descriere, p.gramaj, p.ean, p.tva_pct, p.buc_cutie,
-               pl.buc_bax, pl.bax_palet,
+               p.hs_code, p.tara_origine, p.brand,
+               pl.buc_bax, pl.bax_palet, pl.unit_net_kg, pl.unit_gross_kg,
+               pl.bax_l_mm, pl.bax_w_mm, pl.bax_h_mm, pl.bax_gross_kg,
+               pl.bax_cbm, pl.valabilitate_luni,
                cca.cod_intern, cca.cod_intern2,
                pm.path AS poza_path, pm.url_sursa AS poza_url
         FROM propuneri_pret_linii li

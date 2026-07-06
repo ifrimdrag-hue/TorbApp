@@ -90,18 +90,18 @@ Regula de aur (confirmată de owner pe alte module): **nimic hardcodat** — cli
 | **F1 — Motor cost/marjă** | pricing_engine + teste, marjă netă per client în /preturi/<sku> | ✅ 2026-07-06 (`app/pricing_engine.py`) |
 | **F2 — Simulator** | /preturi/simulator per client, marjă netă live, aplicare în masă (marjă țintă / % creștere), propuneri salvate cu verdict server-side; /preturi/nou articol manual; seed date → dev (migrațiile 0024–0025) | ✅ 2026-07-06 |
 | **F3 — Ofertare + listare** | xls oferte cu poze embedded + formulare modificare preț / liste per template client (Kaufland, Selgros, Fildas, Sezamo, generic) din propunerile salvate; template per client în `clienti_pricing` (migrația 0026) | ✅ 2026-07-06 (`app/exports/listare_export.py`) |
-| **F4 — Definire articol complet** | fișe creare articol per client (model Auchan), upload poze local | după F3 (creare manuală de bază există din F2) |
-| **F5 — Import recurent** | upload liste furnizor cu diff & confirmare + notificare la diferențe față de comenzi (decizia #10) | ultima |
+| **F4 — Definire articol complet** | fișă creare articole per propunere (template Auchan `auchan_creare` + generic, `/preturi/propuneri/<id>/fisa.xlsx`), upload poze local + URL (+ link basilurtea.com pt. Basilur) | ✅ 2026-07-06 |
+| **F5 — Import recurent** | `/preturi/actualizare-preturi`: listă nouă furnizor existent → diff vechi/nou → confirmare per linie → landing recalculat + alertă la diferențe >1% față de ultima comandă (decizia #10); furnizori/articole noi prin `/preturi/import-oferta` | ✅ 2026-07-06 |
 
-### Punct de reluare (sesiunea următoare)
+### Stadiu final (2026-07-06) — toate fazele livrate
 
-Runda 4 (2026-07-06) a livrat în plus față de faze: clienți **prospect** (oferte pentru clienți inexistenți în ERP), articole **potențiale** (`produse.potential`, migrația 0027), **import ofertă furnizor nou** (`/preturi/import-oferta` — xls/xlsx arbitrar, mapare coloane pe litere → articole potențiale cu landing calculat) și **poze articol** (upload local / URL pe `/preturi/<sku>`; Basilur: link de căutare pe basilurtea.com — decizia owner: site-ul acoperă doar Basilur, restul manual).
+Pe lângă faze, runda 4 a livrat: clienți **prospect** (oferte pentru clienți inexistenți în ERP), articole **potențiale** (`produse.potential`), **import ofertă furnizor nou** (`/preturi/import-oferta`) și **poze articol** (upload local / URL; Basilur: link de căutare pe basilurtea.com — site-ul acoperă doar Basilur, restul manual).
 
-1. Owner validează pe :5001: simulatorul + fișierele generate (comparate 1:1 cu cele reale), un prospect, un import de ofertă furnizor, o poză.
-2. F4 rămas: fișe creare articol per client (model `Model_propunere_creare_articol_.xlsx` — Auchan).
-3. F5 rămas: import recurent listă preț pentru furnizori EXISTENȚI → diff prețuri vechi/noi → confirmare → actualizare landing + notificare când diferă de prețurile din comenzi (decizia #10). (Importul din runda 4 acoperă doar furnizori/articole NOI.)
-4. De la owner: defalcarea condițiilor (acum % total per client), ordinea template-urilor următoare (Auchan? Metro?).
-5. Date de curățat (raport `Date pricinng&Logistica&Ofertare/rapoarte/f0_import_raport.txt`): 51 prețuri achiziție diferite, curs USD 4,5 vs 4,6, 9 SKU buc/bax contradictoriu, Toras/Torras (BACKLOG #13).
+Rămase deschise (post-livrare):
+1. **Validarea ownerului pe :5001** — fișierele generate (listare per template, ofertă cu poze, fișă creare articole) comparate 1:1 cu cele reale; corecții de layout după caz.
+2. **Defalcarea condițiilor** (acum % total per client — owner) + template-uri de listare pentru alți clienți (Auchan, Metro) când decide ownerul.
+3. **Date de curățat** (raport `Date pricinng&Logistica&Ofertare/rapoarte/f0_import_raport.txt`): 51 prețuri achiziție diferite, curs USD 4,5 vs 4,6, 9 SKU buc/bax contradictoriu, Toras/Torras (BACKLOG #13).
+4. Idei viitoare (nefăcute, la cererea ownerului): preț raft în simulator cu `marja_raft_pct` per client (decizia #5 — coloana există, UI nu), istoric `valabil_de_la` complet pe liste (decizia #9 — parțial: data intră în fișiere, nu există tabel de istoric al listelor trimise), fetch automat poze de pe basilurtea.com (acum link de căutare + copiere URL).
 
 Fiecare fază: dezvoltare pe `main` local → teste → push → Dev :5001 → evaluare owner → aprobare prod. Fișierele Excel cu date comerciale rămân **în afara git-ului** (adăugat la `.gitignore`).
 

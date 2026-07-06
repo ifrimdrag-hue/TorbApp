@@ -390,8 +390,20 @@ prospect becomes a real ERP client its code changes — proposals keep the old c
 
 **Proposals** (`propuneri_pret` + `_linii`) — a saved simulation per client; margins
 and verdicts are recomputed **server-side** at save time (client sends only
-sku + price). They feed the two client files: listing/price-change xls (per
-template) and the photo offer (`app/exports/listare_export.py`).
+sku + price). They feed the three client files (`app/exports/listare_export.py`):
+listing/price-change xls (per template), the photo offer, and the article-creation
+sheet (`fisa.xlsx` — `auchan_creare` replicating Auchan's model with manual fields
+left empty, or `generic`; the UI auto-picks Auchan when the client name contains
+AUCHAN).
+
+**Supplier price updates** (decision #10: the official supplier list is the price
+source) — `/preturi/actualizare-preturi`: upload the new list of an EXISTING
+supplier, diff against `costuri_landing` (old/new, Δ%, last order price from
+`comenzi_furnizori_linii`), accept per line; apply updates the purchase price and
+recomputes landing keeping the row's currency/rate/transport/duty, and ALERTS on
+SKUs whose list price differs >1% from the last order price. Supplier codes
+resolve via SKU / `-00` suffix / last order's `cod_furnizor`. New suppliers or
+new articles go through `/preturi/import-oferta` instead (potential articles).
 
 **Photos** (`produse_media`) — one `principala=1` row per SKU; `path` = local file
 under `app/static/product_images/`, `url_sursa` = origin URL. Sources: manual
