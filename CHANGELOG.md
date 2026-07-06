@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Pricing module F3: client xls files from proposals — listing templates + photo offer (2026-07-06)
+
+- **`app/exports/listare_export.py`** — data-driven client file generation from a saved proposal. Layouts replicate the real files each retailer expects: `kaufland_modificare` (price-change form: cod articol/Kaufland, old/new list+invoice price, valabil de la), `selgros_lista` (vendor header block, UC/UV, case+unit list and net prices, EAN, pallet count), `fildas_lista` (cod furnizor, gramaj, old/new invoice price), `sezamo_lista` (client internal code), `generic` fallback. Template per client lives in `clienti_pricing.template_listare` (migration 0026 seeds Kaufland/Selgros/Fildas/Sezamo by name lookup, NULLs only — UI-set values win).
+- **Offer with photos** — `build_oferta`: product photo thumbnails (~96px, Pillow) embedded per row from `produse_media` (local path, or `url_sursa` downloaded once into `app/static/product_images/` with a 5s timeout), gramaj, buc/bax, EAN, price without/with VAT.
+- **Routes** `/preturi/propuneri/<id>/listare.xlsx?template=&valabil=` and `/preturi/propuneri/<id>/oferta.xlsx?valabil=` (attachment download, filename includes client + validity date). Simulator proposals card gains a *Valabil de la* date picker, a *Format* override selector and per-proposal download buttons.
+- `queries.propunere_linii_export` enriches proposal lines with product, logistics, per-client internal codes and the main photo. Tests: 250 passing (5 new: per-template layouts incl. Selgros case-price math, template override, generic fallback, VAT math in the offer). Verified in browser: Kaufland proposal (22 lines) → both files download with the auto-selected template.
+
 ### Pricing module F2: price simulator, proposals, manual article creation, seed data to dev (2026-07-06)
 
 - **Simulator** (`/preturi/simulator`) — pick a client, see every article with a landing cost (landing, current price, effective conditions %), type proposed prices or bulk-apply a target NET margin / % increase over current price to the filtered rows; net margin recomputes live and is colored by the configured thresholds. Save as a named proposal.

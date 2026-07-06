@@ -301,3 +301,44 @@ def api_propunere_get(id):
 def api_propunere_delete(id):
     queries.propunere_delete(id)
     return jsonify({'ok': True})
+
+
+# ── F3: fisiere client din propuneri (listare / oferta cu poze) ─────────────
+
+def _propunere_export_data(id):
+    data = queries.propunere_linii_export(id)
+    if not data:
+        abort(404)
+    return data
+
+
+def _send_wb(wb, filename):
+    from io import BytesIO
+    from flask import send_file
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(
+        buf, as_attachment=True, download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@pricing_bp.route('/preturi/propuneri/<int:id>/listare.xlsx')
+def propunere_listare_xlsx(id):
+    from exports import listare_export
+    data     = _propunere_export_data(id)
+    template = request.args.get('template') or data['template'] or 'generic'
+    valabil  = request.args.get('valabil') or ''
+    wb = listare_export.build_listare(data, template, valabil)
+    nume = (data['nume_client'] or '').split()[0].lower() or data['propunere']['cod_client']
+    return _send_wb(wb, f'lista_pret_{nume}_{valabil or id}.xlsx')
+
+
+@pricing_bp.route('/preturi/propuneri/<int:id>/oferta.xlsx')
+def propunere_oferta_xlsx(id):
+    from exports import listare_export
+    data    = _propunere_export_data(id)
+    valabil = request.args.get('valabil') or ''
+    wb = listare_export.build_oferta(data, valabil)
+    nume = (data['nume_client'] or '').split()[0].lower() or data['propunere']['cod_client']
+    return _send_wb(wb, f'oferta_{nume}_{valabil or id}.xlsx')

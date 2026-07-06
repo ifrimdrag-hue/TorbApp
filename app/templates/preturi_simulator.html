@@ -160,9 +160,24 @@
 
 <!-- Propuneri salvate -->
 <div class="card shadow-sm border-0 mb-3">
-  <div class="card-header bg-white fw-semibold">
-    <i class="bi bi-journal-text me-1 text-primary"></i>
-    Propuneri salvate {% if cod_client %}(clientul selectat){% endif %}
+  <div class="card-header bg-white d-flex align-items-center gap-3 flex-wrap">
+    <span class="fw-semibold">
+      <i class="bi bi-journal-text me-1 text-primary"></i>
+      Propuneri salvate {% if cod_client %}(clientul selectat){% endif %}
+    </span>
+    <span class="ms-auto d-flex align-items-center gap-2 small">
+      <label class="text-muted mb-0">Valabil de la</label>
+      <input id="e-valabil" type="date" class="form-control form-control-sm" style="width:150px">
+      <label class="text-muted mb-0">Format</label>
+      <select id="e-template" class="form-select form-select-sm" style="width:190px">
+        <option value="">automat (setare client)</option>
+        <option value="kaufland_modificare">Kaufland — modificare preț</option>
+        <option value="selgros_lista">Selgros — listă prețuri</option>
+        <option value="fildas_lista">Fildas — listă prețuri</option>
+        <option value="sezamo_lista">Sezamo — listă prețuri</option>
+        <option value="generic">Generic</option>
+      </select>
+    </span>
   </div>
   <div class="table-responsive">
     <table class="table table-sm table-hover align-middle mb-0">
@@ -189,9 +204,17 @@
           </td>
           <td class="text-center text-nowrap">
             <button class="btn btn-xs btn-outline-primary py-0 px-1"
-                    onclick="vezi({{ pp.id }})"><i class="bi bi-eye"></i></button>
+                    onclick="vezi({{ pp.id }})" title="Vezi liniile"><i class="bi bi-eye"></i></button>
+            <button class="btn btn-xs btn-outline-success py-0 px-1"
+                    onclick="exporta({{ pp.id }}, 'listare')"
+                    title="Fișier listare / modificare preț (format client)">
+              <i class="bi bi-file-earmark-spreadsheet"></i></button>
+            <button class="btn btn-xs btn-outline-success py-0 px-1"
+                    onclick="exporta({{ pp.id }}, 'oferta')"
+                    title="Ofertă de preț cu poze">
+              <i class="bi bi-images"></i></button>
             <button class="btn btn-xs btn-outline-danger py-0 px-1"
-                    onclick="sterge({{ pp.id }})"><i class="bi bi-trash"></i></button>
+                    onclick="sterge({{ pp.id }})" title="Șterge"><i class="bi bi-trash"></i></button>
           </td>
         </tr>
         {% else %}
@@ -328,6 +351,15 @@ async function sterge(id) {
   if (!confirm('Ștergi propunerea #' + id + '?')) return;
   await fetch('/api/preturi/propuneri/' + id, {method: 'DELETE'});
   location.reload();
+}
+
+function exporta(id, tip) {
+  const params = new URLSearchParams();
+  const valabil = document.getElementById('e-valabil').value;
+  const template = document.getElementById('e-template').value;
+  if (valabil) params.set('valabil', valabil.split('-').reverse().join('.'));
+  if (tip === 'listare' && template) params.set('template', template);
+  window.location.href = '/preturi/propuneri/' + id + '/' + tip + '.xlsx?' + params;
 }
 </script>
 {% endblock %}

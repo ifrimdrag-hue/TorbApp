@@ -89,16 +89,16 @@ Regula de aur (confirmată de owner pe alte module): **nimic hardcodat** — cli
 | **F0 — Fundație date** | migrări (produse_logistica, media, coduri_client, landing v2), import FISIER_CONSOLIDAT + RO1-0xx, raport calitate date | ✅ 2026-07-06 (migrațiile 0022–0023, `etl/import_pricing_f0.py`) |
 | **F1 — Motor cost/marjă** | pricing_engine + teste, marjă netă per client în /preturi/<sku> | ✅ 2026-07-06 (`app/pricing_engine.py`) |
 | **F2 — Simulator** | /preturi/simulator per client, marjă netă live, aplicare în masă (marjă țintă / % creștere), propuneri salvate cu verdict server-side; /preturi/nou articol manual; seed date → dev (migrațiile 0024–0025) | ✅ 2026-07-06 |
-| **F3 — Ofertare + listare** | generare xls oferte cu poze, formulare modificare preț + liste per template client (Kaufland, Sezamo, Fildas, Selgros primele), pornind din propunerile salvate | ⏭️ URMEAZĂ — punct de reluare |
+| **F3 — Ofertare + listare** | xls oferte cu poze embedded + formulare modificare preț / liste per template client (Kaufland, Selgros, Fildas, Sezamo, generic) din propunerile salvate; template per client în `clienti_pricing` (migrația 0026) | ✅ 2026-07-06 (`app/exports/listare_export.py`) |
 | **F4 — Definire articol complet** | fișe creare articol per client (model Auchan), upload poze local | după F3 (creare manuală de bază există din F2) |
 | **F5 — Import recurent** | upload liste furnizor cu diff & confirmare + notificare la diferențe față de comenzi (decizia #10) | ultima |
 
-### Punct de reluare (sesiunea următoare — F3)
+### Punct de reluare (sesiunea următoare — F4/F5)
 
-1. Owner validează pe :5001: marja netă per client (/preturi/<sku>), simulatorul pe Auchan/Kaufland, crearea unui articol nou.
-2. F3 pornește din **propunerile salvate** (`propuneri_pret`): buton „Generează fișier client" → xls în formatul clientului (mapare în `clienti_pricing.template_listare`; formate de replicat în §3: Kaufland/Selgros = formular modificare preț cu preț vechi/nou + valabil de la; Fildas/Sezamo = listă simplă cu cod client). Infrastructură existentă: `app/exports/excel_export.py`.
-3. Oferte cu poze: openpyxl embedded images din `produse_media` (thumbnail ~200px).
-4. De reconfirmat cu ownerul: ordinea template-urilor (întrebarea #7, fără răspuns) și defalcarea condițiilor seed-uite ca total per client.
+1. Owner validează pe :5001: marja netă per client (/preturi/<sku>), simulatorul, articol nou, **fișierele generate** (butoanele verzi din „Propuneri salvate": listare per template + ofertă cu poze) — de comparat 1:1 cu fișierele reale trimise clienților și de raportat diferențele de layout.
+2. F4: fișe creare articol per client (model `Model_propunere_creare_articol_.xlsx` — Auchan) + upload poze local (`produse_media.path`); pozele din URL se cache-uiesc deja la generarea ofertei.
+3. F5: upload listă preț furnizor → diff cu prețurile curente → confirmare → actualizare landing + notificare când diferă de prețurile din comenzi (decizia #10).
+4. De la owner: defalcarea condițiilor (acum % total per client), poze de pe ce site (decizia #6 a zis „ambele" dar fără sursă concretă), ordinea template-urilor următoare (Auchan? Metro?).
 5. Date de curățat (raport `Date pricinng&Logistica&Ofertare/rapoarte/f0_import_raport.txt`): 51 prețuri achiziție diferite, curs USD 4,5 vs 4,6, 9 SKU buc/bax contradictoriu, Toras/Torras (BACKLOG #13).
 
 Fiecare fază: dezvoltare pe `main` local → teste → push → Dev :5001 → evaluare owner → aprobare prod. Fișierele Excel cu date comerciale rămân **în afara git-ului** (adăugat la `.gitignore`).

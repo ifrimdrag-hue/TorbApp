@@ -375,6 +375,45 @@ def propunere_create(an, cod_client, titlu, linii):
         db.close()
 
 
+def propunere_linii_export(id):
+    """Proposal lines enriched with product, logistics and the client's
+    internal article codes - everything the client file templates need."""
+    rows = query("SELECT * FROM propuneri_pret WHERE id = :id", {"id": id})
+    if not rows:
+        return None
+    prop = rows[0]
+    linii = query("""
+        SELECT li.sku, li.pret_actual, li.pret_propus, li.marja_neta_pct,
+               li.verdict,
+               p.descriere, p.gramaj, p.ean, p.tva_pct, p.buc_cutie,
+               pl.buc_bax, pl.bax_palet,
+               cca.cod_intern, cca.cod_intern2,
+               pm.path AS poza_path, pm.url_sursa AS poza_url
+        FROM propuneri_pret_linii li
+        LEFT JOIN produse p  ON p.sku = li.sku
+        LEFT JOIN produse_logistica pl ON pl.sku = li.sku
+        LEFT JOIN coduri_client_articol cca ON cca.sku = li.sku
+             AND cca.cod_client = :cod_client
+        LEFT JOIN produse_media pm ON pm.id = (
+            SELECT id FROM produse_media
+            WHERE sku = li.sku AND principala = 1 LIMIT 1)
+        WHERE li.propunere_id = :id
+        ORDER BY p.furnizor, li.sku
+    """, {"id": id, "cod_client": prop['cod_client']})
+    client = query("""
+        SELECT client FROM tranzactii WHERE cod_client = :c LIMIT 1
+    """, {"c": prop['cod_client']})
+    template = query("""
+        SELECT template_listare FROM clienti_pricing WHERE cod_client = :c
+    """, {"c": prop['cod_client']})
+    return {
+        "propunere": prop,
+        "linii": linii,
+        "nume_client": client[0]['client'] if client else prop['cod_client'],
+        "template": template[0]['template_listare'] if template else None,
+    }
+
+
 def propunere_delete(id):
     db = get_db()
     db.execute("DELETE FROM propuneri_pret WHERE id=?", (id,))
