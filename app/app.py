@@ -7,7 +7,7 @@ import logging
 # Keep sys.path insert at module level so blueprint files can import db, queries, etc.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from flask import Flask, request, jsonify, redirect, url_for, render_template
+from flask import Flask, request, jsonify, redirect, url_for, render_template, abort
 from flask_login import current_user
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
@@ -101,6 +101,10 @@ def create_app(test_config=None):
     app.register_blueprint(pachete_bp)
     app.register_blueprint(pnl_bp)
 
+    # ── Build the endpoint -> nav_key gate map (needs all blueprints) ────────
+    import authz
+    authz.build_endpoint_map(app)
+
     # ── Startup tasks (skipped in test mode) ─────────────────────────────────
     if not app.config.get('TESTING'):
         try:
@@ -129,6 +133,18 @@ def create_app(test_config=None):
             return redirect(url_for('auth.login', next=request.full_path))
         if current_user.force_pw_reset and request.endpoint != 'auth.change_password':
             return redirect(url_for('auth.change_password'))
+        # ── Nav-authorization gate (admin bypasses) ──────────────────────────
+        key = authz.endpoint_nav_key(ep)
+        if key and not authz.can_access_nav(current_user.role, key):
+            if request.path.startswith('/api/') or request.is_json:
+                return jsonify({'error': 'Forbidden', 'code': 403}), 403
+            abort(403)
+
+    @app.context_processor
+    def _inject_nav():
+        if current_user.is_authenticated:
+            return {'nav_groups': authz.nav_tree(current_user.role)}
+        return {'nav_groups': []}
 
     @app.route('/healthz')
     def healthz():
