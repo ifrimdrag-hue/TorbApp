@@ -389,6 +389,37 @@ def product_clients(sku, an, luna=None, max_luna=None):
     return query(sql, params)
 
 
+def product_clients_istoric(sku):
+    """All clients that ever bought this SKU: Val Netă pivot per year + totals.
+    Membership is all-time, so historic buyers stay visible even when the
+    period view (product_clients) has no rows for them.
+    Returns (rows, years) — years drive the dynamic columns in the template."""
+    raw = query("""
+        SELECT t.client, t.cod_client, MAX(t.agent) AS agent, t.an,
+            ROUND(SUM(t.cantitate), 0) AS cantitate,
+            ROUND(SUM(t.val_neta), 0)  AS val_neta,
+            MAX(t.data_dl)             AS ultima_achizitie
+        FROM tranzactii t
+        WHERE t.sku = :sku
+        GROUP BY t.client, t.an
+    """, {'sku': sku})
+    years = sorted({r['an'] for r in raw})
+    clients = {}
+    for r in raw:
+        c = clients.setdefault(r['client'], {
+            'client': r['client'], 'cod_client': r['cod_client'], 'agent': r['agent'],
+            'per_an': {}, 'cantitate': 0, 'val_neta': 0, 'ultima_achizitie': None,
+        })
+        c['per_an'][r['an']] = r['val_neta'] or 0
+        c['cantitate'] += r['cantitate'] or 0
+        c['val_neta'] += r['val_neta'] or 0
+        if not c['ultima_achizitie'] or (r['ultima_achizitie'] or '') > c['ultima_achizitie']:
+            c['ultima_achizitie'] = r['ultima_achizitie']
+            c['agent'] = r['agent']
+    rows = sorted(clients.values(), key=lambda c: c['val_neta'], reverse=True)
+    return rows, years
+
+
 def product_monthly(sku):
     """Monthly trend for a SKU across last 3 years."""
     params = {'sku': sku}

@@ -49,6 +49,7 @@ def produs_detail(sku):
     kpi['delta_vn'] = _delta_pct(kpi.get('val_neta', 0), (kpi_py or {}).get('val_neta', 0))
 
     clients = queries.product_clients(sku, an, luna=luna, max_luna=max_luna)
+    clients_istoric, istoric_years = queries.product_clients_istoric(sku)
     monthly = queries.product_monthly(sku)
     yearly  = queries.product_yearly(sku)
 
@@ -63,6 +64,7 @@ def produs_detail(sku):
         sku=sku, an=an, luna=luna,
         kpi=kpi, kpi_py=kpi_py,
         clients=clients, yearly=yearly,
+        clients_istoric=clients_istoric, istoric_years=istoric_years,
         trend_json=json.dumps(trend),
         months_json=json.dumps(MONTHS_RO),
     )

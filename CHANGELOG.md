@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Analiză: istoric clienți pe produs, taburi produse la client, cache-busting statice (2026-07-07)
+
+Owner report: on the product page a client like Auchan "disappears" if it only bought in past years; the produse nelistate list sat below the sold-products table; filters looked dead in the browser.
+
+- **Produs → Clienți: toggle Perioadă/Istoric** — the client table on `/produs/<sku>` only showed buyers in the selected period, hiding historic buyers entirely. New *Istoric* view (`queries.product_clients_istoric`) lists every client that ever bought the SKU with dynamic per-year Val Netă columns, totals and last-purchase date; the quick client search filters both views.
+- **Client page: Produse Cumpărate / Produse Nelistate as tabs** — the two stacked cards became Bootstrap tabs; the Perioadă/Istoric toggle and column filters live inside the Nelistate tab unchanged.
+- **Static cache-busting** — `url_for('static', ...)` now appends `?v=<mtime>`, so browsers pick up new JS/CSS right after a deploy. Likely the reason the (working) table filters appeared broken: `table-filter.js` reached prod on 2026-07-06 but stale cached assets kept the buttons dead until a hard refresh.
+- **Period labels** — templates referenced undefined `period_cy`/`period_py` (headers rendered as "Val Netă  vs "); the context processor now derives them from `an`/`luna` ("2026", "Mar 2026").
+- Tests: 258 passing. Verified in browser: Auchan visible in Istoric on a 2024/2025-only SKU; tabs + filters work on `/client/732`.
+
 ### Solduri: disjoint aging buckets + new terminology (2026-07-06)
 
 Owner changed the aging rule and vocabulary, applied module-wide (cards, all three table views, client page, invoice category labels, Excel exports).
