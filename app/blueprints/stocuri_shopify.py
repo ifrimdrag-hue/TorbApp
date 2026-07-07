@@ -103,7 +103,7 @@ def api_shopify_sync_history():
             rows = c.execute(
                 "SELECT s.id, s.sync_at, s.filename, u.username"
                 " FROM sync_sessions s"
-                " LEFT JOIN users u ON u.id = s.user_id"
+                " LEFT JOIN adm_users u ON u.id = s.user_id"
                 " WHERE s.platform = 'shopify' ORDER BY s.id DESC LIMIT 10"
             ).fetchall()
         result = []

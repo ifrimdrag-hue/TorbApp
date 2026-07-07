@@ -112,7 +112,7 @@ class User(UserMixin):
         with User._conn() as c:
             row = c.execute(
                 "SELECT id, username, email, password_hash, role, is_active, force_pw_reset"
-                " FROM users WHERE id=?",
+                " FROM adm_users WHERE id=?",
                 (int(user_id),),
             ).fetchone()
         return User(row) if row else None
@@ -122,7 +122,7 @@ class User(UserMixin):
         with User._conn() as c:
             row = c.execute(
                 "SELECT id, username, email, password_hash, role, is_active, force_pw_reset"
-                " FROM users WHERE username=? COLLATE NOCASE",
+                " FROM adm_users WHERE username=? COLLATE NOCASE",
                 (username,),
             ).fetchone()
         return User(row) if row else None
@@ -132,7 +132,7 @@ class User(UserMixin):
         with User._conn() as c:
             row = c.execute(
                 "SELECT id, username, email, password_hash, role, is_active, force_pw_reset"
-                " FROM users WHERE email=? COLLATE NOCASE",
+                " FROM adm_users WHERE email=? COLLATE NOCASE",
                 (email,),
             ).fetchone()
         return User(row) if row else None
@@ -306,7 +306,7 @@ def login():
                 try:
                     with sqlite3.connect(DB_PATH) as c:
                         c.execute(
-                            "UPDATE users SET last_login_at=datetime('now') WHERE id=?",
+                            "UPDATE adm_users SET last_login_at=datetime('now') WHERE id=?",
                             (user.id,),
                         )
                 except Exception:
@@ -354,7 +354,7 @@ def change_password():
             try:
                 with sqlite3.connect(DB_PATH) as c:
                     c.execute(
-                        "UPDATE users SET password_hash=?, force_pw_reset=0,"
+                        "UPDATE adm_users SET password_hash=?, force_pw_reset=0,"
                         " updated_at=datetime('now') WHERE id=?",
                         (new_hash, current_user.id),
                     )
@@ -429,7 +429,7 @@ def reset_confirm(token):
         try:
             with sqlite3.connect(DB_PATH) as c:
                 c.execute(
-                    "UPDATE users SET password_hash=?, force_pw_reset=0,"
+                    "UPDATE adm_users SET password_hash=?, force_pw_reset=0,"
                     " updated_at=datetime('now') WHERE id=?",
                     (new_hash, row["user_id"]),
                 )
@@ -454,7 +454,7 @@ def users():
         c.row_factory = sqlite3.Row
         rows = c.execute(
             "SELECT id, username, email, role, is_active, last_login_at, created_at"
-            " FROM users ORDER BY id"
+            " FROM adm_users ORDER BY id"
         ).fetchall()
     return render_template("admin/users.html", users=rows)
 
@@ -469,7 +469,7 @@ def user_new():
         try:
             with sqlite3.connect(DB_PATH) as c:
                 c.execute(
-                    "INSERT INTO users (username, email, password_hash, role, force_pw_reset)"
+                    "INSERT INTO adm_users (username, email, password_hash, role, force_pw_reset)"
                     " VALUES (?,?,?,?,1)",
                     (
                         form.username.data.strip(),
@@ -505,7 +505,7 @@ def user_new():
 def user_edit(uid):
     with sqlite3.connect(DB_PATH) as c:
         c.row_factory = sqlite3.Row
-        row = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+        row = c.execute("SELECT * FROM adm_users WHERE id=?", (uid,)).fetchone()
     if not row:
         abort(404)
 
@@ -520,7 +520,7 @@ def user_edit(uid):
         try:
             with sqlite3.connect(DB_PATH) as c:
                 c.execute(
-                    "UPDATE users SET username=?, email=?, role=?, is_active=?,"
+                    "UPDATE adm_users SET username=?, email=?, role=?, is_active=?,"
                     " updated_at=datetime('now') WHERE id=?",
                     (
                         form.username.data.strip(),
@@ -552,7 +552,7 @@ def user_reset_password(uid):
         abort(403)
     with sqlite3.connect(DB_PATH) as c:
         c.row_factory = sqlite3.Row
-        row = c.execute("SELECT username, email FROM users WHERE id=?", (uid,)).fetchone()
+        row = c.execute("SELECT username, email FROM adm_users WHERE id=?", (uid,)).fetchone()
     if not row:
         abort(404)
     username = row["username"]
@@ -567,7 +567,7 @@ def user_reset_password(uid):
             (uid, token_hash, expires.strftime("%Y-%m-%d %H:%M:%S")),
         )
         c.execute(
-            "UPDATE users SET force_pw_reset=1, updated_at=datetime('now') WHERE id=?",
+            "UPDATE adm_users SET force_pw_reset=1, updated_at=datetime('now') WHERE id=?",
             (uid,),
         )
     _log(current_user.id, "pw_reset", request.remote_addr or "0.0.0.0", username)
@@ -595,7 +595,7 @@ def user_toggle_active(uid):
         return redirect(url_for("admin.users"))
     with sqlite3.connect(DB_PATH) as c:
         c.execute(
-            "UPDATE users SET is_active = CASE WHEN is_active=1 THEN 0 ELSE 1 END"
+            "UPDATE adm_users SET is_active = CASE WHEN is_active=1 THEN 0 ELSE 1 END"
             " WHERE id=?",
             (uid,),
         )
