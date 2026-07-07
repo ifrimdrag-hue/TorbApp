@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .subtotal-row td { font-weight: 700; background: #f8f9fa; border-top: 2px solid #dee2e6; }
+  .pct-row td { font-style: italic; color: #555; font-size: .92em; }
+  .alarm-trend::after { content: " \2198"; color: #fd7e14; font-size:.85em; }
+  .delta-badge { font-size: .78em; margin-left: 4px; }
+</style>
+<div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+  <form method="get" class="d-flex gap-2 align-items-center">
+    <select name="entitate" class="form-select form-select-sm" onchange="this.form.submit()">
+      {% for val, label in entitati %}
+        <option value="{{ val }}" {% if val == entitate %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="an" class="form-select form-select-sm" onchange="this.form.submit()">
+      {% for y in years %}
+        <option value="{{ y }}" {% if y == cy %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+    <input type="hidden" name="pct" value="{{ '1' if show_pct else '0' }}">
+  </form>
+  <a href="?entitate={{ entitate }}&an={{ cy }}&pct={{ '0' if show_pct else '1' }}"
+     class="btn btn-sm {{ 'btn-primary' if show_pct else 'btn-outline-secondary' }}">% din CA</a>
+  <a href="{{ url_for('pnl.export_pnl', an=cy) }}" class="btn btn-sm btn-outline-success ms-auto">
+    Export Excel
+  </a>
+</div>
+
+{% set ca = ytd_cy.get('CIFRA DE AFACERI NETA', 0) %}
+{% set ca_py = ytd_py.get('CIFRA DE AFACERI NETA', 0) %}
+<div class="row g-2 mb-3">
+  {% for label, key, is_pct in [
+      ('CA Neta', 'CIFRA DE AFACERI NETA', false),
+      ('Marja Bruta %', 'Marja bruta %', true),
+      ('EBITDA %', 'EBITDA %', true),
+      ('Profit Net %', 'Profit net %', true)] %}
+  {% set v = ytd_cy.get(key, 0) %}
+  {% set vp = ytd_py.get(key, 0) %}
+  {% set delta = ((v - vp) / vp * 100) if vp else 0 %}
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body py-2">
+        <div class="text-muted small">{{ label }} YTD {{ cy }}</div>
+        <div class="fw-bold fs-5">{% if is_pct %}{{ v | pct }}{% else %}{{ v | pnl_num }} RON{% endif %}</div>
+        <div class="small {{ 'text-success' if delta >= 0 else 'text-danger' }}">
+          {{ '%+.1f' | format(delta) }}{% if not is_pct %}%{% endif %} vs {{ py }}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="table-responsive">
+<table class="table table-sm table-bordered align-middle" style="font-size:.88em">
+  <thead class="table-dark sticky-top">
+    <tr>
+      <th style="min-width:220px">Linie P&L</th>
+      {% for luna in luni_cy %}
+        <th class="text-end" colspan="2">{{ months_ro[luna-1] }} {{ cy }}</th>
+      {% endfor %}
+      <th class="text-end" colspan="2">YTD {{ cy }}</th>
+    </tr>
+    <tr class="table-secondary">
+      <th></th>
+      {% for luna in luni_cy %}
+        <th class="text-end">Valoare</th>
+        <th class="text-end">vs {{ py }}</th>
+      {% endfor %}
+      <th class="text-end">Valoare</th>
+      <th class="text-end">vs {{ py }}</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for row_type, label, key in structure %}
+    {% set is_pct_line = key.endswith('%') %}
+    <tr class="{{ 'subtotal-row' if row_type == 'subtotal' else ('pct-row' if row_type == 'pct' else '') }}">
+      <td>{{ label }}</td>
+      {% for luna in luni_cy %}
+        {% set v = data_cy.get(luna, {}).get(key, 0) %}
+        {% set vp = data_py.get(luna, {}).get(key, 0) %}
+        {% set delta = ((v - vp) / vp * 100) if vp else 0 %}
+        {% set alarm = alarms.get((luna, key), {}) %}
+        {% set sev = alarm.get('delta_severity') or alarm.get('prag_severity') %}
+        {% set trend = alarm.get('trend', False) %}
+        <td class="text-end {{ severity_class(sev) }} {{ 'alarm-trend' if trend else '' }}">
+          {% if show_pct and not is_pct_line %}
+            {% set ca_v = data_cy.get(luna, {}).get('CIFRA DE AFACERI NETA', 0) %}
+            {{ (v / ca_v * 100) | pct if ca_v else '&mdash;' | safe }}
+          {% elif is_pct_line %}
+            {{ v | pct }}
+          {% else %}
+            {{ v | pnl_num }}
+          {% endif %}
+        </td>
+        <td class="text-end {{ 'text-success' if delta >= 2 else ('text-danger' if delta <= -2 else 'text-muted') }}">
+          {% if vp %}{{ '%+.1f' | format(delta) }}%{% else %}&mdash;{% endif %}
+        </td>
+      {% endfor %}
+      {% set ytd_v  = ytd_cy.get(key, 0) %}
+      {% set ytd_vp = ytd_py.get(key, 0) %}
+      {% set ytd_delta = ((ytd_v - ytd_vp) / ytd_vp * 100) if ytd_vp else 0 %}
+      <td class="text-end fw-semibold">
+        {% if is_pct_line %}{{ ytd_v | pct }}{% else %}{{ ytd_v | pnl_num }}{% endif %}
+      </td>
+      <td class="text-end {{ 'text-success' if ytd_delta >= 2 else ('text-danger' if ytd_delta <= -2 else 'text-muted') }}">
+        {% if ytd_vp %}{{ '%+.1f' | format(ytd_delta) }}%{% else %}&mdash;{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="mt-2 small text-muted">
+  Galben = Warning &nbsp; Rosu = Error &nbsp; Sageata = Trend negativ 3 luni &nbsp;
+  Comparativ cu aceeasi perioada {{ py }}
+</div>
+{% endblock %}

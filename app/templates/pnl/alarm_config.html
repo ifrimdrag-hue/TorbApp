@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0">Configurare alarme per linie P&L</h5>
+  <button class="btn btn-primary btn-sm" id="btnSave">Salveaza</button>
+</div>
+<p class="small text-muted">
+  Delta warn/err: threshold fata de an anterior (ex: -0.05 = -5%). Pozitiv pentru linii de cost (jos_bine).<br>
+  Prag warn/err: valoare absoluta %, aplicabila pe linii % (ex: 0.35 = 35%). Lasa gol daca nu se aplica.
+</p>
+<table class="table table-sm table-bordered" id="alarmTable">
+  <thead class="table-dark">
+    <tr>
+      <th>Linie P&L</th>
+      <th>Delta warn</th>
+      <th>Delta err</th>
+      <th>Prag warn %</th>
+      <th>Prag err %</th>
+      <th>Trend (luni)</th>
+      <th>Directie</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for row in rows %}
+    <tr data-line="{{ row['pnl_line'] }}">
+      <td>{{ row['pnl_line'] }}</td>
+      <td><input type="number" step="0.01" class="form-control form-control-sm" name="delta_warn"
+           value="{{ row['alarma_delta_warn'] if row['alarma_delta_warn'] is not none else '' }}"></td>
+      <td><input type="number" step="0.01" class="form-control form-control-sm" name="delta_err"
+           value="{{ row['alarma_delta_err'] if row['alarma_delta_err'] is not none else '' }}"></td>
+      <td><input type="number" step="0.01" class="form-control form-control-sm" name="prag_warn"
+           value="{{ row['alarma_prag_warn'] if row['alarma_prag_warn'] is not none else '' }}"></td>
+      <td><input type="number" step="0.01" class="form-control form-control-sm" name="prag_err"
+           value="{{ row['alarma_prag_err'] if row['alarma_prag_err'] is not none else '' }}"></td>
+      <td><input type="number" min="1" max="12" class="form-control form-control-sm" name="trend_luni"
+           value="{{ row['alarma_trend_luni'] or 3 }}"></td>
+      <td>
+        <select class="form-select form-select-sm" name="directie">
+          <option value="sus_bine" {{ 'selected' if row['directie']=='sus_bine' else '' }}>sus_bine</option>
+          <option value="jos_bine" {{ 'selected' if row['directie']=='jos_bine' else '' }}>jos_bine</option>
+        </select>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div id="saveMsg" class="mt-2"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const ALARM_SAVE_URL = "{{ url_for('pnl.api_alarm_config_save') }}";
+document.getElementById('btnSave').onclick = async () => {
+  const rows = [];
+  document.querySelectorAll('#alarmTable tbody tr').forEach(tr => {
+    rows.push({
+      pnl_line:   tr.dataset.line,
+      delta_warn: tr.querySelector('[name=delta_warn]').value,
+      delta_err:  tr.querySelector('[name=delta_err]').value,
+      prag_warn:  tr.querySelector('[name=prag_warn]').value,
+      prag_err:   tr.querySelector('[name=prag_err]').value,
+      trend_luni: tr.querySelector('[name=trend_luni]').value,
+      directie:   tr.querySelector('[name=directie]').value,
+    });
+  });
+  try {
+    const r = await fetch(ALARM_SAVE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({rows})
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error('HTTP ' + r.status);
+    document.getElementById('saveMsg').innerHTML = '<span class="text-success">&#10003; Salvat</span>';
+  } catch (err) {
+    document.getElementById('saveMsg').innerHTML = '';
+    AppError.show('Salvarea configurarii a esuat', err.message, 'Configurare alarme');
+  }
+};
+</script>
+{% endblock %}

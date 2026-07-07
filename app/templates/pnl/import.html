@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block content %}
+<h5 class="mb-3">Import balante</h5>
+<div class="row g-3 mb-4">
+  <div class="col-md-5">
+    <div class="card">
+      <div class="card-header">Scaneaza folderele configurate</div>
+      <div class="card-body">
+        <p class="small text-muted mb-2">Detecteaza automat fisierele .xls noi din folderele Torb si Tobra.</p>
+        <button class="btn btn-primary" id="btnScan">Scaneaza acum</button>
+        <div id="scanResult" class="mt-2 small"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-5">
+    <div class="card">
+      <div class="card-header">Upload fisier individual</div>
+      <div class="card-body">
+        <div id="dropZone" style="border:2px dashed #adb5bd;border-radius:6px;padding:18px;text-align:center;cursor:pointer;color:#6c757d;margin-bottom:8px">
+          Trage fisierul .xls aici sau <label for="fileInput" style="cursor:pointer;color:#0d6efd;text-decoration:underline">selecteaza</label>
+          <input type="file" id="fileInput" accept=".xls" style="display:none">
+        </div>
+        <div id="selectedFile" class="small text-muted mb-2"></div>
+        <button class="btn btn-outline-primary btn-sm" id="btnUpload">Upload</button>
+        <div id="uploadResult" class="mt-2 small"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h6>Istoric importuri recente</h6>
+<table class="table table-sm table-hover">
+  <thead><tr><th>Timestamp</th><th>Fisier</th><th>Entitate</th><th>An</th><th>Luna</th><th>Randuri</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for log in logs %}
+    <tr>
+      <td>{{ log['timestamp'][:19] }}</td>
+      <td class="text-truncate" style="max-width:300px" title="{{ log['source_file'] }}">{{ log['source_file'].split('\\')[-1].split('/')[-1] }}</td>
+      <td>{{ log['entitate'] }}</td>
+      <td>{{ log['an'] }}</td>
+      <td>{{ log['luna'] }}</td>
+      <td>{{ log['rows'] }}</td>
+      <td><span class="badge {{ 'bg-success' if log['status'] == 'ok' else 'bg-danger' }}">{{ log['status'] }}</span></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+{% block scripts %}
+<script>
+const SCAN_URL = "{{ url_for('pnl.api_scan') }}";
+const UPLOAD_URL = "{{ url_for('pnl.api_upload') }}";
+const IMPORT_URL = "{{ url_for('pnl.import_page') }}";
+
+document.getElementById('btnScan').onclick = async () => {
+  const el = document.getElementById('scanResult');
+  el.textContent = 'Se scaneaza...';
+  try {
+    const r = await fetch(SCAN_URL, {method: 'POST'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    const n = d.results.filter(x => x.ok).length;
+    const e = d.results.filter(x => !x.ok).length;
+    el.innerHTML = '<span class="text-success">&#10003; ' + n + ' fisiere importate</span>' +
+      (e ? ' <span class="text-danger">' + e + ' erori</span>' : '') +
+      ' <a href="' + IMPORT_URL + '">Reincarca pagina</a>';
+    if (e) {
+      const msgs = d.results.filter(x => !x.ok).map(x => (x.filename || '?') + ': ' + x.error).join('\n');
+      AppError.show('Unele fisiere nu au putut fi importate', msgs, 'Scanare balante');
+    }
+  } catch (err) {
+    el.textContent = '';
+    AppError.show('Scanarea a esuat', err.message, 'Scanare balante');
+  }
+};
+
+async function doUpload(file) {
+  if (!file) { AppError.show('Niciun fisier selectat', 'Selecteaza un fisier .xls inainte de upload.', 'Upload balanta'); return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  const el = document.getElementById('uploadResult');
+  try {
+    const r = await fetch(UPLOAD_URL, {method: 'POST', body: fd});
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+      el.textContent = '';
+      AppError.show('Import esuat', d.error || ('HTTP ' + r.status), 'Upload balanta');
+      return;
+    }
+    el.innerHTML = '<span class="text-success">&#10003; ' + d.rows + ' randuri importate</span> <a href="' + IMPORT_URL + '">Reincarca</a>';
+  } catch (err) {
+    el.textContent = '';
+    AppError.show('Import esuat', err.message, 'Upload balanta');
+  }
+}
+
+document.getElementById('btnUpload').onclick = () => doUpload(document.getElementById('fileInput').files[0]);
+
+document.getElementById('fileInput').onchange = (e) => {
+  const f = e.target.files[0];
+  document.getElementById('selectedFile').textContent = f ? f.name : '';
+};
+
+const dz = document.getElementById('dropZone');
+dz.ondragover = (e) => { e.preventDefault(); dz.style.background = '#e9f0ff'; };
+dz.ondragleave = () => { dz.style.background = ''; };
+dz.ondrop = (e) => {
+  e.preventDefault();
+  dz.style.background = '';
+  const f = e.dataTransfer.files[0];
+  if (f) {
+    document.getElementById('selectedFile').textContent = f.name;
+    doUpload(f);
+  }
+};
+</script>
+{% endblock %}
