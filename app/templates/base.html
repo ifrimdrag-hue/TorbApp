@@ -51,128 +51,30 @@
     </a>
     {% endif %}
 
-    <div class="sidebar-section"><span class="link-text">Analiză</span></div>
-    <a class="sidebar-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
-       href="{{ url_for('analytics.dashboard') }}" data-label="Dashboard">
-      <i class="bi bi-speedometer2"></i><span class="link-text"> Dashboard</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint in ('team', 'agent_detail') %}active{% endif %}"
-       href="{{ url_for('analytics.team') }}" data-label="Echipă">
-      <i class="bi bi-people-fill"></i><span class="link-text"> Echipă</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint in ('clients', 'client_detail') %}active{% endif %}"
-       href="{{ url_for('analytics.clients') }}" data-label="Clienți">
-      <i class="bi bi-building"></i><span class="link-text"> Clienți</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint in ('products', 'produs_detail') %}active{% endif %}"
-       href="{{ url_for('analytics.products') }}" data-label="Produse">
-      <i class="bi bi-box-seam-fill"></i><span class="link-text"> Produse</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint == 'profitabilitate' %}active{% endif %}"
-       href="{{ url_for('reports.profitabilitate') }}" data-label="Profitabilitate">
-      <i class="bi bi-graph-up-arrow"></i><span class="link-text"> Profitabilitate</span>
-    </a>
-    {# TEMP hidden — restore by removing this comment wrapper
-    <a class="sidebar-link {% if request.endpoint == 'pnl.pnl' %}active{% endif %}"
-       href="{{ url_for('pnl.pnl') }}" data-label="P&amp;L">
-      <i class="bi bi-cash-stack"></i><span class="link-text"> P&amp;L</span>
-    </a>
-    #}
-
-    <div class="sidebar-section sidebar-group-toggle" data-group="comercial">
-      <span class="link-text">Comercial</span>
-      <i class="bi bi-chevron-down sidebar-group-chevron link-text"></i>
-    </div>
-    <div class="sidebar-group-links" id="group-comercial">
-    <a class="sidebar-link {% if request.endpoint in ('preturi', 'preturi_sku') %}active{% endif %}"
-       href="{{ url_for('pricing.preturi') }}" data-label="Prețuri">
-      <i class="bi bi-tags-fill"></i><span class="link-text"> Prețuri</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint == 'conditii' %}active{% endif %}"
-       href="{{ url_for('pricing.conditii') }}" data-label="Condiții">
-      <i class="bi bi-file-earmark-text-fill"></i><span class="link-text"> Condiții</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint == 'solduri.solduri' %}active{% endif %}"
-       href="{{ url_for('solduri.solduri') }}" data-label="Solduri">
-      <i class="bi bi-cash-coin"></i><span class="link-text"> Solduri</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint == 'bonus' %}active{% endif %}"
-       href="{{ url_for('bonus.bonus') }}" data-label="Bonus">
-      <i class="bi bi-trophy-fill"></i><span class="link-text"> Bonus</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint in ('raportare_basilur', 'raportare_basilur_excel', 'raportare_basilur_ppt') %}active{% endif %}"
-       href="{{ url_for('reports.raportare_basilur') }}" data-label="Basilur">
-      <i class="bi bi-file-earmark-bar-graph-fill"></i><span class="link-text"> Basilur</span>
-    </a>
-    </div>
-
-    <div class="sidebar-section sidebar-group-toggle" data-group="operational">
-      <span class="link-text">Operațional</span>
-      <i class="bi bi-chevron-down sidebar-group-chevron link-text"></i>
-    </div>
-    <div class="sidebar-group-links" id="group-operational">
-    <a class="sidebar-link {% if request.endpoint == 'forecast' %}active{% endif %}"
-       href="{{ url_for('forecast.forecast') }}" data-label="Stoc &amp; Comenzi">
-      <i class="bi bi-boxes"></i><span class="link-text"> Stoc &amp; Comenzi</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint == 'forecast_setari' %}active{% endif %}"
-       href="{{ url_for('forecast.forecast_setari') }}" data-label="Setări Forecast">
-      <i class="bi bi-gear-fill"></i><span class="link-text"> Setări Forecast</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint == 'actualizare' %}active{% endif %}"
-       href="{{ url_for('actualizare.actualizare') }}" data-label="Actualizare">
-      <i class="bi bi-cloud-upload-fill"></i><span class="link-text"> Actualizare</span>
-    </a>
-    </div>
-
-    <div class="sidebar-section sidebar-group-toggle" data-group="ecommerce">
-      <span class="link-text">eCommerce</span>
-      <i class="bi bi-chevron-down sidebar-group-chevron link-text"></i>
-    </div>
-    <div class="sidebar-group-links" id="group-ecommerce">
-    <a class="sidebar-link {% if request.endpoint == 'stocuri_emag.stocuri_page' %}active{% endif %}"
-       href="{{ url_for('stocuri_emag.stocuri_page') }}" data-label="Sincronizare Stoc">
-      <i class="bi bi-arrow-repeat"></i><span class="link-text"> Sincronizare Stoc</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint == 'pachete.trendyol_page' %}active{% endif %}"
-       href="{{ url_for('pachete.trendyol_page') }}" data-label="Trendyol Pachete">
-      <i class="bi bi-bag-fill"></i><span class="link-text"> Trendyol Pachete</span>
-    </a>
-    </div>
-
-    <div class="sidebar-section sidebar-group-toggle" data-group="marketing">
-      <span class="link-text">Marketing</span>
-      <i class="bi bi-chevron-down sidebar-group-chevron link-text"></i>
-    </div>
-    <div class="sidebar-group-links" id="group-marketing">
-    <a class="sidebar-link {% if request.blueprint == 'campanii' %}active{% endif %}"
-       href="{{ url_for('campanii.campanii_page') }}" data-label="Campanii">
-      <i class="bi bi-megaphone-fill"></i><span class="link-text"> Campanii</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint == 'postari.instagram' %}active{% endif %}"
-       href="{{ url_for('postari.instagram') }}" data-label="Postări Instagram">
-      <i class="bi bi-instagram"></i><span class="link-text"> Postări Instagram</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint == 'postari.facebook' %}active{% endif %}"
-       href="{{ url_for('postari.facebook') }}" data-label="Postări Facebook">
-      <i class="bi bi-facebook"></i><span class="link-text"> Postări Facebook</span>
-    </a>
-    <a class="sidebar-link {% if request.endpoint == 'postari.auto_posts_page' %}active{% endif %}"
-       href="{{ url_for('postari.auto_posts_page') }}" data-label="Postări Auto">
-      <i class="bi bi-robot"></i><span class="link-text"> Postări Auto</span>
-    </a>
-    {# <a class="sidebar-link {% if request.endpoint == 'pachete.gifting_page' %}active{% endif %}"
-       href="{{ url_for('pachete.gifting_page') }}" data-label="Gifting Pachete">
-      <i class="bi bi-gift-fill"></i><span class="link-text"> Gifting Pachete</span>
-    </a> #}
-    </div>
-
-    <div class="sidebar-section"><span class="link-text">AI</span></div>
-    <a class="sidebar-link {% if request.endpoint == 'ask' %}active{% endif %}"
-       href="{{ url_for('analytics.ask') }}" data-label="Asistent AI">
-      <i class="bi bi-chat-dots-fill"></i><span class="link-text"> Asistent AI</span>
-    </a>
-
+    {% for grp in nav_groups %}
+      {% if grp.collapsible %}
+      <div class="sidebar-section sidebar-group-toggle" data-group="{{ grp.slug }}">
+        <span class="link-text">{{ grp.group }}</span>
+        <i class="bi bi-chevron-down sidebar-group-chevron link-text"></i>
+      </div>
+      <div class="sidebar-group-links" id="group-{{ grp.slug }}">
+        {% for it in grp['items'] %}
+        <a class="sidebar-link {% if request.endpoint == it.url %}active{% endif %}"
+           href="{{ url_for(it.url) }}" data-label="{{ it.label }}">
+          <i class="bi bi-{{ it.icon }}"></i><span class="link-text"> {{ it.label }}</span>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="sidebar-section"><span class="link-text">{{ grp.group }}</span></div>
+        {% for it in grp['items'] %}
+        <a class="sidebar-link {% if request.endpoint == it.url %}active{% endif %}"
+           href="{{ url_for(it.url) }}" data-label="{{ it.label }}">
+          <i class="bi bi-{{ it.icon }}"></i><span class="link-text"> {{ it.label }}</span>
+        </a>
+        {% endfor %}
+      {% endif %}
+    {% endfor %}
   </div>
 
   <div class="sidebar-footer">
