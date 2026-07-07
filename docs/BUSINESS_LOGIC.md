@@ -207,6 +207,13 @@ KingsLeaf's `KL ` and Tipson's `TS ` prefixes do not have this split — they lo
 the same in every table, because they don't overlap with a shared ERP letter
 prefix the way Organsia/Basilur (`B.`) do.
 
+**HORECA formats keep their own brand** (since 2026-07-07): names like
+`HORECA TS ...` (Tipson 80xxx) / `HORECA KL ...` / `HORECA ORGANSIA...` are
+checked BEFORE the generic `HORECA ` → Basilur rule in all three derivation
+functions — otherwise the HORECA rule swallowed them into Basilur (real case:
+9 `HORECA TS` SKUs; corrected by migration `0029` across
+`tranzactii`/`stoc`/`produse`).
+
 **Where the rule lives (duplicated by design — no shared module):**
 - `etl/import_stoc.py` — `derive_furnizor()` matches `sku.upper().startswith("B.ECO ORGANSIA")` (checked before the generic `s.startswith("B.")` Basilur rule), `s.startswith("KL ")`, `s.startswith("TS ")`; `derive_gama()` maps `furnizor` → `gama` via `gama_map`
 - `etl/import_vanzari_erp.py` — `_furnizor_from_prefix()`

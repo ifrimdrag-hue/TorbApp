@@ -65,3 +65,19 @@ def test_tobra_cod_lookup_still_used_when_name_unknown():
     f = _tobra()
     assert f("PRODUS FARA REGULA DE PREFIX", {"42": "Leonex"}, "42") == "Leonex"
     assert f("PRODUS FARA REGULA DE PREFIX", {}, "42") == "Altele"
+
+HORECA_TS_SKU = "HORECA TS WELLNESS IMMUNE BOOSTER (1,3GX100) 80226"
+HORECA_KL_SKU = "HORECA KL ROYAL ASSAM (2GX100)"
+HORECA_BASILUR_SKU = "HORECA COLD BREW STRAWBERRY CUCUMBER MINT 2GX100E 72122"
+
+def test_horeca_virtual_brands_stay_separate():
+    # HORECA formats of the virtual sub-brands must NOT fall into the generic
+    # HORECA -> Basilur rule (real case: 9 'HORECA TS' SKUs filed as Basilur).
+    for f in (_stoc(), _erp()):
+        assert f(HORECA_TS_SKU) == "Tipson"
+        assert f(HORECA_KL_SKU) == "KingsLeaf"
+        assert f(HORECA_BASILUR_SKU) == "Basilur"
+    t = _tobra()
+    assert t(HORECA_TS_SKU, {}, None) == "Tipson"
+    assert t(HORECA_KL_SKU, {}, None) == "KingsLeaf"
+    assert t(HORECA_BASILUR_SKU, {}, None) == "Basilur"

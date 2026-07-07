@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fix: produsele HORECA ale sub-brandurilor virtuale rămân pe brandul lor (2026-07-07)
+
+Owner rule: Basilur / KingsLeaf / Tipson / Organsia must always show separately, everywhere.
+
+- The generic `HORECA ` → Basilur name rule ran before any virtual-brand check, so Tipson's HORECA line (`HORECA TS ...`, ERP 80xxx — 9 SKUs, ~5.8k RON) sat under Basilur in `tranzactii` and `produse`. All three ETL derivation functions (`import_stoc`, `import_vanzari_erp`, `import_vanzari_tobra_auchan`) now check `HORECA TS ` / `HORECA KL ` / `HORECA ORGANSIA` first; migration 0029 reclassifies existing rows across `tranzactii`/`stoc`/`produse` (idempotent).
+- Docs: `docs/BUSINESS_LOGIC.md` §5. Tests: 261 passing (new coverage for the HORECA variants on all three derivers). Verified post-migration: zero family SKUs left under a wrong brand.
+
 ### Fix: branduri greșit atribuite la Auchan — KingsLeaf lipsea din raportare (2026-07-07)
 
 Owner report: KingsLeaf never showed up as a separate brand in Auchan's client reporting/history.

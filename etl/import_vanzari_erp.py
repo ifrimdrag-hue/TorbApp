@@ -112,6 +112,15 @@ def _furnizor_from_prefix(sku: str) -> str | None:
             return "Solvex"
     if su.startswith("IMAJ "):
         return "Solvex"
+    # HORECA formats of the virtual sub-brands keep their own brand
+    # (TS = Tipson 80xxx, KL = KingsLeaf 90xxx, Organsia) — must be checked
+    # before the generic HORECA -> Basilur rule.
+    if su.startswith("HORECA TS ") or su.startswith("H TS "):
+        return "Tipson"
+    if su.startswith("HORECA KL ") or su.startswith("H KL "):
+        return "KingsLeaf"
+    if su.startswith("HORECA ORGANSIA") or su.startswith("HORECA B.ECO ORGANSIA"):
+        return "Organsia"
     if su.startswith("HORECA ") or su.startswith("H "):
         return "Basilur"
     if (su.startswith("CUTIE HORECA") or su.startswith("CUTIE LEMN")
