@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fix: catalog pe brandul corect + pagina de produs unificată pe denumiri (2026-07-07)
+
+Owner report on articles 90204/90205 (KL Earl Grey / English Breakfast): a July KingsLeaf sale to Auchan wasn't visible. Root causes were the Tobra data-flow lag (sale sits under client Tobra until the monthly "Vânzări Auchan" import — by design) plus two real defects found while tracing:
+
+- **Catalog (`produse`) brand**: the monitorizare spreadsheet lists KingsLeaf/Tipson articles with Furnizor=Basilur and the sub-brand only in the Brand column ('KINGSLEAF', 'TIPSON TEA'), so 54 KingsLeaf + 56 Tipson articles sat under furnizor='Basilur'. `import_preturi` now normalizes via the Brand column (`VIRTUAL_BRAND_CANON`, catches typos like 'KINSGELAF' and CHRISTMAS-named KL articles); migration 0030 backfills. Also fixed the dead `SUPPLIER_ORIGIN` key 'Kings Leaf' → 'KingsLeaf'.
+- **Product page split per SKU spelling**: the same article exists under two tranzactii names (ERP 'KL CEAI EARL GREY 90204-...' vs Tobra/Auchan 'KL EARL GREY 90204-...'), so `/produs/<sku>` showed only half the history — Auchan was invisible on the ERP-named page. `queries.sku_variants` (built on `resolve_catalog_sku`) now aggregates the page, its KPIs, client tables and Excel export over all spellings of the same catalog article; the header lists the merged names.
+- Verified in browser: the ERP-named KL Earl Grey page now shows brand KingsLeaf, combined KPIs (74.039 RON YTD 2026) and Auchan in Istoric (55.574 RON total). Tests: 261 passing.
+
 ### Fix: produsele HORECA ale sub-brandurilor virtuale rămân pe brandul lor (2026-07-07)
 
 Owner rule: Basilur / KingsLeaf / Tipson / Organsia must always show separately, everywhere.

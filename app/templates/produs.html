@@ -20,6 +20,11 @@
       <span class="badge bg-primary me-1">{{ kpi.furnizor or '—' }}</span>
       {{ kpi.cantitate }} buc. vândute · {{ kpi.nr_clienti }} clienți · {{ kpi.nr_agenti }} agenți
     </small>
+    {% if sku_variants %}
+    <br><small class="text-muted"><i class="bi bi-link-45deg"></i> include și denumirea:
+      {% for v in sku_variants %}<em title="{{ v }}">{{ v | truncate(60, True, '…') }}</em>{% if not loop.last %} · {% endif %}{% endfor %}
+    </small>
+    {% endif %}
   </div>
   <div class="d-flex gap-2 align-items-center">
     <a href="{{ url_for('reports.export_excel', report='produs', sku=sku, an=an) }}"

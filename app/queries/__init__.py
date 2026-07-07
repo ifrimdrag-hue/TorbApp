@@ -60,6 +60,7 @@ from queries.products import (
     product_kpi as product_kpi,
     product_clients as product_clients,
     product_clients_istoric as product_clients_istoric,
+    sku_variants as sku_variants,
     product_monthly as product_monthly,
     product_yearly as product_yearly,
     sku_clients_monthly as sku_clients_monthly,
