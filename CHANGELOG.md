@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Siguranță la reimportul zilnic Tobra: cohortă buggy ștearsă, chei de dedup stabile (2026-07-07)
+
+Owner: the Tobra file is re-imported **daily** — the fixes must not reset or duplicate on each upload.
+
+- Analysis: the daily import only ADDs rows (`INSERT OR IGNORE` on `nr_dl, cod_produs, nr_factura`), so migration fixes survive; and migration 0031 already aligned existing rows' `cod_produs` to the same Torb codes the fixed import computes, so re-imported lines dedup correctly. The one remaining hazard: rows renamed by the buggy July run for articles **without** prior Auchan history (unrepairable in place) keep a stale dedup key — the next daily upload would insert the correct row next to the wrong one (double counting).
+- **Migration 0032** drops the buggy-run cohort (TOBRA rows dated ≥ 2026-06-01); the next daily upload re-inserts all of it through the fixed cod-mare pipeline. Runs once (versioned) — daily imports never re-trigger it. Daily-reimport property + corollaries documented in `docs/BUSINESS_LOGIC.md` §3.
+
 ### Import Tobra→Auchan: identitatea articolului pe COD MARE + istoric unificat în Stoc & Comenzi (2026-07-07)
 
 Owner report (screenshot prod, Auchan Iul 2026): the July KL sales appeared as "C.Goplana Jeleuri" (Celmar) on Tobra codes 1508/1509, and Auchan's history was missing from the per-article view in Stoc & Comenzi. Owner rule: **cod mare is the article identifier for the Tobra import**.

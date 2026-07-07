@@ -124,6 +124,16 @@ What a single row in `tranzactii` represents:
 Torb→Auchan sales are invoiced through the intermediary **Tobra Invest SRL**
 (cod_client 719 in Torb's ERP). Shared constants: `app/business_constants.py`.
 
+**The Tobra file is re-imported DAILY** (full 2024–2026 history each time,
+owner statement 2026-07-07). The import only ever ADDS rows —
+`INSERT OR IGNORE` on `UNIQUE(nr_dl, cod_produs, nr_factura)` — it never
+updates existing ones, so data fixes done by migrations are not reset by the
+daily upload. Corollaries: (1) dedup keys must stay stable across import-code
+changes — that's why migration `0031` aligned existing rows' `cod_produs` to
+the same Torb codes the fixed import computes; (2) deleting a TOBRA row is
+recoverable — the next daily upload restores it (used by migration `0032` to
+drop the 2026-07 buggy-run cohort instead of guessing in-place repairs).
+
 - `etl/import_vanzari_erp.py` diverts Torb→Tobra invoice lines (cod 719) out of
   `tranzactii` into the cost table `corr_vanzari_tobra` — Torb's true acquisition
   cost per product over time.
