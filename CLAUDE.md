@@ -3,8 +3,7 @@
 AI consulting for **Torb Logistic SRL**, a Romanian FMCG distributor. Goal: identify and implement AI/agentic automation to optimize business operations. This is a Flask + SQLite app.
 
 ## Working preferences
-- **English** for code, comments and commit messages; **Romanian** for chat responses to the owner, UI text, user-facing strings, and end-user manuals (owner decision 2026-07-07).
-- **Git**: commit and push without asking the owner for OK each time. NEVER approve the prod deploy gate in GitHub Actions — that approval belongs to the owner alone (owner decision 2026-07-07).
+- **English** for all developer communication (code, comments, commit messages, responses); **Romanian** for UI text, user-facing strings, and end-user manuals.
 - Keep token usage minimal: concise code, no over-commenting, short responses, no "here's what I changed" summaries unless asked.
 - Before any batch operation (multi-file edits, bulk scripts), save progress to memory first so work can resume after a context reset.
 
