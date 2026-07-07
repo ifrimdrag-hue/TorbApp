@@ -53,6 +53,17 @@ price offers are imported at runtime via `/preturi/import-oferta`
 (`app/supplier_offer.py`, xls/xlsx, letter-mapped columns → potential articles + landing).
 Domain rules: `docs/BUSINESS_LOGIC.md` §10.
 
+P&L-module tables (migration 0028, relocated from the former standalone `pnl_app`):
+`pnl_balante_raw` (raw trial-balance rows per `entitate`/`an`/`luna`/`cont`, unique on that
+tuple with `ON CONFLICT REPLACE`), `pnl_mapping_conturi` (account → P&L line + sign, **seeded**
+33 rows), `pnl_config` (per-line alarm thresholds, **seeded** 9 rows), `pnl_import_log` (import
+audit). Entities: `torb`, `tobra`, `grup` (= torb+tobra). Monthly amount is the `rulcd` delta
+vs. the prior month. Data loads at runtime by uploading Romanian `.xls` trial balances via
+`/pnl/import` (folder scan or single upload; `app/pnl_import.py`, host `xlrd`). Compute:
+`app/pnl_logic.py`; reads: `app/queries/pnl.py`; styled Excel (3 entity sheets + KPI):
+`build_pnl_xlsx` in `app/exports/excel_export.py`. Routes under `/pnl/*` (`app/blueprints/pnl.py`),
+folder config `pnl_torb_folder`/`pnl_tobra_folder` in `app/config.py`.
+
 Migrations are versioned in `migrations/` (`NNNN_YYYYMMDD_description.py`), applied automatically on Flask startup and explicitly in CI before service restart. `schema_version` table tracks applied versions; the runner is idempotent.
 
 ### Rebuild pipeline (`etl/rebuild_db.py`)

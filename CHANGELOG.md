@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P&L module relocated from standalone pnl_app into TorbApp (2026-07-07)
+
+The standalone monthly P&L app (`pnl_app/`, own Flask + SQLite on port 5002) is now a native TorbApp module: auth-gated, shared sidebar nav + base template, single `torb.db`, migration runner, host dependencies. Straight relocation — no behavior changes. Design: `docs/specs/2026-07-07-pnl-module-integration-design.md`; plan: `docs/plans/2026-07-07-pnl-module-integration.md`.
+
+- **Data model** — migration **0028** adds four `pnl_`-prefixed tables: `pnl_balante_raw`, `pnl_mapping_conturi` (seeded 33 account→line rows), `pnl_config` (seeded 9 alarm rows), `pnl_import_log`. Reference tables created + seeded on every environment; balance rows arrive via Excel upload. Data-layer notes: `docs/TECHNICAL.md` §Data.
+- **Compute** (`app/pnl_logic.py`) — full monthly P&L for `torb`/`tobra`/`grup` (consolidated), YoY deltas, YTD subtotals, configurable alarms (delta warn/error, percentage thresholds, N-month deterioration trend). Monthly amount = `rulcd` delta vs. prior month. Reads via `app/queries/pnl.py`.
+- **Import** (`app/pnl_import.py`) — Romanian `.xls` trial balances read with the host `xlrd` (no new dependency; nothing imported from `pnl_app/`). Folder scan + single upload; filename-driven entity/period detection.
+- **Excel export** — styled workbook (3 entity sheets + KPI summary, alarm-colored) rebuilt as `build_pnl_xlsx` inside the shared `app/exports/excel_export.py`.
+- **Routes** under `/pnl/*` (`app/blueprints/pnl.py`): year view, import page, alarm-config editor, scan/upload/save APIs, Excel export. Auto-protected by the host auth gate. Upload/scan failures surfaced via the shared `AppError.show()` modal. New `pnl_num` Jinja filter for the dense grid; percentages reuse the global `pct` filter. Sidebar link "P&L" after Profitabilitate.
+- **Config** — `pnl_torb_folder`/`pnl_tobra_folder` in `app/config.py` (env-backed, folder-scan sources).
+- Existing `pnl.db` data (1948 balance rows across 2025–2026) copied once into `torb.db` locally via a throwaway dev script (not committed); dev/prod load their own data through the upload UI. `pnl_app/` deleted. Tests: 278 passing (20 new across db/queries/logic/import/export/routes). Verified end-to-end against copied data (torb 2026 Mar: CA 1.39M, EBITDA 204k, Profit net 145k; workbook builds).
+
 ### Solduri: disjoint aging buckets + new terminology (2026-07-06)
 
 Owner changed the aging rule and vocabulary, applied module-wide (cards, all three table views, client page, invoice category labels, Excel exports).

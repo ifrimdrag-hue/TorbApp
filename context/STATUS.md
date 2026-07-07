@@ -1,6 +1,6 @@
 # Torb — Status Execuție Plan Strategic 2026–2030
 
-**Ultima actualizare:** 2026-07-06
+**Ultima actualizare:** 2026-07-07
 **Document referință:** `docs/BUSINESS.md` §7 — Plan Strategic 2026–2030 (v1.0)
 **Regulă:** actualizează acest fișier la fiecare schimbare de stare (nu la fiecare discuție). Legend: `[ ]` = neînceput · `[~]` = în lucru · `[x]` = livrat · `[!]` = blocat · `[↑]` = întârziat.
 **Istoric livrări:** rezumatele implementărilor livrate stau în `CHANGELOG.md`, nu aici — acest fișier ține doar starea curentă (decizii deschise, acțiuni 90 de zile, în curs/blocaje, pasul următor).
@@ -57,6 +57,7 @@
 
 - `[~]` **Modul Pricing & Ofertare** — strategie aprobată de owner 2026-07-06 (12 decizii în `docs/plans/2026-07-05-modul-pricing-ofertare.md` §7). Livrate și pushate 2026-07-06: F0 (fundație date, migrație 0022 + import), F1 (motor cost/marjă `pricing_engine`, marjă netă per client în `/preturi/<sku>`, migrație 0023 dedupe), F2 (simulator `/preturi/simulator` + propuneri de preț migrație 0025, articol nou manual `/preturi/nou`), migrația 0024 duce datele de pricing validate local pe dev/prod (JSON seed în git — sursele Excel rămân gitignored), F3 (fișiere client din propuneri: listare/modificare preț per template — Kaufland/Selgros/Fildas/Sezamo/generic, migrația 0026 — + ofertă cu poze embedded, `app/exports/listare_export.py`), runda 4 (clienți prospect, articole potențiale — migrația 0027 —, import ofertă furnizor nou `/preturi/import-oferta`, poze articol upload/URL + link basilurtea.com). F4 (fișă creare articole per propunere — template Auchan + generic) și F5 (actualizare prețuri furnizor existent cu diff, confirmare per linie și alertă la diferențe față de ultima comandă). **Toate fazele planului sunt livrate** — modulul e complet funcțional pe :5001 după deploy. Rămâne: validarea ownerului (fișiere generate vs. cele reale, corecții de layout după caz), defalcarea condițiilor (acum % total per client) și curățenia de date din raportul F0. Logică de domeniu: `docs/BUSINESS_LOGIC.md` §10. De rezolvat din raportul F0 (`Date pricinng&Logistica&Ofertare/rapoarte/`): 51 prețuri achiziție diferite DB vs fișier, condițiile seed-uite ca total per client trebuie defalcate de owner, curs USD 4.5 (DB) vs 4.6 (fișier), 9 SKU cu buc/bax contradictoriu, naming Toras/Torras (BACKLOG #13).
 - `[~]` **Validare forecast Basilur** — hindcast 2025 Q4 manual blocată până când owner-ul livrează Excel stoc curent. Fix-ul A1 (coduri export HU) e livrat 2026-07-03 — cifrele HU/export ar trebui reverificate de owner înainte de validarea finală.
+- `[x]` **Modul P&L** — relocat din `pnl_app` standalone în TorbApp (migrația 0028, rute `/pnl/*`, import balanțe `.xls`, export Excel). Livrat 2026-07-07 — vezi CHANGELOG. De făcut la deploy: owner-ul încarcă balanțele prin `/pnl/import` pe dev/prod (datele nu se pushează).
 
 ---
 
