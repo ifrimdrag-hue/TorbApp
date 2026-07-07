@@ -35,12 +35,17 @@ CREATE TABLE IF NOT EXISTS solduri_neincasate (
     factout     TEXT,
     numeag      TEXT,
     canal       TEXT,
-    telefon     TEXT
+    telefon     TEXT,
+    discount    REAL,
+    cec         INTEGER,
+    scad_cec    TEXT,
+    cec_doc     TEXT
 )
 """
 
 COLS = ["nrdl", "datadl", "term_pl_cl", "plafon", "numecli", "codcli",
-        "cfcli", "vtdl", "sumdeincas", "factout", "numeag", "canal", "telefon"]
+        "cfcli", "vtdl", "sumdeincas", "factout", "numeag", "canal", "telefon",
+        "discount", "cec", "scad_cec", "cec_doc"]
 
 # ERP header name (lowercase) -> our key
 COL_MAP = {
@@ -48,8 +53,12 @@ COL_MAP = {
     "plafon": "plafon", "numecli": "numecli", "codcli": "codcli",
     "cfcli": "cfcli", "vtdl": "vtdl", "sumdeincas": "sumdeincas",
     "factout": "factout", "numeag": "numeag", "nume": "canal",
-    "telefon": "telefon",
+    "telefon": "telefon", "discount": "discount", "cec": "cec",
+    "scad_cec": "scad_cec", "_dl": "cec_doc",
 }
+
+# Date columns: read as Excel serial → ISO, junk placeholders ("  -   -") → None
+DATE_KEYS = ("datadl", "scad_cec")
 
 
 def _s(v):
@@ -71,8 +80,29 @@ def _i(v):
     return int(round(f)) if f is not None else None
 
 
+def _open(filepath):
+    """Open an ERP .xls. The newer export mislabels its codepage (declares
+    cp1252 but stores Romanian Latin-2 bytes), so fall back to iso-8859-2 when
+    the default decode raises."""
+    try:
+        return xlrd.open_workbook(filepath)
+    except UnicodeDecodeError:
+        return xlrd.open_workbook(filepath, encoding_override="iso-8859-2")
+
+
+def _xldate(v, datemode):
+    """Excel serial → 'YYYY-MM-DD'. ERP junk placeholders ('  -   -') → None."""
+    if isinstance(v, float) and v > 0:
+        try:
+            return xlrd.xldate_as_datetime(v, datemode).strftime("%Y-%m-%d")
+        except Exception:
+            return None
+    s = _s(v)
+    return s[:10] if s and s[0].isdigit() else None
+
+
 def parse_solduri_xls(filepath):
-    book = xlrd.open_workbook(filepath)
+    book = _open(filepath)
     ws = book.sheet_by_index(0)
     if ws.nrows < 2:
         return []
@@ -86,18 +116,8 @@ def parse_solduri_xls(filepath):
         c = idx.get(key)
         return ws.cell_value(row, c) if c is not None else None
 
-    def datestr(row):
-        c = idx.get("datadl")
-        if c is None:
-            return None
-        v = ws.cell_value(row, c)
-        if isinstance(v, float) and v > 0:
-            try:
-                return xlrd.xldate_as_datetime(v, book.datemode).strftime("%Y-%m-%d")
-            except Exception:
-                return None
-        s = _s(v)
-        return s[:10] if s else None
+    def datecell(row, key):
+        return _xldate(cell(row, key), book.datemode)
 
     out = []
     for row in range(1, ws.nrows):
@@ -107,7 +127,7 @@ def parse_solduri_xls(filepath):
             continue
         out.append({
             "nrdl": _s(cell(row, "nrdl")),
-            "datadl": datestr(row),
+            "datadl": datecell(row, "datadl"),
             "term_pl_cl": _i(cell(row, "term_pl_cl")),
             "plafon": _f(cell(row, "plafon")),
             "numecli": numecli,
@@ -119,6 +139,10 @@ def parse_solduri_xls(filepath):
             "numeag": _s(cell(row, "numeag")),
             "canal": _s(cell(row, "canal")),
             "telefon": _s(cell(row, "telefon")),
+            "discount": _f(cell(row, "discount")),
+            "cec": _i(cell(row, "cec")),
+            "scad_cec": datecell(row, "scad_cec"),
+            "cec_doc": _s(cell(row, "cec_doc")),
         })
     return out
 

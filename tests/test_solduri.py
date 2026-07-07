@@ -8,6 +8,7 @@ import db as _db
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAMPLE = os.path.join(ROOT, "docs_input", "rapoarte", "neinc 30 06.xls")
+SAMPLE_NEW = os.path.join(ROOT, "docs_input", "rapoarte", "neincasate.xls")
 
 
 def _etl():
@@ -31,6 +32,21 @@ def test_parse_sample():
     assert any((x["sumdeincas"] or 0) < 0 for x in rows)  # advances/credit notes
     assert all(isinstance(x["term_pl_cl"], int)
                for x in rows if x["term_pl_cl"] is not None)
+
+
+@pytest.mark.skipif(not os.path.exists(SAMPLE_NEW),
+                    reason="new-format sample xls not present")
+def test_parse_new_format():
+    # newer export mislabels its codepage → must fall back to iso-8859-2
+    rows = _etl().parse_solduri_xls(SAMPLE_NEW)
+    assert len(rows) > 1000
+    assert set(rows[0]) >= {"discount", "cec", "scad_cec", "cec_doc"}
+    assert all(x["cec"] is None or isinstance(x["cec"], int) for x in rows)
+    # dates are ISO or None — never the '  -   -' placeholder
+    assert all(x["scad_cec"] is None or len(x["scad_cec"]) == 10 for x in rows)
+    assert all(x["datadl"] is None or len(x["datadl"]) == 10 for x in rows)
+    assert any(x["cec"] for x in rows)       # some cheques present
+    assert any(x["scad_cec"] for x in rows)  # some cheque due dates parsed
 
 
 # ── seed helper (term=0 → scadenta == datadl == today+offset) ────────────────

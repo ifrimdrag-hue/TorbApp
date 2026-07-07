@@ -93,60 +93,63 @@
   </div>
 </div>
 
-<!-- ── Toolbar: view toggle + filters ── -->
-<form method="get" class="card border-0 shadow-sm mb-3" action="{{ url_for('solduri.solduri') }}">
-  <input type="hidden" name="bucket" value="{{ bucket or '' }}">
+<!-- ── Toolbar: view toggle + column filters ── -->
+<div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
     <div class="btn-group btn-group-sm" role="group">
       {% for v, lbl, icon in [('client','Client','building'), ('agent','Agent','person'), ('invoice','Factură','receipt')] %}
       <a class="btn {% if view == v %}btn-primary{% else %}btn-outline-secondary{% endif %}"
-         href="{{ url_for('solduri.solduri', view=v, bucket=bucket, agent=agent, q=q) }}">
+         href="{{ url_for('solduri.solduri', view=v, bucket=bucket, agent=agent) }}">
         <i class="bi bi-{{ icon }}"></i> {{ lbl }}
       </a>
       {% endfor %}
     </div>
-    <input type="hidden" name="view" value="{{ view }}">
-    <select name="agent" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
-      <option value="">Toți agenții</option>
-      {% for a in agents %}
-      <option value="{{ a }}" {% if agent == a %}selected{% endif %}>{{ a }}</option>
-      {% endfor %}
-    </select>
-    <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm w-auto"
-           placeholder="Caută client…">
-    <button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
+
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-filter-toggle="solduriTable">
+      <i class="bi bi-funnel"></i> Filtre coloane
+    </button>
+    <span class="small text-muted"><span data-filter-count="solduriTable">{{ rows | length }}</span> rânduri</span>
+
+    {% if agent %}
+    <a href="{{ url_for('solduri.solduri', view=view, bucket=bucket) }}"
+       class="btn btn-sm btn-outline-danger" title="Renunță la agentul selectat">
+      <i class="bi bi-x-lg"></i> Agent: {{ agent }}
+    </a>
+    {% endif %}
     {% if bucket %}
-    <a href="{{ url_for('solduri.solduri', view=view, agent=agent, q=q) }}"
+    <a href="{{ url_for('solduri.solduri', view=view, agent=agent) }}"
        class="btn btn-sm btn-outline-danger">
       <i class="bi bi-x-lg"></i> Șterge filtru card
     </a>
     {% endif %}
   </div>
-</form>
+</div>
 
 <!-- ── Table ── -->
 <div class="card shadow-sm border-0">
   <div class="table-responsive">
-    <table class="table table-sm table-hover mb-0">
+    <table id="solduriTable" data-filterable class="table table-sm table-hover mb-0">
       <thead class="table-dark">
         {% if view == 'invoice' %}
         <tr>
-          <th>Factură</th><th>Client</th><th>Agent</th>
+          <th data-filter="text">Factură</th><th data-filter="text">Client</th><th data-filter="select">Agent</th>
           <th>Data</th><th>Scadență</th><th class="text-end">Termen</th>
-          <th class="text-end">Sumă</th><th class="text-end">Zile</th><th>Categorie</th>
+          <th class="text-end" data-filter="number">Sumă</th>
+          <th class="text-center" data-filter="select">CEC</th><th>Scad. CEC</th>
+          <th class="text-end" data-filter="number">Zile</th><th data-filter="select">Categorie</th>
         </tr>
         {% elif view == 'agent' %}
         <tr>
-          <th>Agent</th><th class="text-end">Clienți</th><th class="text-end">Total</th>
+          <th data-filter="text">Agent</th><th class="text-end" data-filter="number">Clienți</th><th class="text-end" data-filter="number">Total</th>
           <th class="text-end">În termen 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
           <th class="text-end">Depășit 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
         </tr>
         {% else %}
         <tr>
-          <th>Client</th><th>Agent</th><th class="text-end">Total</th>
+          <th data-filter="text">Client</th><th data-filter="select">Agent</th><th class="text-end" data-filter="number">Total</th>
           <th class="text-end">În termen 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
           <th class="text-end">Depășit 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
-          <th class="text-end">Plafon</th><th class="text-end">Zile restanță</th>
+          <th class="text-end" data-filter="number">Plafon</th><th class="text-end" data-filter="number">Zile restanță</th>
         </tr>
         {% endif %}
       </thead>
@@ -167,7 +170,9 @@
           <td class="small">{{ r.datadl or '—' }}</td>
           <td class="small">{{ r.scadenta or '—' }}</td>
           <td class="text-end small">{{ r.term_pl_cl if r.term_pl_cl is not none else '—' }}</td>
-          <td class="text-end small {% if (r.sumdeincas or 0) < 0 %}text-primary{% endif %}">{{ r.sumdeincas | ron }}</td>
+          <td class="text-end small {% if (r.sumdeincas or 0) < 0 %}text-primary{% endif %}" data-v="{{ r.sumdeincas or 0 }}">{{ r.sumdeincas | ron }}</td>
+          <td class="text-center small" data-v="{{ 'CEC' if r.cec else '' }}">{% if r.cec %}<span class="badge bg-warning text-dark">CEC</span>{% else %}—{% endif %}</td>
+          <td class="small">{{ r.scad_cec or '—' }}</td>
           <td class="text-end small {% if (r.zile or 0) < 0 %}text-danger fw-semibold{% else %}text-muted{% endif %}">{{ r.zile }}</td>
           <td class="small">{{ r.bucket_label }}</td>
         </tr>
@@ -182,7 +187,7 @@
             {% else %}—{% endif %}
           </td>
           <td class="text-end small">{{ r.nr_clienti }}</td>
-          <td class="text-end fw-bold {% if (r.total or 0) < 0 %}text-primary{% endif %}">{{ r.total | ron }}</td>
+          <td class="text-end fw-bold {% if (r.total or 0) < 0 %}text-primary{% endif %}" data-v="{{ r.total or 0 }}">{{ r.total | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc7 | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc30 | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc60 | ron }}</td>
@@ -210,7 +215,7 @@
                class="text-decoration-none text-muted">{{ r.numeag }}</a>
             {% else %}—{% endif %}
           </td>
-          <td class="text-end fw-bold {% if (r.total or 0) < 0 %}text-primary{% endif %}">{{ r.total | ron }}</td>
+          <td class="text-end fw-bold {% if (r.total or 0) < 0 %}text-primary{% endif %}" data-v="{{ r.total or 0 }}">{{ r.total | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc7 | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc30 | ron }}</td>
           <td class="text-end small text-primary">{{ r.nesc60 | ron }}</td>
@@ -219,7 +224,7 @@
           <td class="text-end small text-danger">{{ r.scad30 | ron }}</td>
           <td class="text-end small text-danger">{{ r.scad60 | ron }}</td>
           <td class="text-end small text-danger">{{ r.scad60p | ron }}</td>
-          <td class="text-end small">
+          <td class="text-end small" data-v="{{ r.plafon or 0 }}">
             {% if r.depasit_plafon %}
             <span class="badge bg-danger" title="Sold peste plafon">{{ r.plafon | ron }}</span>
             {% elif r.plafon %}{{ r.plafon | ron }}{% else %}—{% endif %}
@@ -232,6 +237,8 @@
         {% endif %}
         {% if not rows %}
         <tr><td colspan="13" class="text-center text-muted py-3">Niciun rezultat pentru filtrele curente.</td></tr>
+        {% else %}
+        <tr class="table-filter-empty-row d-none"><td colspan="13" class="text-center text-muted py-3">Niciun rezultat pentru filtrele curente.</td></tr>
         {% endif %}
       </tbody>
     </table>

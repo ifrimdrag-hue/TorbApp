@@ -40,7 +40,6 @@ def solduri():
         kpi=queries.solduri_kpi(agent=agent, search=search),
         rows=_load(view, bucket, agent, search),
         view=view, bucket=bucket, agent=agent, q=search or '',
-        agents=queries.solduri_agents(),
     )
 
 

@@ -146,6 +146,12 @@ per open document (invoice/advance). Uploaded on `/solduri-neincasate` (saved to
 term in days), `sumdeincas` (outstanding, signed), `numecli`/`codcli`, `numeag` (agent/channel),
 `factout` (invoice), `plafon` (credit ceiling), `nume` (channel → stored as `canal`). The file's
 `scadenta` column is the term in days, **not** a date — the due date is computed downstream.
+The richer export variant (e.g. `neincasate.xls`) also carries `discount` (%), `cec` (cheque
+flag 0/1), `scad_cec` (cheque due date, Excel serial → ISO), and `_dl` (cheque-associated
+document no → stored as `cec_doc`); migration **0029** added these four columns. That variant
+**mislabels its codepage** (declares cp1252 but stores Romanian Latin-2 bytes), so the parser
+falls back to `iso-8859-2` when the default decode raises `UnicodeDecodeError`. Unknown columns
+are ignored (header-name mapping), so both export widths import through the same parser.
 
 ---
 
@@ -531,6 +537,34 @@ AppError.show(subtitle, message, title);   // title defaults to "Eroare"
 The modal markup is injected lazily on first call — pages need no per-page HTML. Do not
 add ad-hoc per-page error modals or inline red-text error strings for anything a user
 may need to read in full. Reference implementation: the upload zones in `actualizare.html`.
+
+**Per-column table filtering — use the shared `table-filter.js` widget.** `app/static/js/table-filter.js`
+is loaded on every page via `base.html`. Do not hand-roll per-column search/filter JS; opt in
+with data attributes only (the widget injects a filter row under the header, wires text/select/
+number-range inputs, and keeps a live match count — no per-page JS):
+
+```html
+<table id="myTable" data-filterable>
+  <thead><tr>
+    <th data-filter="text">Nume</th>
+    <th data-filter="select">Categorie</th>
+    <th class="text-end" data-filter="number">Sumă</th>   <!-- range min/max -->
+    <th>Fără filtru</th>                                   <!-- omit data-filter -->
+  </tr></thead>
+  ...
+  <!-- numeric/formatted cells must expose the raw value for parsing/matching: -->
+  <td class="text-end" data-v="{{ r.suma or 0 }}">{{ r.suma | ron }}</td>
+</table>
+<button data-filter-toggle="myTable">Filtre coloane</button>   <!-- shows/hides the row -->
+<span data-filter-count="myTable"></span>                       <!-- visible-row count -->
+```
+
+Rules: the `id` is required and must match `data-filter-toggle`/`data-filter-count`; columns
+without `data-filter` get a blank filter cell; **any cell whose text is formatted** (RON via
+`| ron`, badges, etc.) needs `data-v="<raw>"` or the number/select match breaks. The filter is
+client-side over the rows already in the DOM — pair it with server-side scoping (not duplicate
+it). Reference implementations: `client.html` (Produse Nelistate) and `solduri_neincasate.html`
+(all three views, incl. a `data-v` CEC select).
 
 ---
 

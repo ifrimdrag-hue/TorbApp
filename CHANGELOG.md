@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Solduri: per-column table filtering, drop redundant toolbar controls (2026-07-07)
+
+Replaced the two ad-hoc server-side filters (agent dropdown + client search box) on `/solduri-neincasate` with the shared client-side per-column filter widget (`app/static/js/table-filter.js`) across all three views.
+
+- **Grouping buttons kept** (Client/Agent/Factură). The table opts in via `data-filterable` + per-column `data-filter="text|select|number"`; a "Filtre coloane" toggle reveals the filter row and a live count badge shows visible rows. Money/badge cells carry `data-v="<raw>"` so number/select matching parses the raw value, not the RON-formatted text.
+- **Filters per view** — invoice: Factură/Client (text), Agent/CEC/Categorie (select), Sumă/Zile (number range); agent: Agent (text), Clienți/Total (number); client: Client (text), Agent (select), Total/Plafon/Zile restanță (number).
+- **Removed** the agent `<select>`, client search `<input name=q>` and its submit button (now covered by the column filters); the `agents=` query is dropped from the route. Bucket-card filtering + agent drill-down links stay server-side (a dismissible "Agent: X" chip clears a drilled-down agent).
+- Files: `app/templates/solduri_neincasate.html`, `app/blueprints/solduri.py`. Widget usage documented in `docs/TECHNICAL.md` §Frontend conventions. Tests: 11 solduri tests pass (route smoke covers all three views); verified attributes render + old controls gone.
+
+### Solduri: support richer ERP export + capture cheque/discount fields (2026-07-07)
+
+The newer "solduri neîncasate" export (e.g. `neincasate.xls`) now imports. Two things changed vs. the original file.
+
+- **Encoding fix** — the new export **mislabels its codepage** (declares cp1252 but stores Romanian Latin-2 bytes), which crashed `xlrd.open_workbook` with `UnicodeDecodeError: 'charmap' codec can't decode byte 0x81`. Parser now falls back to `iso-8859-2` when the default decode raises. The old file is unaffected (ASCII-safe). Header-name mapping already ignores unknown columns, so both export widths (26 vs 28 cols) go through the same path.
+- **Data model** — migration **0029** adds four columns to `solduri_neincasate`: `discount` (%), `cec` (cheque flag 0/1), `scad_cec` (cheque due date — Excel serial parsed to ISO, junk `-   -` placeholders → NULL), `cec_doc` (cheque-associated document no, from the export's `_dl` column). Replace-only table, no backfill.
+- **UI** — invoice view (`/solduri-neincasate?view=invoice`) gains two columns: **CEC** (badge when set) and **Scad. CEC**; these also flow to the invoice Excel export. Address/registry/driver/price-type columns present in the file were intentionally **not** captured (owner scope).
+- Files: `etl/import_solduri_neincasate.py` (encoding fallback, generic Excel-date helper, 4 new fields), `migrations/0029_20260707_solduri_extra_cols.py`, `app/queries/solduri.py` (invoice SELECT), `app/templates/solduri_neincasate.html`. Verified against the real 1,763-row file: 99 cheques parsed with due dates, 328 discounts. Tests: 12 passing (1 new: `test_parse_new_format`, encoding + cheque-field assertions).
+
 ### P&L module relocated from standalone pnl_app into TorbApp (2026-07-07)
 
 The standalone monthly P&L app (`pnl_app/`, own Flask + SQLite on port 5002) is now a native TorbApp module: auth-gated, shared sidebar nav + base template, single `torb.db`, migration runner, host dependencies. Straight relocation — no behavior changes. Design: `docs/specs/2026-07-07-pnl-module-integration-design.md`; plan: `docs/plans/2026-07-07-pnl-module-integration.md`.
