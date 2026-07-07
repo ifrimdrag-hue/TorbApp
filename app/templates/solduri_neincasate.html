@@ -132,25 +132,25 @@
       <thead class="table-dark">
         {% if view == 'invoice' %}
         <tr>
-          <th data-filter="text">Factură</th><th data-filter="text">Client</th><th data-filter="select">Agent</th>
-          <th>Data</th><th>Scadență</th><th class="text-end">Termen</th>
-          <th class="text-end" data-filter="number">Sumă</th>
-          <th class="text-center" data-filter="select">CEC</th>
-          <th class="text-end" data-filter="number">Val. CEC</th><th>Scad. CEC</th>
-          <th class="text-end" data-filter="number">Zile</th><th data-filter="select">Categorie</th>
+          <th data-filter="text" data-sort>Factură</th><th data-filter="text" data-sort>Client</th><th data-filter="select" data-sort>Agent</th>
+          <th data-sort>Data</th><th data-sort>Scadență</th><th class="text-end">Termen</th>
+          <th class="text-end" data-filter="number" data-sort="number">Sumă</th>
+          <th class="text-center" data-filter="select" data-sort>CEC</th>
+          <th class="text-end" data-filter="number" data-sort="number">Val. CEC</th><th data-sort>Scad. CEC</th>
+          <th class="text-end" data-filter="number" data-sort="number">Zile</th><th data-filter="select" data-sort>Categorie</th>
         </tr>
         {% elif view == 'agent' %}
         <tr>
-          <th data-filter="text">Agent</th><th class="text-end" data-filter="number">Clienți</th><th class="text-end" data-filter="number">Total</th>
+          <th data-filter="text" data-sort>Agent</th><th class="text-end" data-filter="number" data-sort="number">Clienți</th><th class="text-end" data-filter="number" data-sort="number">Total</th>
           <th class="text-end">În termen 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
           <th class="text-end">Depășit 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
         </tr>
         {% else %}
         <tr>
-          <th data-filter="text">Client</th><th data-filter="select">Agent</th><th class="text-end" data-filter="number">Total</th>
+          <th data-filter="text" data-sort>Client</th><th data-filter="select" data-sort>Agent</th><th class="text-end" data-filter="number" data-sort="number">Total</th>
           <th class="text-end">În termen 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
           <th class="text-end">Depășit 1-7</th><th class="text-end">8-30</th><th class="text-end">31-60</th><th class="text-end">&gt;60</th>
-          <th class="text-end" data-filter="number">Plafon</th><th class="text-end" data-filter="number">Zile restanță</th>
+          <th class="text-end" data-filter="number" data-sort="number">Plafon</th><th class="text-end" data-filter="number" data-sort="number">Zile restanță</th>
         </tr>
         {% endif %}
       </thead>

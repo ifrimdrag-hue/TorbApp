@@ -801,6 +801,23 @@ pre {
 
 /* ── Table column filters ────────────────────────────────────────────────── */
 
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+th.sortable .sort-indicator {
+  margin-left: 0.3rem;
+  font-size: 0.7em;
+  opacity: 0.35;
+}
+th.sortable .sort-indicator.active {
+  opacity: 1;
+}
+th.sortable:hover .sort-indicator {
+  opacity: 0.7;
+}
+
 .table-filter-row td {
   background: #f4f6f9;
   padding: 0.25rem 0.35rem;

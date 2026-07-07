@@ -1,6 +1,7 @@
-/* Torb Logistic — generic per-column table filter.
+/* Torb Logistic — generic per-column table filter + sort.
    Opt-in via data attributes, no per-table JS needed:
      <table data-filterable> ... <th data-filter="text|select|number"> ...
+     <th data-sort> or <th data-sort="number">  (clickable header, asc/desc/none)
      <td data-v="raw value">  (numeric/select columns; optional for text)
      <button data-filter-toggle="tableId">  (shows/hides the filter row)
      <span data-filter-count="tableId">     (updated with visible row count) */
@@ -114,10 +115,82 @@
     if (emptyRow) emptyRow.classList.toggle('d-none', visible > 0 || bodyRows.length === 0);
   }
 
+  function bodyRowsOf(table) {
+    return Array.prototype.filter.call(
+      table.querySelectorAll('tbody tr'),
+      function (tr) { return !tr.classList.contains('table-filter-empty-row'); }
+    );
+  }
+
+  function compareRows(a, b, col, type) {
+    var av = cellValue(a.children[col]);
+    var bv = cellValue(b.children[col]);
+    if (type === 'number') {
+      var an = parseFloat(av); an = isNaN(an) ? -Infinity : an;
+      var bn = parseFloat(bv); bn = isNaN(bn) ? -Infinity : bn;
+      return an - bn;
+    }
+    return av.localeCompare(bv, 'ro', { numeric: true, sensitivity: 'base' });
+  }
+
+  function applySort(table, col, dir, type) {
+    var tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    var rows = bodyRowsOf(table);
+    if (dir === 0) {
+      rows.sort(function (a, b) {
+        return (+a.dataset.origIndex) - (+b.dataset.origIndex);
+      });
+    } else {
+      rows.sort(function (a, b) { return dir * compareRows(a, b, col, type); });
+    }
+    rows.forEach(function (tr) { tbody.appendChild(tr); });
+    var emptyRow = tbody.querySelector('.table-filter-empty-row');
+    if (emptyRow) tbody.appendChild(emptyRow);
+  }
+
+  function updateIndicator(th) {
+    var ind = th.querySelector('.sort-indicator');
+    if (!ind) return;
+    var dir = th.dataset.sortDir ? parseInt(th.dataset.sortDir, 10) : 0;
+    ind.textContent = dir === 1 ? '▲' : dir === -1 ? '▼' : '⇅';
+    ind.classList.toggle('active', dir !== 0);
+  }
+
+  function initSort(table, headerCells) {
+    bodyRowsOf(table).forEach(function (tr, i) { tr.dataset.origIndex = i; });
+
+    headerCells.forEach(function (th, idx) {
+      if (!th.hasAttribute('data-sort')) return;
+      var type = th.getAttribute('data-sort') === 'number' ? 'number' : 'text';
+      th.classList.add('sortable');
+      var ind = document.createElement('span');
+      ind.className = 'sort-indicator';
+      th.appendChild(ind);
+      updateIndicator(th);
+
+      th.addEventListener('click', function () {
+        var cur = th.dataset.sortDir ? parseInt(th.dataset.sortDir, 10) : 0;
+        var next = cur === 0 ? 1 : cur === 1 ? -1 : 0;
+        headerCells.forEach(function (other) {
+          if (other !== th && other.hasAttribute('data-sort')) {
+            delete other.dataset.sortDir;
+            updateIndicator(other);
+          }
+        });
+        if (next === 0) { delete th.dataset.sortDir; } else { th.dataset.sortDir = next; }
+        updateIndicator(th);
+        applySort(table, idx, next, type);
+      });
+    });
+  }
+
   function initTable(table) {
     var thead = table.querySelector('thead tr');
     if (!thead || !table.id) return;
     var headerCells = Array.prototype.slice.call(thead.children);
+
+    initSort(table, headerCells);
 
     var filterRow = buildFilterRow(table, headerCells);
     thead.parentNode.appendChild(filterRow);
