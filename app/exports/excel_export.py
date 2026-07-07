@@ -275,3 +275,116 @@ def export_expirare(furnizor=None, prag_luni: int = 6):
     wb.save(out)
     out.seek(0)
     return out
+
+
+# ── P&L module export (relocated from pnl_app) ──────────────────────────────
+_PNL_MONTHS_RO = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun',
+                  'Iul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+_PNL_RED = PatternFill('solid', fgColor='FFCCCC')
+_PNL_YELLOW = PatternFill('solid', fgColor='FFF3CC')
+_PNL_GREEN = PatternFill('solid', fgColor='CCFFCC')
+_PNL_GREY = PatternFill('solid', fgColor='F0F0F0')
+_PNL_HEADER = PatternFill('solid', fgColor='1F3864')
+
+
+def _pnl_write_sheet(ws, entitate, an):
+    import pnl_logic
+    py = an - 1
+    luni = sorted(pnl_logic.compute_pnl_year(entitate, an).keys())
+    data_cy = pnl_logic.compute_pnl_year(entitate, an)
+    data_py = pnl_logic.compute_pnl_year(entitate, py)
+    max_luna = max(luni) if luni else 0
+    ytd_cy = pnl_logic.compute_ytd(entitate, an, max_luna) if max_luna else {}
+    ytd_py = pnl_logic.compute_ytd(entitate, py, max_luna) if luni else {}
+    alarm_config = pnl_logic.load_alarm_config()
+
+    headers = ['Linie P&L']
+    for luna in luni:
+        headers += [f'{_PNL_MONTHS_RO[luna - 1]} {an}', f'Delta% vs {py}']
+    headers += [f'YTD {an}', 'Delta% YTD']
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = _PNL_HEADER
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.alignment = Alignment(horizontal='center')
+
+    for row_type, label, key in pnl_logic.PNL_STRUCTURE:
+        row_data = [label]
+        for luna in luni:
+            v = data_cy.get(luna, {}).get(key) or 0
+            vp = data_py.get(luna, {}).get(key) or 0
+            delta = round((v - vp) / abs(vp) * 100, 1) if vp else None
+            row_data += [round(v, 2) if key.endswith('%') else round(v, 0), delta]
+        ytd_v = ytd_cy.get(key) or 0
+        ytd_vp = ytd_py.get(key) or 0
+        ytd_delta = round((ytd_v - ytd_vp) / abs(ytd_vp) * 100, 1) if ytd_vp else None
+        row_data += [round(ytd_v, 2) if key.endswith('%') else round(ytd_v, 0), ytd_delta]
+        ws.append(row_data)
+
+        excel_row = ws.max_row
+        if row_type == 'subtotal':
+            for cell in ws[excel_row]:
+                cell.font = Font(bold=True)
+                cell.fill = _PNL_GREY
+        elif row_type == 'pct':
+            for cell in ws[excel_row]:
+                cell.font = Font(italic=True, color='555555')
+
+        cfg = alarm_config.get(key, {})
+        col_idx = 2
+        for luna in luni:
+            v = data_cy.get(luna, {}).get(key) or 0
+            vp = data_py.get(luna, {}).get(key) or 0
+            pct_val = v if key.endswith('%') else None
+            alarm = pnl_logic.compute_alarm(v, vp, pct_val, cfg)
+            sev = alarm.get('delta_severity') or alarm.get('prag_severity')
+            fill = {'error': _PNL_RED, 'warning': _PNL_YELLOW, 'success': _PNL_GREEN}.get(sev)
+            if fill:
+                ws.cell(excel_row, col_idx).fill = fill
+            col_idx += 2
+
+    ws.column_dimensions['A'].width = 38
+    for col in range(2, ws.max_column + 1):
+        ws.column_dimensions[get_column_letter(col)].width = 13
+    ws.freeze_panes = 'B2'
+
+
+def _pnl_write_kpi(ws, an):
+    import pnl_logic
+    py = an - 1
+    kpi_keys = ['CIFRA DE AFACERI NETA', 'MARJA BRUTA', 'Marja bruta %',
+                'EBITDA', 'EBITDA %', 'PROFIT NET', 'Profit net %']
+    ws.append(['KPI'] + [f'YTD {an}', f'YTD {py}', 'Delta', 'Delta %'] * 3)
+    ws[1][0].font = Font(bold=True)
+    for entitate, label in [('torb', 'Torb'), ('tobra', 'Tobra'), ('grup', 'Grup')]:
+        luni = sorted(pnl_logic.compute_pnl_year(entitate, an).keys())
+        max_luna = max(luni) if luni else 0
+        ytd_cy = pnl_logic.compute_ytd(entitate, an, max_luna) if max_luna else {}
+        ytd_py = pnl_logic.compute_ytd(entitate, py, max_luna) if luni else {}
+        ws.append([f'--- {label} ---'])
+        ws[ws.max_row][0].font = Font(bold=True, italic=True)
+        for key in kpi_keys:
+            v = ytd_cy.get(key) or 0
+            vp = ytd_py.get(key) or 0
+            d = v - vp
+            dp = round((d / abs(vp)) * 100, 1) if vp else None
+            ws.append([key,
+                       round(v, 2) if key.endswith('%') else round(v, 0),
+                       round(vp, 2) if key.endswith('%') else round(vp, 0),
+                       round(d, 0), dp])
+    ws.column_dimensions['A'].width = 30
+    for col in ['B', 'C', 'D', 'E']:
+        ws.column_dimensions[col].width = 15
+
+
+def build_pnl_xlsx(an):
+    """Styled P&L workbook: 3 entity sheets + KPI summary. Returns BytesIO."""
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    for entitate, sheet_name in [('torb', 'P&L Torb'), ('tobra', 'P&L Tobra'), ('grup', 'P&L Grup')]:
+        _pnl_write_sheet(wb.create_sheet(sheet_name), entitate, an)
+    _pnl_write_kpi(wb.create_sheet('KPI Summary'), an)
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
