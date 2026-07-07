@@ -165,3 +165,13 @@ from queries.export import (
     clienti_export_upsert as clienti_export_upsert,
     clienti_export_toggle as clienti_export_toggle,
 )
+
+from queries.pnl import (
+    pnl_available_years as pnl_available_years,
+    pnl_available_months as pnl_available_months,
+    pnl_mapping as pnl_mapping,
+    pnl_alarm_config as pnl_alarm_config,
+    pnl_rulcd as pnl_rulcd,
+    pnl_config_rows as pnl_config_rows,
+    pnl_import_log as pnl_import_log,
+)
