@@ -124,18 +124,42 @@ What a single row in `tranzactii` represents:
 Torb→Auchan sales are invoiced through the intermediary **Tobra Invest SRL**
 (cod_client 719 in Torb's ERP). Shared constants: `app/business_constants.py`.
 
+**The Tobra file is re-imported DAILY** (full 2024–2026 history each time,
+owner statement 2026-07-07). The import only ever ADDS rows —
+`INSERT OR IGNORE` on `UNIQUE(nr_dl, cod_produs, nr_factura)` — it never
+updates existing ones, so data fixes done by migrations are not reset by the
+daily upload. Corollaries: (1) dedup keys must stay stable across import-code
+changes — that's why migration `0031` aligned existing rows' `cod_produs` to
+the same Torb codes the fixed import computes; (2) deleting a TOBRA row is
+recoverable — the next daily upload restores it (used by migration `0032` to
+drop the 2026-07 buggy-run cohort instead of guessing in-place repairs).
+
 - `etl/import_vanzari_erp.py` diverts Torb→Tobra invoice lines (cod 719) out of
   `tranzactii` into the cost table `corr_vanzari_tobra` — Torb's true acquisition
   cost per product over time.
 - `etl/import_vanzari_tobra_auchan.py` imports Tobra→Auchan invoices as if they
   were Torb→Auchan sales (client 732 `AUCHAN ROMANIA SA`, agent Oana Filip;
   invoice numbers keep the `TOBRA` prefix as a marker).
+- **Identity rule (2026-07-07, owner decision):** the article identity of each
+  imported row comes from the **COD MARE** embedded in the product name
+  (`extract_cod_mare`: '90204' from `KL EARL GREY (25X2G) 90204-...`), NEVER
+  from Tobra's `cod_produs` — Tobra's numbering collides with Torb's (Tobra
+  `1508` = KL English Breakfast vs Torb `1508` = C.Goplana/Celmar). On a cod
+  mare match against Torb ERP rows (`build_cod_mare_lookup`, stoc `cod_mare`
+  first, then the name-embedded code), the row adopts the **Torb ERP sku and
+  Torb `cod_produs`** — so Stoc & Comenzi per-article history (grouped by
+  `cod_produs`) includes the Auchan sales. Unmatched rows keep the Tobra
+  name/cod verbatim (no cod_produs-based renaming — the pre-0031 name
+  normalization by colliding cod misfiled the July 2026 KL sales as
+  C.Goplana). The original Tobra cod stays on the in-memory record as
+  `cod_tobra` for the cost lookup below. Existing rows realigned by migration
+  `0031`.
 - **Cost rule (2026-07-02):** each imported row's `pret_cumparare` is overridden
-  with the simple average of `corr_vanzari_tobra` costs for that `cod_produs` over
-  the 30 days before the row's own `data_dl`; fallback: most recent cost ≤ row
-  date, then the value from the Tobra file. `val_achizitie` and `marja_bruta`
-  are recomputed. Upload order matters: import Vânzări ERP before Vânzări
-  Auchan so the cost table is fresh.
+  with the simple average of `corr_vanzari_tobra` costs for that row's **Tobra**
+  `cod_produs` (`cod_tobra`) over the 30 days before the row's own `data_dl`;
+  fallback: most recent cost ≤ row date, then the value from the Tobra file.
+  `val_achizitie` and `marja_bruta` are recomputed. Upload order matters:
+  import Vânzări ERP before Vânzări Auchan so the cost table is fresh.
 
 ---
 
@@ -208,26 +232,30 @@ NOT in `produse`: the monitorizare spreadsheet names them `KINGSLEAF - FMCG -
 BOX - ...` / `TIPSON - ...` (sometimes `CHRISTMAS - ...` or with typos like
 `KINSGELAF`), with Furnizor=Basilur and the sub-brand only in the **Brand
 column** — so `import_preturi` normalizes furnizor/brand via the Brand column
-(`VIRTUAL_BRAND_CANON` map; migration `0032` backfilled 54 KingsLeaf + 56
+(`VIRTUAL_BRAND_CANON` map; migration `0030` backfilled 54 KingsLeaf + 56
 Tipson catalog rows, since 2026-07-07).
 
 The same physical product can also carry **different tranzactii SKU spellings
 per data source** (ERP `KL CEAI EARL GREY (25X2G) 90204-...` vs Tobra/Auchan
-file `KL EARL GREY (25X2G) 90204-...`). The produs detail page and its Excel
-export aggregate over all spellings that resolve to the same catalog article
-(`queries.sku_variants`, built on `resolve_catalog_sku`).
+file `KL EARL GREY (25X2G) 90204-...`). The produs detail page, its Excel
+export and the Stoc & Comenzi per-article client history
+(`sku_clients_monthly`) aggregate over all spellings that resolve to the same
+catalog article (`queries.sku_variants`, built on `resolve_catalog_sku`).
+Since 2026-07-07 the Tobra import itself resolves new rows to the Torb ERP
+spelling/cod via cod mare (see §3 The Auchan/Tobra exception), so new variants
+should stop appearing.
 
 **HORECA formats keep their own brand** (since 2026-07-07): names like
 `HORECA TS ...` (Tipson 80xxx) / `HORECA KL ...` / `HORECA ORGANSIA...` are
 checked BEFORE the generic `HORECA ` → Basilur rule in all three derivation
 functions — otherwise the HORECA rule swallowed them into Basilur (real case:
-9 `HORECA TS` SKUs; corrected by migration `0031` across
+9 `HORECA TS` SKUs; corrected by migration `0029` across
 `tranzactii`/`stoc`/`produse`).
 
 **Where the rule lives (duplicated by design — no shared module):**
 - `etl/import_stoc.py` — `derive_furnizor()` matches `sku.upper().startswith("B.ECO ORGANSIA")` (checked before the generic `s.startswith("B.")` Basilur rule), `s.startswith("KL ")`, `s.startswith("TS ")`; `derive_gama()` maps `furnizor` → `gama` via `gama_map`
 - `etl/import_vanzari_erp.py` — `_furnizor_from_prefix()`
-- `etl/import_vanzari_tobra_auchan.py` — `derive_furnizor()`. **SKU-name rules run FIRST; the `cod_produs`→furnizor lookup is only a fallback** (since 2026-07-07): Tobra's cod_produs numbering collides with Torb's ERP codes (e.g. Tobra `1508` = `KL ENGLISH BREAKFAST` vs Torb `1508` = `C.GOPLANA`/Celmar), which used to file Auchan's KingsLeaf tea under Celmar/Basilur and Toras chocolate under Basilur/Solvex (~325k RON, 2024–2026; corrected by migration `0030`)
+- `etl/import_vanzari_tobra_auchan.py` — `derive_furnizor()`. **SKU-name rules run FIRST; the `cod_produs`→furnizor lookup is only a fallback** (since 2026-07-07): Tobra's cod_produs numbering collides with Torb's ERP codes (e.g. Tobra `1508` = `KL ENGLISH BREAKFAST` vs Torb `1508` = `C.GOPLANA`/Celmar), which used to file Auchan's KingsLeaf tea under Celmar/Basilur and Toras chocolate under Basilur/Solvex (~325k RON, 2024–2026; corrected by migration `0028`)
 - `etl/import_preturi.py` — `import_monitorizare()` overrides `furnizor`/`brand` to `"Organsia"` for the `produse` table when `descriere.upper()` starts with `"ORGANSIA"` (the pricing spreadsheet uses this form, not the ERP `B.ECO ORGANSIA` form — the `"B.ECO ORGANSIA"` check in that same `if` is defensive and doesn't currently match any `produse` row)
 - `etl/update_data.py` + `etl/rebuild_db.py` — `GAMA_MAP` / lead-time seed
 

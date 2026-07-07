@@ -1,5 +1,5 @@
 """
-Migration 0031 — HORECA formats of the virtual sub-brands keep their own brand.
+Migration 0029 — HORECA formats of the virtual sub-brands keep their own brand.
 
 The generic 'HORECA ' -> Basilur rule fired before any virtual-brand check, so
 Tipson HORECA products ('HORECA TS ...', ERP code range 80xxx) were filed under
@@ -9,8 +9,8 @@ reclassifies the existing rows the same way. stoc currently has no such rows,
 updated anyway for symmetry. Idempotent.
 """
 
-VERSION = 31
-NAME = "0031_20260707_horeca_virtual_brands"
+VERSION = 29
+NAME = "0029_20260707_horeca_virtual_brands"
 
 RULES = [
     ("Tipson", "HORECA TS %", "H TS %"),

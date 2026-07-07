@@ -1,5 +1,5 @@
 """
-Migration 0030 — reclassify Auchan (Tobra-imported) furnizor by SKU name.
+Migration 0028 — reclassify Auchan (Tobra-imported) furnizor by SKU name.
 
 The Tobra->Auchan import resolved furnizor through a cod_produs lookup built
 from Torb ERP rows, but Tobra's cod_produs numbering collides with Torb's
@@ -14,8 +14,8 @@ rows with no matching prefix rule keep their lookup-derived furnizor.
 Idempotent.
 """
 
-VERSION = 30
-NAME = "0030_20260707_auchan_furnizor_reclasificare"
+VERSION = 28
+NAME = "0028_20260707_auchan_furnizor_reclasificare"
 
 AUCHAN_COD_CLIENT = "732"
 

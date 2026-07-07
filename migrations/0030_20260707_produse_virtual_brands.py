@@ -1,5 +1,5 @@
 """
-Migration 0032 — produse catalog: virtual sub-brands get their own furnizor.
+Migration 0030 — produse catalog: virtual sub-brands get their own furnizor.
 
 The monitorizare spreadsheet lists KingsLeaf/Tipson articles with
 Furnizor=Basilur (the real supplier) and the sub-brand only in the Brand
@@ -11,8 +11,8 @@ description typos like 'KINSGELAF' and the CHRISTMAS-named KL articles).
 Idempotent.
 """
 
-VERSION = 32
-NAME = "0032_20260707_produse_virtual_brands"
+VERSION = 30
+NAME = "0030_20260707_produse_virtual_brands"
 
 RULES = [
     ("KingsLeaf", ("KINGSLEAF", "KINGS LEAF")),

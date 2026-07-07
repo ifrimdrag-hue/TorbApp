@@ -1,4 +1,4 @@
-"""Migration 0028 - P&L module tables (relocated from standalone pnl_app).
+"""Migration 0033 - P&L module tables (relocated from standalone pnl_app).
 
 Four pnl_-prefixed tables. pnl_mapping_conturi (account -> P&L line) and
 pnl_config (per-line alarm thresholds) are reference tables, seeded here.
@@ -6,8 +6,8 @@ pnl_balante_raw and pnl_import_log start empty on every environment; real
 balance data arrives via the module's Excel upload.
 """
 
-VERSION = 28
-NAME = "0028_20260707_pnl_tables"
+VERSION = 33
+NAME = "0033_20260707_pnl_tables"
 
 _MAPPING_SEED = [
     ('707',  'VENITURI DIN VANZARI MARFURI',                   'Venituri marfuri',                        1,  'venituri'),

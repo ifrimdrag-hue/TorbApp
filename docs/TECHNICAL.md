@@ -53,7 +53,7 @@ price offers are imported at runtime via `/preturi/import-oferta`
 (`app/supplier_offer.py`, xls/xlsx, letter-mapped columns → potential articles + landing).
 Domain rules: `docs/BUSINESS_LOGIC.md` §10.
 
-P&L-module tables (migration 0028, relocated from the former standalone `pnl_app`):
+P&L-module tables (migration 0033, relocated from the former standalone `pnl_app`):
 `pnl_balante_raw` (raw trial-balance rows per `entitate`/`an`/`luna`/`cont`, unique on that
 tuple with `ON CONFLICT REPLACE`), `pnl_mapping_conturi` (account → P&L line + sign, **seeded**
 33 rows), `pnl_config` (per-line alarm thresholds, **seeded** 9 rows), `pnl_import_log` (import
@@ -148,7 +148,7 @@ term in days), `sumdeincas` (outstanding, signed), `numecli`/`codcli`, `numeag` 
 `scadenta` column is the term in days, **not** a date — the due date is computed downstream.
 The richer export variant (e.g. `neincasate.xls`) also carries `discount` (%), `cec` (cheque
 flag 0/1), `scad_cec` (cheque due date, Excel serial → ISO), and `_dl` (cheque-associated
-document no → stored as `cec_doc`); migration **0029** added these four columns. That variant
+document no → stored as `cec_doc`); migration **0034** added these four columns. That variant
 **mislabels its codepage** (declares cp1252 but stores Romanian Latin-2 bytes), so the parser
 falls back to `iso-8859-2` when the default decode raises `UnicodeDecodeError`. Unknown columns
 are ignored (header-name mapping), so both export widths import through the same parser.

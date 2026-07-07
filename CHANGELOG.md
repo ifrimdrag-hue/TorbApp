@@ -18,15 +18,15 @@ Replaced the two ad-hoc server-side filters (agent dropdown + client search box)
 The newer "solduri neîncasate" export (e.g. `neincasate.xls`) now imports. Two things changed vs. the original file.
 
 - **Encoding fix** — the new export **mislabels its codepage** (declares cp1252 but stores Romanian Latin-2 bytes), which crashed `xlrd.open_workbook` with `UnicodeDecodeError: 'charmap' codec can't decode byte 0x81`. Parser now falls back to `iso-8859-2` when the default decode raises. The old file is unaffected (ASCII-safe). Header-name mapping already ignores unknown columns, so both export widths (26 vs 28 cols) go through the same path.
-- **Data model** — migration **0029** adds four columns to `solduri_neincasate`: `discount` (%), `cec` (cheque flag 0/1), `scad_cec` (cheque due date — Excel serial parsed to ISO, junk `-   -` placeholders → NULL), `cec_doc` (cheque-associated document no, from the export's `_dl` column). Replace-only table, no backfill.
+- **Data model** — migration **0034** adds four columns to `solduri_neincasate`: `discount` (%), `cec` (cheque flag 0/1), `scad_cec` (cheque due date — Excel serial parsed to ISO, junk `-   -` placeholders → NULL), `cec_doc` (cheque-associated document no, from the export's `_dl` column). Replace-only table, no backfill.
 - **UI** — invoice view (`/solduri-neincasate?view=invoice`) gains two columns: **CEC** (badge when set) and **Scad. CEC**; these also flow to the invoice Excel export. Address/registry/driver/price-type columns present in the file were intentionally **not** captured (owner scope).
-- Files: `etl/import_solduri_neincasate.py` (encoding fallback, generic Excel-date helper, 4 new fields), `migrations/0029_20260707_solduri_extra_cols.py`, `app/queries/solduri.py` (invoice SELECT), `app/templates/solduri_neincasate.html`. Verified against the real 1,763-row file: 99 cheques parsed with due dates, 328 discounts. Tests: 12 passing (1 new: `test_parse_new_format`, encoding + cheque-field assertions).
+- Files: `etl/import_solduri_neincasate.py` (encoding fallback, generic Excel-date helper, 4 new fields), `migrations/0034_20260707_solduri_extra_cols.py`, `app/queries/solduri.py` (invoice SELECT), `app/templates/solduri_neincasate.html`. Verified against the real 1,763-row file: 99 cheques parsed with due dates, 328 discounts. Tests: 12 passing (1 new: `test_parse_new_format`, encoding + cheque-field assertions).
 
 ### P&L module relocated from standalone pnl_app into TorbApp (2026-07-07)
 
 The standalone monthly P&L app (`pnl_app/`, own Flask + SQLite on port 5002) is now a native TorbApp module: auth-gated, shared sidebar nav + base template, single `torb.db`, migration runner, host dependencies. Straight relocation — no behavior changes. Design: `docs/specs/2026-07-07-pnl-module-integration-design.md`; plan: `docs/plans/2026-07-07-pnl-module-integration.md`.
 
-- **Data model** — migration **0028** adds four `pnl_`-prefixed tables: `pnl_balante_raw`, `pnl_mapping_conturi` (seeded 33 account→line rows), `pnl_config` (seeded 9 alarm rows), `pnl_import_log`. Reference tables created + seeded on every environment; balance rows arrive via Excel upload. Data-layer notes: `docs/TECHNICAL.md` §Data.
+- **Data model** — migration **0033** adds four `pnl_`-prefixed tables: `pnl_balante_raw`, `pnl_mapping_conturi` (seeded 33 account→line rows), `pnl_config` (seeded 9 alarm rows), `pnl_import_log`. Reference tables created + seeded on every environment; balance rows arrive via Excel upload. Data-layer notes: `docs/TECHNICAL.md` §Data.
 - **Compute** (`app/pnl_logic.py`) — full monthly P&L for `torb`/`tobra`/`grup` (consolidated), YoY deltas, YTD subtotals, configurable alarms (delta warn/error, percentage thresholds, N-month deterioration trend). Monthly amount = `rulcd` delta vs. prior month. Reads via `app/queries/pnl.py`.
 - **Import** (`app/pnl_import.py`) — Romanian `.xls` trial balances read with the host `xlrd` (no new dependency; nothing imported from `pnl_app/`). Folder scan + single upload; filename-driven entity/period detection.
 - **Excel export** — styled workbook (3 entity sheets + KPI summary, alarm-colored) rebuilt as `build_pnl_xlsx` inside the shared `app/exports/excel_export.py`.
@@ -34,11 +34,28 @@ The standalone monthly P&L app (`pnl_app/`, own Flask + SQLite on port 5002) is 
 - **Config** — `pnl_torb_folder`/`pnl_tobra_folder` in `app/config.py` (env-backed, folder-scan sources).
 - Existing `pnl.db` data (1948 balance rows across 2025–2026) copied once into `torb.db` locally via a throwaway dev script (not committed); dev/prod load their own data through the upload UI. `pnl_app/` deleted. Tests: 278 passing (20 new across db/queries/logic/import/export/routes). Verified end-to-end against copied data (torb 2026 Mar: CA 1.39M, EBITDA 204k, Profit net 145k; workbook builds).
 
+### Siguranță la reimportul zilnic Tobra: cohortă buggy ștearsă, chei de dedup stabile (2026-07-07)
+
+Owner: the Tobra file is re-imported **daily** — the fixes must not reset or duplicate on each upload.
+
+- Analysis: the daily import only ADDs rows (`INSERT OR IGNORE` on `nr_dl, cod_produs, nr_factura`), so migration fixes survive; and migration 0031 already aligned existing rows' `cod_produs` to the same Torb codes the fixed import computes, so re-imported lines dedup correctly. The one remaining hazard: rows renamed by the buggy July run for articles **without** prior Auchan history (unrepairable in place) keep a stale dedup key — the next daily upload would insert the correct row next to the wrong one (double counting).
+- **Migration 0032** drops the buggy-run cohort (TOBRA rows dated ≥ 2026-06-01); the next daily upload re-inserts all of it through the fixed cod-mare pipeline. Runs once (versioned) — daily imports never re-trigger it. Daily-reimport property + corollaries documented in `docs/BUSINESS_LOGIC.md` §3.
+
+### Import Tobra→Auchan: identitatea articolului pe COD MARE + istoric unificat în Stoc & Comenzi (2026-07-07)
+
+Owner report (screenshot prod, Auchan Iul 2026): the July KL sales appeared as "C.Goplana Jeleuri" (Celmar) on Tobra codes 1508/1509, and Auchan's history was missing from the per-article view in Stoc & Comenzi. Owner rule: **cod mare is the article identifier for the Tobra import**.
+
+- **Root cause**: the July import "normalized" SKU names via a `{cod_produs: sku}` lookup built from Torb ERP rows — but Tobra's numbering collides with Torb's, so the KL rows were renamed to the Torb article for the same numeric cod (C.Goplana) and misfiled under Celmar. Separately, Auchan rows kept Tobra's `cod_produs`, so Stoc & Comenzi (which aggregates `tranzactii` per `cod_produs`) never saw Auchan's history on the real article.
+- **ETL** (`import_vanzari_tobra_auchan.py`): identity now comes from the cod mare embedded in the product name (`extract_cod_mare` + `build_cod_mare_lookup` — stoc `cod_mare` first, then the name-embedded code). On a match the row adopts the Torb ERP sku **and Torb `cod_produs`**; unmatched rows keep the Tobra name/cod verbatim. The Tobra cod survives as `cod_tobra` for the `corr_vanzari_tobra` cost lookup. The cod_produs-based rename is gone.
+- **Migration 0031**: (1) un-renames the collision-hit rows (restores the historical Auchan sku/furnizor; a same-cod-mare pair = legitimate ERP rename, left alone), (2) aligns Auchan rows' `cod_produs` to the Torb ERP cod via cod mare — Auchan KL history now sits on articles 1661/1662/… alongside the other clients, and future-import dedup keys stay consistent.
+- **Stoc & Comenzi article history** (`/api/forecast/sku-clients/<sku>` → `sku_clients_monthly`) aggregates over all SKU spellings of the article (`sku_variants`) — verified: KL Earl Grey queried by the ERP name now lists AUCHAN (13.680 buc) among its clients.
+- Tests: 266 passing (cod-mare extraction incl. Leonex paren form, collision-proof identity resolution, migration repair + idempotency on a synthetic DB). Business rule documented in `docs/BUSINESS_LOGIC.md` §3 (Auchan/Tobra exception) + §5.
+
 ### Fix: catalog pe brandul corect + pagina de produs unificată pe denumiri (2026-07-07)
 
 Owner report on articles 90204/90205 (KL Earl Grey / English Breakfast): a July KingsLeaf sale to Auchan wasn't visible. Root causes were the Tobra data-flow lag (sale sits under client Tobra until the monthly "Vânzări Auchan" import — by design) plus two real defects found while tracing:
 
-- **Catalog (`produse`) brand**: the monitorizare spreadsheet lists KingsLeaf/Tipson articles with Furnizor=Basilur and the sub-brand only in the Brand column ('KINGSLEAF', 'TIPSON TEA'), so 54 KingsLeaf + 56 Tipson articles sat under furnizor='Basilur'. `import_preturi` now normalizes via the Brand column (`VIRTUAL_BRAND_CANON`, catches typos like 'KINSGELAF' and CHRISTMAS-named KL articles); migration 0032 backfills. Also fixed the dead `SUPPLIER_ORIGIN` key 'Kings Leaf' → 'KingsLeaf'.
+- **Catalog (`produse`) brand**: the monitorizare spreadsheet lists KingsLeaf/Tipson articles with Furnizor=Basilur and the sub-brand only in the Brand column ('KINGSLEAF', 'TIPSON TEA'), so 54 KingsLeaf + 56 Tipson articles sat under furnizor='Basilur'. `import_preturi` now normalizes via the Brand column (`VIRTUAL_BRAND_CANON`, catches typos like 'KINSGELAF' and CHRISTMAS-named KL articles); migration 0030 backfills. Also fixed the dead `SUPPLIER_ORIGIN` key 'Kings Leaf' → 'KingsLeaf'.
 - **Product page split per SKU spelling**: the same article exists under two tranzactii names (ERP 'KL CEAI EARL GREY 90204-...' vs Tobra/Auchan 'KL EARL GREY 90204-...'), so `/produs/<sku>` showed only half the history — Auchan was invisible on the ERP-named page. `queries.sku_variants` (built on `resolve_catalog_sku`) now aggregates the page, its KPIs, client tables and Excel export over all spellings of the same catalog article; the header lists the merged names.
 - Verified in browser: the ERP-named KL Earl Grey page now shows brand KingsLeaf, combined KPIs (74.039 RON YTD 2026) and Auchan in Istoric (55.574 RON total). Tests: 261 passing.
 
@@ -46,7 +63,7 @@ Owner report on articles 90204/90205 (KL Earl Grey / English Breakfast): a July 
 
 Owner rule: Basilur / KingsLeaf / Tipson / Organsia must always show separately, everywhere.
 
-- The generic `HORECA ` → Basilur name rule ran before any virtual-brand check, so Tipson's HORECA line (`HORECA TS ...`, ERP 80xxx — 9 SKUs, ~5.8k RON) sat under Basilur in `tranzactii` and `produse`. All three ETL derivation functions (`import_stoc`, `import_vanzari_erp`, `import_vanzari_tobra_auchan`) now check `HORECA TS ` / `HORECA KL ` / `HORECA ORGANSIA` first; migration 0031 reclassifies existing rows across `tranzactii`/`stoc`/`produse` (idempotent).
+- The generic `HORECA ` → Basilur name rule ran before any virtual-brand check, so Tipson's HORECA line (`HORECA TS ...`, ERP 80xxx — 9 SKUs, ~5.8k RON) sat under Basilur in `tranzactii` and `produse`. All three ETL derivation functions (`import_stoc`, `import_vanzari_erp`, `import_vanzari_tobra_auchan`) now check `HORECA TS ` / `HORECA KL ` / `HORECA ORGANSIA` first; migration 0029 reclassifies existing rows across `tranzactii`/`stoc`/`produse` (idempotent).
 - Docs: `docs/BUSINESS_LOGIC.md` §5. Tests: 261 passing (new coverage for the HORECA variants on all three derivers). Verified post-migration: zero family SKUs left under a wrong brand.
 
 ### Fix: branduri greșit atribuite la Auchan — KingsLeaf lipsea din raportare (2026-07-07)
@@ -55,7 +72,7 @@ Owner report: KingsLeaf never showed up as a separate brand in Auchan's client r
 
 - **Root cause**: the Tobra→Auchan import resolved `furnizor` through a `cod_produs` lookup built from Torb ERP rows, but Tobra's product-code numbering collides with Torb's (e.g. Tobra `1508` = *KL English Breakfast*, Torb `1508` = *C.Goplana*/Celmar). Result at Auchan: KingsLeaf tea filed under Celmar (135k RON) and Basilur (12k), Toras chocolate under Basilur (137k) and Solvex (6.6k), Celmar tea under Basilur (34k) — ~325k RON misattributed across 2024–2026.
 - **ETL** (`etl/import_vanzari_tobra_auchan.py`): SKU-name prefix rules now run **before** the cod_produs lookup; the lookup remains only as fallback for names with no rule. Tests cover the collision case.
-- **Migration 0030** re-applies the prefix rules to existing Auchan rows (idempotent, same rule order as the ETL). Verified after migration: KingsLeaf appears at Auchan with full history (70.080 / 56.749 / 20.089 RON on 2024/2025/2026) and zero mislabeled KL/T./CELMAR rows remain.
+- **Migration 0028** re-applies the prefix rules to existing Auchan rows (idempotent, same rule order as the ETL). Verified after migration: KingsLeaf appears at Auchan with full history (70.080 / 56.749 / 20.089 RON on 2024/2025/2026) and zero mislabeled KL/T./CELMAR rows remain.
 - Docs: `docs/BUSINESS_LOGIC.md` §5 records the lookup-fallback rule. Tests: 260 passing.
 
 ### Analiză: istoric clienți pe produs, taburi produse la client, cache-busting statice (2026-07-07)
