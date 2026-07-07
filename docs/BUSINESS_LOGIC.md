@@ -378,6 +378,14 @@ Turns the consolidated ERP receivables report into an aging dashboard
 - **Data scadenței** — **derived**: `datadl + term_pl_cl`. The file's own `scadenta`
   column is the term in days, not a date, and is ignored.
 - **Total în piață** — sum of all outstanding (the whole receivables book).
+- **CEC** (`cec`/`scad_cec`/`cec_doc`) — a cheque covering an invoice. The ERP export emits a
+  cheque as its **own** row (`cec=1`) whose `cec_doc` (export column `_dl`) holds the `nrdl` of
+  the invoice it covers — and which **duplicates that invoice's `sumdeincas`**. On import the four
+  cheque columns (`discount, cec, scad_cec, cec_doc`) are folded onto the matching invoice row
+  (`cec_doc → nrdl`) and the cheque row is dropped, so the invoice shows it is cheque-covered
+  (with due date `scad_cec`) without double-counting the balance. Cheque rows matching no invoice
+  in the file (historical `original`+`Storno-` pairs netting to 0) are left as-is. Merge logic:
+  `etl/import_solduri_neincasate.py :: _merge_cec`.
 
 **Aging math.** Reference date = **today** (owner decision — the snapshot's upload date
 `data_raport` is shown on the page for staleness, but buckets always compute against the

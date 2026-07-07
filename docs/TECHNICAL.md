@@ -152,6 +152,10 @@ document no → stored as `cec_doc`); migration **0034** added these four column
 **mislabels its codepage** (declares cp1252 but stores Romanian Latin-2 bytes), so the parser
 falls back to `iso-8859-2` when the default decode raises `UnicodeDecodeError`. Unknown columns
 are ignored (header-name mapping), so both export widths import through the same parser.
+After parsing, `_merge_cec` folds each cheque row (`cec=1`) into the invoice it covers —
+its `cec_doc` (`_dl`) matched to the invoice `nrdl` — copying the four cheque columns onto the
+invoice and dropping the cheque row so the duplicated `sumdeincas` stops inflating the balance
+(unmatched cheque rows are kept). Business rule + rationale: `docs/BUSINESS_LOGIC.md` §9.
 
 ---
 

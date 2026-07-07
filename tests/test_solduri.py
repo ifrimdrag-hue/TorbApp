@@ -49,6 +49,39 @@ def test_parse_new_format():
     assert any(x["scad_cec"] for x in rows)  # some cheque due dates parsed
 
 
+# ── CEC merge (cheque row → invoice row, then drop) ──────────────────────────
+
+def _row(nrdl, cec=0, cec_doc=None, sumdeincas=0.0, scad_cec=None, discount=None):
+    return {"nrdl": nrdl, "datadl": "2026-01-01", "term_pl_cl": 0, "plafon": None,
+            "numecli": "CLI", "codcli": "C", "cfcli": None, "vtdl": None,
+            "sumdeincas": sumdeincas, "factout": f"F{nrdl}", "numeag": "AG",
+            "canal": None, "telefon": None, "discount": discount, "cec": cec,
+            "scad_cec": scad_cec, "cec_doc": cec_doc}
+
+
+def test_merge_cec():
+    rows = [
+        _row("INV1", cec=0, sumdeincas=100),
+        _row("CHQ1", cec=1, cec_doc="INV1", sumdeincas=100,
+             scad_cec="2026-03-01", discount=5),
+        _row("ORIG", cec=1, cec_doc="NOPE", sumdeincas=50, scad_cec="2026-04-01"),
+        _row("Storno-ORIG", cec=1, cec_doc="NOPE", sumdeincas=-50),
+    ]
+    out = _etl()._merge_cec(rows)
+
+    by = {r["nrdl"]: r for r in out}
+    # matched cheque stamped onto the invoice
+    assert by["INV1"]["cec"] == 1
+    assert by["INV1"]["scad_cec"] == "2026-03-01"
+    assert by["INV1"]["cec_doc"] == "INV1"
+    assert by["INV1"]["discount"] == 5
+    # matched cheque row dropped (no double-count)
+    assert "CHQ1" not in by
+    assert round(sum(r["sumdeincas"] for r in out), 2) == 100.0
+    # unmatched storno pair kept as-is
+    assert "ORIG" in by and "Storno-ORIG" in by
+
+
 # ── seed helper (term=0 → scadenta == datadl == today+offset) ────────────────
 
 def _seed(rows):

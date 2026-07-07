@@ -53,6 +53,7 @@
 - `[x]` **Modul Comercial → Solduri neîncasate** (2026-07-05) — upload raport ERP + dashboard aging (carduri Nescadent/Scadent 7/30/60 + catch-all, tabel per client/agent/factură, filtrare pe card, export Excel). Referință = azi. Migrație 0021.
 - `[x]` **Solduri: navigare drill-down + pagină facturi client** (2026-07-05) — agent → clienți → pagină client cu toate facturile deschise (emitere, scadență, termen, sumă, zile întârziere, categorie), export Excel per client, link către fișa de vânzări. Cerere owner 2026-07-05.
 - `[x]` **Solduri: bucket-uri disjuncte + terminologie nouă** (2026-07-06) — intervale 1-7/8-30/31-60/>60 pe ambele părți (fără catch-all), redenumire „În termen” / „Scadență depășită” peste tot. Cerere owner 2026-07-06.
+- `[x]` **Solduri: unificare rânduri CEC în factura acoperită** (2026-07-07) — rândurile de cec (`cec=1`) dublau soldul facturii; importul le pliază pe factura corespondentă (`cec_doc` → `nrdl`) și le elimină (−60.742,40 RON fantomă pe fișierul real). Cerere owner. Vezi CHANGELOG.
 
 ## În curs / blocaje active
 

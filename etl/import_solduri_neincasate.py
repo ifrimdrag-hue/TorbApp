@@ -147,8 +147,37 @@ def parse_solduri_xls(filepath):
     return out
 
 
+def _merge_cec(rows):
+    """Fold cheque rows (cec=1) into the invoice they cover.
+
+    A cheque row's `cec_doc` (ERP `_dl`) holds the `nrdl` of the invoice the
+    cheque covers, and duplicates that invoice's balance. For each cheque row
+    matching an invoice, copy the four cheque columns (discount, cec, scad_cec,
+    cec_doc) onto every matching invoice row and drop the cheque row (stops the
+    balance double-counting). Cheque rows matching no invoice are kept as-is.
+    """
+    index = {}
+    for r in rows:
+        if not r.get("cec"):
+            index.setdefault(r["nrdl"], []).append(r)
+    drop = set()
+    for i, r in enumerate(rows):
+        if not r.get("cec"):
+            continue
+        targets = index.get(r.get("cec_doc"))
+        if not targets:
+            continue
+        for t in targets:
+            t["cec"] = 1
+            t["scad_cec"] = r["scad_cec"]
+            t["cec_doc"] = r["cec_doc"]
+            t["discount"] = r["discount"]
+        drop.add(i)
+    return [r for i, r in enumerate(rows) if i not in drop]
+
+
 def run(filepath):
-    rows = parse_solduri_xls(filepath)
+    rows = _merge_cec(parse_solduri_xls(filepath))
     data_raport = date.today().isoformat()
     conn = sqlite3.connect(DB_PATH)
     conn.execute(CREATE_SQL)

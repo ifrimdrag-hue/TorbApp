@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Solduri: fold cheque rows into the invoice they cover (2026-07-07)
+
+The richer ERP export emits a **separate row per cheque** (`cec=1`) that duplicates the balance of the invoice it covers, inflating Total în piață. On the real 1,763-row file this phantom balance was **+60,742.40 RON** across 47 cheque rows.
+
+- **ETL merge** — `import_solduri_neincasate.py` gains `_merge_cec()`, run between parse and insert. A cheque row's `cec_doc` (ERP `_dl`) holds the `nrdl` of the invoice it covers; the four cheque columns (`discount, cec, scad_cec, cec_doc`) are copied onto every matching invoice row and the cheque row is **dropped** so its balance stops double-counting. Cheque rows matching no invoice (historical `original`+`Storno-` pairs netting to 0) are kept as-is.
+- **Effect** — one upload, two-pass in code (no manual Excel split); replace-only flow and `/api/upload/solduri` unchanged. Sample: 1763 → 1716 rows, Total în piață −60,742.40, 65 invoice lines flip to `cec=1` with a cheque due date (a single cheque can cover several invoices).
+- Owner decisions (2026-07-07): merge in code on the single upload; drop matched cheque rows; keep unmatched ones. Design: `docs/specs/2026-07-07-solduri-cec-merge-design.md`.
+- Files: `etl/import_solduri_neincasate.py`, `tests/test_solduri.py` (1 new: `test_merge_cec`). Tests: 12 passing; verified against the real file (−47 rows, −60,742.40). Documented in `docs/BUSINESS_LOGIC.md` §9, `docs/TECHNICAL.md` §Receivables.
+
 ### Solduri: per-column table filtering, drop redundant toolbar controls (2026-07-07)
 
 Replaced the two ad-hoc server-side filters (agent dropdown + client search box) on `/solduri-neincasate` with the shared client-side per-column filter widget (`app/static/js/table-filter.js`) across all three views.
