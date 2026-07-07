@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Produse: de-duplicate EAN-as-SKU twins (Solvex/Toras) (2026-07-07)
+
+The tranzactii backfill in `import_preturi.py` created a second produse row per product for suppliers whose transactions use the long concatenated SKU (Solvex, Toras): a bare-EAN SKU row (real name, `ean` NULL) alongside the real master row (numeric code, `ean` + `buc_cutie` + landing costs, placeholder descriere `Articol cod NNN`). 29 twin rows (25 Solvex + 4 Toras).
+
+- **Root cause** — `find_match()` only matched a transaction's 13-digit EAN against catalogued **SKUs**, never the `ean` column, so an already-catalogued product looked new and got a duplicate row.
+- **Importer fix** — `find_match()` now also matches by catalogued `ean` → the product is recognised and skipped, so no new twins.
+- **Migration 0036** — folds each existing twin into its master: copies the real name onto the master (if still a placeholder), moves selling prices to the master SKU (skip-on-conflict so the master's list price wins over the twin's historical-average price), deletes the twin. Verified on the real dataset: produse 1324 → 1295, no product or price lost, no orphan prices; `resolve_catalog_sku` still maps sales to the master via `ean`.
+- Files: `etl/import_preturi.py`, `migrations/0036_20260707_produse_dedup_ean_twins.py`, `tests/test_produse_dedup.py` (2 new). Tests: 289 passing.
+
 ### Solduri: cheque value + due-date columns in the invoice list (2026-07-07)
 
 The per-client invoice list (agent → client → facturi) and the main invoice view now show the **cheque amount** and **cheque due date** allocated to each invoice, populated from the report.

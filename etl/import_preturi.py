@@ -563,16 +563,24 @@ def import_unmatched_from_tranzactii(conn):
     else a slugified version of the description.
     """
     existing_skus = set(r[0] for r in conn.execute('SELECT sku FROM produse').fetchall())
+    # EAN → sku for products already catalogued under their real code (e.g. Solvex
+    # '302' with ean '3800708381725'). Without this, a transaction whose SKU carries
+    # that EAN is treated as uncatalogued and a duplicate EAN-as-SKU row is created.
+    existing_eans = {str(r[0]).strip(): r[1] for r in conn.execute(
+        "SELECT ean, sku FROM produse WHERE ean IS NOT NULL AND ean != ''").fetchall()}
 
     def find_match(raw):
         if not raw:
             return None
         if raw in existing_skus:
             return raw
-        # 13-digit EAN anywhere
+        # 13-digit EAN anywhere: match by catalogued SKU, then by catalogued EAN
         m13 = re.search(r'\b(\d{13})\b', raw)
-        if m13 and m13.group(1) in existing_skus:
-            return m13.group(1)
+        if m13:
+            if m13.group(1) in existing_skus:
+                return m13.group(1)
+            if m13.group(1) in existing_eans:
+                return existing_eans[m13.group(1)]
         # Code before '(' — handles Toras pattern "DESC-529 (EAN)"
         mc = re.search(r'-(\d+)\s*\(', raw)
         if mc:
