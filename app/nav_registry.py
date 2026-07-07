@@ -160,6 +160,15 @@ ENDPOINT_OVERRIDES = {
     "pachete.pachete_trendyol_delete": "trendyol",
     "pachete.pachete_trendyol_generate_all": "trendyol",
     "pachete.pachete_trendyol_suggest": "trendyol",
+    # stocuri_shopify: Shopify side of the stock-sync page (stoc_sync owns the
+    # stocuri_emag blueprint via `blueprint=`; shopify is a separate blueprint
+    # backing the same "Sincronizare Stoc" page).
+    "stocuri_shopify.stocuri_shopify_page": "stoc_sync",
+    "stocuri_shopify.api_shopify_preview": "stoc_sync",
+    "stocuri_shopify.api_shopify_sync": "stoc_sync",
+    "stocuri_shopify.api_shopify_connection_test": "stoc_sync",
+    "stocuri_shopify.api_shopify_sync_history": "stoc_sync",
+    "stocuri_shopify.api_shopify_sync_history_rows": "stoc_sync",
     # postari: auto
     "postari.auto_posts_state": "postari_auto",
     "postari.auto_posts_upload": "postari_auto",
@@ -177,6 +186,9 @@ UNGATED_ENDPOINTS = {
     "actualizare.api_actualizare_date_status",  # global import chip poll (every page)
     "reports.export_excel",                     # generic multi-feature export
     "postari.postari_ai_generate",              # shared by Instagram + Facebook pages
+    # dev-only testing checklist; SHOW_TESTING flag 404s it in prod, and its
+    # sidebar link lives outside the nav registry (raw <a>, not a NavItem)
+    "forecast.testare",
     # gifting is not a nav item (its sidebar link is commented out) -> login-only
     "pachete.gifting_page",
     "pachete.pachete_gifting_preview",
