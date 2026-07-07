@@ -58,6 +58,7 @@ All new files must follow this layout. Never add `.py` files to root.
 - New pytest test → `tests/`
 - Superpowers/AI-workflow outputs go **directly under `docs/`** — never create a `docs/superpowers/` directory: design specs → `docs/specs/YYYY-MM-DD-<topic>-design.md`, implementation plans → `docs/plans/`, analysis docs → `docs/analysis/`
 - Compiled user-manual PDFs → `docs/manuals/manual_<name>.pdf` (Typst sources stay in `docs/manuals/<name>/`, gitignored)
+- **Adding a nav menu link** → register it in `app/nav_registry.py` (`NAV_REGISTRY`) with its `endpoints`/`blueprint`; never add a raw `<a>` nav link to `base.html`. Registration auto-lists it in **Admin → Autorizări** and turns on its `403` route enforcement. New links are deny-by-default until granted in the matrix. `tests/test_endpoint_coverage.py` fails if a new business endpoint is left un-gated and un-allowlisted.
 
 ### Import path note for etl/ scripts
 ETL scripts use CWD-relative paths (`"data/torb.db"`, `"docs_input/..."`). Always run them from the project root:

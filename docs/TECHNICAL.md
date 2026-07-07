@@ -64,6 +64,20 @@ vs. the prior month. Data loads at runtime by uploading Romanian `.xls` trial ba
 `build_pnl_xlsx` in `app/exports/excel_export.py`. Routes under `/pnl/*` (`app/blueprints/pnl.py`),
 folder config `pnl_torb_folder`/`pnl_tobra_folder` in `app/config.py`.
 
+Admin RBAC tables (migrations 0037–0038): `adm_users` (renamed from `users`),
+`adm_roles` (dynamic roles, `is_system` flag for the built-in `admin`/`manager`/`viewer`),
+`adm_role_nav` (role_id × nav_key grants). Migration 0037 creates `adm_roles`/`adm_role_nav`,
+renames `users` → `adm_users`, and seeds `manager`/`viewer` with every nav key; 0038 rebuilds
+`adm_users` to drop the legacy `CHECK(role IN ('admin','manager','viewer'))` so new role names
+can be created dynamically. Architecture: `app/nav_registry.py` (`NAV_REGISTRY`) is the single
+source of truth for every sidebar link and the endpoints it owns; `app/authz.py` resolves
+role → granted nav keys (`admin` is a hard-coded superuser, bypasses the DB) and builds the
+endpoint → nav_key map consumed by a `before_request` hook in `app.py` that 403s a denied
+endpoint. The sidebar (`base.html`) renders from `authz.nav_tree()`, filtered to the current
+role's grants — deny-by-default for new links until granted in Admin → Autorizări.
+`tests/test_endpoint_coverage.py` guards that every business endpoint is either gated or
+explicitly allow-listed (`UNGATED_ENDPOINTS`).
+
 Migrations are versioned in `migrations/` (`NNNN_YYYYMMDD_description.py`), applied automatically on Flask startup and explicitly in CI before service restart. `schema_version` table tracks applied versions; the runner is idempotent.
 
 ### Rebuild pipeline (`etl/rebuild_db.py`)

@@ -59,7 +59,7 @@ for tx in _SEED_TX:
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 _conn.execute(
-    "INSERT OR IGNORE INTO users (username, email, password_hash, role) VALUES (?,?,?,?)",
+    "INSERT OR IGNORE INTO adm_users (username, email, password_hash, role) VALUES (?,?,?,?)",
     ('testadmin', 'test@test.local', generate_password_hash('testpass'), 'admin'),
 )
 _conn.commit()
@@ -90,6 +90,6 @@ def db_path():
 @pytest.fixture(scope='session')
 def testadmin_id(db_path):
     conn = sqlite3.connect(db_path)
-    uid = conn.execute("SELECT id FROM users WHERE username='testadmin'").fetchone()[0]
+    uid = conn.execute("SELECT id FROM adm_users WHERE username='testadmin'").fetchone()[0]
     conn.close()
     return uid

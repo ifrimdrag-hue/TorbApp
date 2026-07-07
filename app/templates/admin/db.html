@@ -2,6 +2,8 @@
 {% block title %}Mentenanță DB — Torb Logistic{% endblock %}
 
 {% block content %}
+{% set active_tab = 'db' %}
+{% include 'admin/_tabs.html' with context %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h5 class="mb-0"><i class="bi bi-database-fill-gear me-2 text-primary"></i>Mentenanță bază de date</h5>
   <div>
@@ -125,5 +127,109 @@ document.querySelectorAll('.clone-prod-form').forEach(function (form) {
     form.querySelector('input[name="confirm"]').value = answer.trim();
   });
 });
+</script>
+
+<!-- 🦞 SECURE OPENCLAW PROXY CONTROLLER INTERFACE -->
+<div class="card shadow-sm border-dark">
+  <div class="card-header bg-dark text-white d-flex align-items-center justify-content-between">
+    <h6 class="mb-0"><i class="bi bi-terminal-fill me-2 text-warning"></i>OpenClaw — Conexiune prin proxy Flask securizată</h6>
+    <span id="openclaw-status" class="badge bg-success">Securizat (Proxy Backend)</span>
+  </div>
+  <div class="card-body bg-light">
+    <div id="openclaw-chat-box" class="border rounded bg-white p-3 mb-3" style="height: 300px; overflow-y: auto;"></div>
+    <div class="input-group">
+      <input type="text" id="openclaw-user-input" class="form-control" placeholder="Introduceți o comandă (ex: 'Verifică memoria RAM a serverului' sau 'Numără rândurile din baza de date SQLite')...">
+      <button class="btn btn-dark" type="button" id="openclaw-send-btn" onclick="sendOpenClawPrompt()">
+        <i class="bi bi-send-fill"></i> Trimite
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+    const chatBox = document.getElementById('openclaw-chat-box');
+    const userInput = document.getElementById('openclaw-user-input');
+    const sendBtn = document.getElementById('openclaw-send-btn');
+    const statusBadge = document.getElementById('openclaw-status');
+
+    // No secret in the browser — Flask runs the OpenClaw CLI server-side and
+    // returns the reply as JSON.
+    const ASK_URL = "{{ url_for('openclaw_ask') }}";
+    const CSRF_TOKEN = "{{ csrf_token() }}";
+
+    async function sendOpenClawPrompt() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        appendChatMessage(`\nTu: ${text}\n`, 'user-query', false);
+        userInput.value = '';
+        userInput.disabled = true;
+        sendBtn.disabled = true;
+        statusBadge.className = "badge bg-info";
+        statusBadge.innerText = "Procesare...";
+
+        try {
+            const resp = await fetch(ASK_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": CSRF_TOKEN
+                },
+                body: JSON.stringify({ message: text })
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) {
+                throw new Error(data.error || ("HTTP " + resp.status));
+            }
+
+            statusBadge.className = "badge bg-success";
+            statusBadge.innerText = "Conectat";
+            appendChatMessage((data.reply || "(raspuns gol)") + "\n", 'agent-reply', false);
+        } catch (err) {
+            statusBadge.className = "badge bg-danger";
+            statusBadge.innerText = "Eroare";
+            appendChatMessage(`\n[Eroare: ${err.message}]\n`, 'system-log', false);
+        } finally {
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+        }
+    }
+
+    function appendChatMessage(text, className, isDelta) {
+        if (!text) return;
+        if (isDelta && chatBox.lastChild && chatBox.lastChild.className === className) {
+            chatBox.lastChild.innerText += text;
+        } else {
+            const msgNode = document.createElement('pre');
+            msgNode.className = className;
+            msgNode.style.whiteSpace = 'pre-wrap';
+            msgNode.style.margin = '4px 0';
+            msgNode.style.fontFamily = 'monospace';
+            msgNode.style.fontSize = '13px';
+            
+            if (className === 'user-query') {
+                msgNode.style.color = '#0d6efd';
+                msgNode.style.fontWeight = 'bold';
+            } else if (className === 'system-log') {
+                msgNode.style.color = '#fd7e14';
+                msgNode.style.backgroundColor = '#fff3cd';
+                msgNode.style.padding = '4px';
+                msgNode.style.borderRadius = '4px';
+            } else {
+                msgNode.style.color = '#212529';
+            }
+            msgNode.innerText = text;
+            chatBox.appendChild(msgNode);
+        }
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    userInput.addEventListener("keypress", function(event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            sendOpenClawPrompt();
+        }
+    });
 </script>
 {% endblock %}

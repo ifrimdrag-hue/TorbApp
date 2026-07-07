@@ -203,7 +203,7 @@ def test_restore_route_requires_exact_confirmation(client, backups_in_tmp, db_pa
     name = backup_db.list_backups(backups_in_tmp)[0]["name"]
 
     conn = sqlite3.connect(db_path)
-    conn.execute("UPDATE users SET email='changed@test.local' WHERE username='testadmin'")
+    conn.execute("UPDATE adm_users SET email='changed@test.local' WHERE username='testadmin'")
     conn.commit()
     conn.close()
 
@@ -212,7 +212,7 @@ def test_restore_route_requires_exact_confirmation(client, backups_in_tmp, db_pa
     assert rv.status_code == 200
     conn = sqlite3.connect(db_path)
     email = conn.execute(
-        "SELECT email FROM users WHERE username='testadmin'"
+        "SELECT email FROM adm_users WHERE username='testadmin'"
     ).fetchone()[0]
     conn.close()
     assert email == "changed@test.local"  # nothing restored
@@ -221,7 +221,7 @@ def test_restore_route_requires_exact_confirmation(client, backups_in_tmp, db_pa
 def test_restore_route_round_trip(client, backups_in_tmp, db_path):
     # Known starting state (independent of test ordering)
     conn = sqlite3.connect(db_path)
-    conn.execute("UPDATE users SET email='test@test.local' WHERE username='testadmin'")
+    conn.execute("UPDATE adm_users SET email='test@test.local' WHERE username='testadmin'")
     conn.commit()
     conn.close()
 
@@ -229,7 +229,7 @@ def test_restore_route_round_trip(client, backups_in_tmp, db_path):
     name = backup_db.list_backups(backups_in_tmp)[0]["name"]
 
     conn = sqlite3.connect(db_path)
-    conn.execute("UPDATE users SET email='changed2@test.local' WHERE username='testadmin'")
+    conn.execute("UPDATE adm_users SET email='changed2@test.local' WHERE username='testadmin'")
     conn.commit()
     conn.close()
 
@@ -239,7 +239,7 @@ def test_restore_route_round_trip(client, backups_in_tmp, db_path):
 
     conn = sqlite3.connect(db_path)
     email = conn.execute(
-        "SELECT email FROM users WHERE username='testadmin'"
+        "SELECT email FROM adm_users WHERE username='testadmin'"
     ).fetchone()[0]
     conn.close()
     assert email == "test@test.local"  # restored to pre-change state
