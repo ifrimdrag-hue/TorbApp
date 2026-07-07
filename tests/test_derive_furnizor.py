@@ -52,3 +52,16 @@ def test_tobra_organsia():
 
 def test_tobra_basilur_unaffected():
     assert _tobra()(BASILUR_SKU, {}, None) == "Basilur"
+
+def test_tobra_sku_name_beats_colliding_cod_lookup():
+    # Tobra cod_produs collides with Torb ERP codes (real case: Tobra 1508 =
+    # KL English Breakfast, Torb 1508 = C.Goplana/Celmar) — the SKU-name rule
+    # must win over the cod_produs lookup.
+    f = _tobra()
+    assert f("KL ENGLISH BREAKFAST (25X2G) 90205", {"1508": "Celmar"}, "1508") == "KingsLeaf"
+    assert f("T.CIOC ALBA CU CEAI MATCHA FZG 75GR-524", {"77": "Basilur"}, "77") == "Toras"
+
+def test_tobra_cod_lookup_still_used_when_name_unknown():
+    f = _tobra()
+    assert f("PRODUS FARA REGULA DE PREFIX", {"42": "Leonex"}, "42") == "Leonex"
+    assert f("PRODUS FARA REGULA DE PREFIX", {}, "42") == "Altele"

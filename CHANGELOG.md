@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fix: branduri greșit atribuite la Auchan — KingsLeaf lipsea din raportare (2026-07-07)
+
+Owner report: KingsLeaf never showed up as a separate brand in Auchan's client reporting/history.
+
+- **Root cause**: the Tobra→Auchan import resolved `furnizor` through a `cod_produs` lookup built from Torb ERP rows, but Tobra's product-code numbering collides with Torb's (e.g. Tobra `1508` = *KL English Breakfast*, Torb `1508` = *C.Goplana*/Celmar). Result at Auchan: KingsLeaf tea filed under Celmar (135k RON) and Basilur (12k), Toras chocolate under Basilur (137k) and Solvex (6.6k), Celmar tea under Basilur (34k) — ~325k RON misattributed across 2024–2026.
+- **ETL** (`etl/import_vanzari_tobra_auchan.py`): SKU-name prefix rules now run **before** the cod_produs lookup; the lookup remains only as fallback for names with no rule. Tests cover the collision case.
+- **Migration 0028** re-applies the prefix rules to existing Auchan rows (idempotent, same rule order as the ETL). Verified after migration: KingsLeaf appears at Auchan with full history (70.080 / 56.749 / 20.089 RON on 2024/2025/2026) and zero mislabeled KL/T./CELMAR rows remain.
+- Docs: `docs/BUSINESS_LOGIC.md` §5 records the lookup-fallback rule. Tests: 260 passing.
+
 ### Analiză: istoric clienți pe produs, taburi produse la client, cache-busting statice (2026-07-07)
 
 Owner report: on the product page a client like Auchan "disappears" if it only bought in past years; the produse nelistate list sat below the sold-products table; filters looked dead in the browser.

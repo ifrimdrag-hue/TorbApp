@@ -53,8 +53,18 @@ DB_COLS = [
 
 
 def derive_furnizor(sku: str, cp_lookup: dict, cod_produs: str) -> str:
+    furn = _furnizor_from_sku_name(sku)
+    if furn != "Altele":
+        return furn
+    # Fallback only: Tobra's cod_produs numbering collides with Torb's ERP codes
+    # (e.g. 1508 = 'KL ENGLISH BREAKFAST' at Tobra but 'C.GOPLANA' / Celmar at
+    # Torb), so the SKU-name rules must win whenever they match.
     if cod_produs and cod_produs in cp_lookup:
         return cp_lookup[cod_produs]
+    return "Altele"
+
+
+def _furnizor_from_sku_name(sku: str) -> str:
     if not sku:
         return "Altele"
     s = str(sku).strip()
