@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Admin RBAC: dynamic roles + nav authorization matrix (2026-07-07)
+
+### Added
+- Admin RBAC: dynamic roles (`adm_roles`) + role→nav authorization matrix
+  (Admin → Autorizări). Sidebar links and their routes are now gated per role
+  (deny-by-default; `admin` is a superuser). Admin module reorganized into three
+  tabs (Utilizatori, Mentenanță DB, Autorizări).
+
+### Changed
+- Renamed `users` table to `adm_users`; new admin tables use the `adm_` prefix
+  (`adm_roles`, `adm_role_nav`). Two migrations: **0037** creates `adm_roles`/
+  `adm_role_nav`, renames `users` → `adm_users`, and seeds `manager`/`viewer`
+  with every nav key; **0038** rebuilds `adm_users` to drop the legacy
+  `CHECK(role IN ('admin','manager','viewer'))` so dynamic role names are
+  allowed.
+- Sidebar is now rendered from a canonical `app/nav_registry.py` (single source
+  of truth for links, the matrix, and 403 enforcement via `app/authz.py`).
+
 ### Produse: de-duplicate EAN-as-SKU twins (Solvex/Toras) (2026-07-07)
 
 The tranzactii backfill in `import_preturi.py` created a second produse row per product for suppliers whose transactions use the long concatenated SKU (Solvex, Toras): a bare-EAN SKU row (real name, `ean` NULL) alongside the real master row (numeric code, `ean` + `buc_cutie` + landing costs, placeholder descriere `Articol cod NNN`). 29 twin rows (25 Solvex + 4 Toras).
