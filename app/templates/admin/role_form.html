@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }} — Torb Logistic{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <div class="d-flex align-items-center mb-3 gap-2">
+      <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i></a>
+      <h5 class="mb-0">{{ title }}</h5>
+    </div>
+    <div class="card shadow-sm"><div class="card-body p-4">
+      <form method="POST" action="{{ action }}" novalidate>
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+          {{ form.name.label(class="form-label small fw-semibold") }}
+          {{ form.name(class="form-control" + (' is-invalid' if form.name.errors else ''),
+                       readonly=name_locked|default(false)) }}
+          {% for err in form.name.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+          <div class="form-text">Slug: litere mici, cifre, underscore. Fix după creare.</div>
+        </div>
+        <div class="mb-4">
+          {{ form.label.label(class="form-label small fw-semibold") }}
+          {{ form.label(class="form-control" + (' is-invalid' if form.label.errors else '')) }}
+          {% for err in form.label.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+        </div>
+        <button type="submit" class="btn btn-success w-100">
+          <i class="bi bi-check-circle me-1"></i> Salvează</button>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

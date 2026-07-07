@@ -13,6 +13,7 @@ Exports:
 import hashlib
 import logging
 import os
+import re
 import secrets
 import smtplib
 import sqlite3
@@ -250,14 +251,30 @@ class ResetPasswordForm(FlaskForm):
 class UserForm(FlaskForm):
     username = StringField("Username", validators=[DataRequired(), Length(min=3, max=32)])
     email = StringField("Email", validators=[DataRequired()])
-    role = SelectField(
-        "Rol",
-        choices=[("manager", "Manager"), ("viewer", "Viewer"), ("admin", "Admin")],
-    )
+    role = SelectField("Rol")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.role.choices = role_choices()
 
 
 class EditUserForm(UserForm):
     is_active = BooleanField("Activ")
+
+
+class RoleForm(FlaskForm):
+    name = StringField("Nume (slug)", validators=[DataRequired(), Length(min=2, max=32)])
+    label = StringField("Etichetă", validators=[DataRequired(), Length(min=2, max=48)])
+
+
+def role_choices():
+    with sqlite3.connect(DB_PATH) as c:
+        c.row_factory = sqlite3.Row
+        rows = c.execute("SELECT name, label FROM adm_roles ORDER BY label").fetchall()
+    return [(r["name"], r["label"]) for r in rows]
+
+
+SLUG_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 # â"€â"€ Role-based access decorator â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
@@ -450,13 +467,14 @@ def reset_confirm(token):
 @admin_bp.route("/users")
 @require_role("admin")
 def users():
+    import authz
     with sqlite3.connect(DB_PATH) as c:
         c.row_factory = sqlite3.Row
         rows = c.execute(
             "SELECT id, username, email, role, is_active, last_login_at, created_at"
             " FROM adm_users ORDER BY id"
         ).fetchall()
-    return render_template("admin/users.html", users=rows)
+    return render_template("admin/users.html", users=rows, roles=authz.all_roles())
 
 
 @admin_bp.route("/users/new", methods=["GET", "POST"])
