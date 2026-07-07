@@ -72,10 +72,12 @@
        href="{{ url_for('reports.profitabilitate') }}" data-label="Profitabilitate">
       <i class="bi bi-graph-up-arrow"></i><span class="link-text"> Profitabilitate</span>
     </a>
+    {# TEMP hidden — restore by removing this comment wrapper
     <a class="sidebar-link {% if request.endpoint == 'pnl.pnl' %}active{% endif %}"
        href="{{ url_for('pnl.pnl') }}" data-label="P&amp;L">
       <i class="bi bi-cash-stack"></i><span class="link-text"> P&amp;L</span>
     </a>
+    #}
 
     <div class="sidebar-section sidebar-group-toggle" data-group="comercial">
       <span class="link-text">Comercial</span>
