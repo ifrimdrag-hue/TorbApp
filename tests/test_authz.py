@@ -7,9 +7,18 @@ import nav_registry as nr
 
 @pytest.fixture
 def seeded(db_path):
-    # conftest already ran migration 0037; ensure a custom empty role exists
+    # conftest already ran migration 0037; ensure a custom empty role exists.
+    # Also re-assert manager/viewer's full grants: another test module's
+    # authz.save_matrix() call (a full-matrix replace, by design) may have
+    # already cleared them earlier in this session-scoped DB.
     c = sqlite3.connect(db_path)
     c.execute("INSERT OR IGNORE INTO adm_roles (name,label,is_system) VALUES ('contabil','Contabil',0)")
+    for role in ("manager", "viewer"):
+        rid = c.execute("SELECT id FROM adm_roles WHERE name=?", (role,)).fetchone()[0]
+        c.executemany(
+            "INSERT OR IGNORE INTO adm_role_nav (role_id, nav_key) VALUES (?,?)",
+            [(rid, k) for k in {i.key for i in nr.NAV_REGISTRY}],
+        )
     c.commit()
     c.close()
     yield db_path

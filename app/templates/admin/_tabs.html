@@ -1,0 +1,20 @@
+<ul class="nav nav-tabs mb-4">
+  <li class="nav-item">
+    <a class="nav-link {% if active_tab == 'users' %}active{% endif %}"
+       href="{{ url_for('admin.users') }}">
+      <i class="bi bi-people-fill me-1"></i> Utilizatori
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if active_tab == 'db' %}active{% endif %}"
+       href="{{ url_for('admin.db_maintenance') }}">
+      <i class="bi bi-database-fill-gear me-1"></i> Mentenanță DB
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if active_tab == 'authz' %}active{% endif %}"
+       href="{{ url_for('admin.authorizations') }}">
+      <i class="bi bi-shield-lock-fill me-1"></i> Autorizări
+    </a>
+  </li>
+</ul>
