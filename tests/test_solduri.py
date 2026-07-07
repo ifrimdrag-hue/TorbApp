@@ -56,7 +56,7 @@ def _row(nrdl, cec=0, cec_doc=None, sumdeincas=0.0, scad_cec=None, discount=None
             "numecli": "CLI", "codcli": "C", "cfcli": None, "vtdl": None,
             "sumdeincas": sumdeincas, "factout": f"F{nrdl}", "numeag": "AG",
             "canal": None, "telefon": None, "discount": discount, "cec": cec,
-            "scad_cec": scad_cec, "cec_doc": cec_doc}
+            "scad_cec": scad_cec, "cec_doc": cec_doc, "cec_val": None}
 
 
 def test_merge_cec():
@@ -72,6 +72,7 @@ def test_merge_cec():
     by = {r["nrdl"]: r for r in out}
     # matched cheque stamped onto the invoice
     assert by["INV1"]["cec"] == 1
+    assert by["INV1"]["cec_val"] == 100        # cheque amount folded onto invoice
     assert by["INV1"]["scad_cec"] == "2026-03-01"
     assert by["INV1"]["cec_doc"] == "INV1"
     assert by["INV1"]["discount"] == 5
@@ -80,6 +81,24 @@ def test_merge_cec():
     assert round(sum(r["sumdeincas"] for r in out), 2) == 100.0
     # unmatched storno pair kept as-is
     assert "ORIG" in by and "Storno-ORIG" in by
+
+
+def test_merge_cec_multiple():
+    # one invoice covered by two cheques → values summed, earliest date kept
+    rows = [
+        _row("INV1", cec=0, sumdeincas=300),
+        _row("CHQ1", cec=1, cec_doc="INV1", sumdeincas=100, scad_cec="2026-05-01"),
+        _row("CHQ2", cec=1, cec_doc="INV1", sumdeincas=200, scad_cec="2026-03-15"),
+    ]
+    out = _etl()._merge_cec(rows)
+    by = {r["nrdl"]: r for r in out}
+    assert by["INV1"]["cec"] == 1
+    assert by["INV1"]["cec_val"] == 300              # 100 + 200
+    assert by["INV1"]["scad_cec"] == "2026-03-15"    # earliest of the two
+    assert "CHQ1" not in by and "CHQ2" not in by
+    # invoices with no cheque keep cec_val = None
+    plain = _etl()._merge_cec([_row("INV2", cec=0, sumdeincas=50)])
+    assert plain[0]["cec_val"] is None
 
 
 # ── seed helper (term=0 → scadenta == datadl == today+offset) ────────────────

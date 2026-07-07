@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Solduri: cheque value + due-date columns in the invoice list (2026-07-07)
+
+The per-client invoice list (agent → client → facturi) and the main invoice view now show the **cheque amount** and **cheque due date** allocated to each invoice, populated from the report.
+
+- **Data model** — migration **0035** adds `cec_val` (REAL) to `solduri_neincasate`. Replace-only table, no backfill.
+- **ETL** — `_merge_cec()` now accumulates `cec_val` = sum of every cheque covering an invoice (an invoice may have several), keeps the **earliest** `scad_cec`, and still drops the folded cheque rows. Previously only the `cec` flag + last date survived; the cheque amount was lost.
+- **UI** — `solduri_client.html` gains **Valoare CEC** + **Data CEC** columns; `solduri_neincasate.html` invoice view gains **Val. CEC** next to the existing CEC flag / Scad. CEC. Value shows only where a cheque is allocated, else `—`.
+- Files: `etl/import_solduri_neincasate.py`, `migrations/0035_20260707_solduri_cec_val.py`, `app/queries/solduri.py`, `app/templates/solduri_client.html`, `app/templates/solduri_neincasate.html`, `tests/test_solduri.py` (1 new: `test_merge_cec_multiple`). Tests: 287 passing.
+
 ### Solduri: fold cheque rows into the invoice they cover (2026-07-07)
 
 The richer ERP export emits a **separate row per cheque** (`cec=1`) that duplicates the balance of the invoice it covers, inflating Total în piață. On the real 1,763-row file this phantom balance was **+60,742.40 RON** across 47 cheque rows.

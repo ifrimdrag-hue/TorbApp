@@ -93,6 +93,7 @@
         <tr>
           <th>Factură</th><th>Data emiterii</th><th>Scadență</th>
           <th class="text-end">Termen (zile)</th><th class="text-end">Sumă</th>
+          <th class="text-end">Valoare CEC</th><th>Data CEC</th>
           <th class="text-end">Zile</th><th>Categorie</th>
         </tr>
       </thead>
@@ -104,6 +105,10 @@
           <td class="small">{{ r.scadenta or '—' }}</td>
           <td class="text-end small">{{ r.term_pl_cl if r.term_pl_cl is not none else '—' }}</td>
           <td class="text-end small {% if (r.sumdeincas or 0) < 0 %}text-primary{% endif %}">{{ r.sumdeincas | ron }}</td>
+          <td class="text-end small {% if r.cec %}fw-semibold text-warning-emphasis{% endif %}">
+            {% if r.cec_val %}{{ r.cec_val | ron }}{% elif r.cec %}<span class="badge bg-warning text-dark">CEC</span>{% else %}—{% endif %}
+          </td>
+          <td class="small">{{ r.scad_cec or '—' }}</td>
           <td class="text-end small {% if (r.zile or 0) < 0 %}text-danger fw-semibold{% else %}text-muted{% endif %}"
               title="{% if (r.zile or 0) < 0 %}{{ -r.zile }} zile întârziere{% else %}scadentă în {{ r.zile }} zile{% endif %}">
             {% if (r.zile or 0) < 0 %}{{ -r.zile }} întârziere{% else %}{{ r.zile }}{% endif %}
@@ -112,7 +117,7 @@
         </tr>
         {% endfor %}
         {% if not rows %}
-        <tr><td colspan="7" class="text-center text-muted py-3">Nicio factură deschisă.</td></tr>
+        <tr><td colspan="9" class="text-center text-muted py-3">Nicio factură deschisă.</td></tr>
         {% endif %}
       </tbody>
       {% if rows %}
@@ -120,7 +125,7 @@
         <tr class="fw-bold">
           <td colspan="4" class="text-end">Total</td>
           <td class="text-end">{{ header.total | ron }}</td>
-          <td colspan="2"></td>
+          <td colspan="4"></td>
         </tr>
       </tfoot>
       {% endif %}

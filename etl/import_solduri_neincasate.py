@@ -39,13 +39,14 @@ CREATE TABLE IF NOT EXISTS solduri_neincasate (
     discount    REAL,
     cec         INTEGER,
     scad_cec    TEXT,
-    cec_doc     TEXT
+    cec_doc     TEXT,
+    cec_val     REAL
 )
 """
 
 COLS = ["nrdl", "datadl", "term_pl_cl", "plafon", "numecli", "codcli",
         "cfcli", "vtdl", "sumdeincas", "factout", "numeag", "canal", "telefon",
-        "discount", "cec", "scad_cec", "cec_doc"]
+        "discount", "cec", "scad_cec", "cec_doc", "cec_val"]
 
 # ERP header name (lowercase) -> our key
 COL_MAP = {
@@ -143,6 +144,7 @@ def parse_solduri_xls(filepath):
             "cec": _i(cell(row, "cec")),
             "scad_cec": datecell(row, "scad_cec"),
             "cec_doc": _s(cell(row, "cec_doc")),
+            "cec_val": None,  # derived in _merge_cec from matched cheque rows
         })
     return out
 
@@ -151,10 +153,12 @@ def _merge_cec(rows):
     """Fold cheque rows (cec=1) into the invoice they cover.
 
     A cheque row's `cec_doc` (ERP `_dl`) holds the `nrdl` of the invoice the
-    cheque covers, and duplicates that invoice's balance. For each cheque row
-    matching an invoice, copy the four cheque columns (discount, cec, scad_cec,
-    cec_doc) onto every matching invoice row and drop the cheque row (stops the
-    balance double-counting). Cheque rows matching no invoice are kept as-is.
+    cheque covers, and its `sumdeincas` duplicates the covered amount. For each
+    cheque row matching an invoice, stamp the invoice row: set the cec flag,
+    accumulate `cec_val` (sum of every cheque covering it — an invoice may have
+    several), keep the earliest `scad_cec`, and copy cec_doc/discount. The
+    cheque row is then dropped (stops the balance double-counting). Cheque rows
+    matching no invoice are kept as-is.
     """
     index = {}
     for r in rows:
@@ -169,7 +173,9 @@ def _merge_cec(rows):
             continue
         for t in targets:
             t["cec"] = 1
-            t["scad_cec"] = r["scad_cec"]
+            t["cec_val"] = round((t.get("cec_val") or 0) + (r.get("sumdeincas") or 0), 2)
+            if r["scad_cec"] and (not t.get("scad_cec") or r["scad_cec"] < t["scad_cec"]):
+                t["scad_cec"] = r["scad_cec"]
             t["cec_doc"] = r["cec_doc"]
             t["discount"] = r["discount"]
         drop.add(i)

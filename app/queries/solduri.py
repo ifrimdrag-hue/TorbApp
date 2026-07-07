@@ -157,7 +157,7 @@ def solduri_by_invoice(bucket=None, agent=None, search=None, codcli=None):
     return query(f"""
         SELECT factout, numecli, codcli, numeag, datadl,
                {_scadenta_expr} AS scadenta, term_pl_cl, sumdeincas,
-               cec, scad_cec,
+               cec, scad_cec, cec_val,
                {_days_expr} AS zile,
                {_BUCKET_LABEL} AS bucket_label
         FROM solduri_neincasate
