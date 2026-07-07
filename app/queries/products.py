@@ -521,18 +521,20 @@ def product_yearly(sku):
 # ── Profitabilitate — ranking și matrice ─────────────────────────────────────
 
 
-def sku_clients_monthly(sku: str) -> list:
+def sku_clients_monthly(sku) -> list:
     """
-    Returns per-client monthly qty for a SKU across all years.
+    Returns per-client monthly qty for a SKU across all years, aggregated
+    over every tranzactii spelling of the same catalog article.
     Shape: [{client, cod_client, years: {year: [12 values]}, total_qty}]
     """
-    rows = query("""
+    sku_f, sku_params = _sku_in(sku_variants(sku) if isinstance(sku, str) else sku)
+    rows = query(f"""
         SELECT client, cod_client, an, luna, SUM(cantitate) AS qty
         FROM tranzactii
-        WHERE sku = :sku
+        WHERE {sku_f}
         GROUP BY client, cod_client, an, luna
         ORDER BY an DESC, luna
-    """, {'sku': sku})
+    """, sku_params)
 
     by_client = {}
     for r in rows:

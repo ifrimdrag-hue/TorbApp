@@ -49,6 +49,7 @@
 
 ## Livrat recent (detalii în CHANGELOG)
 
+- `[x]` **Raportare clienți/produse + integritate branduri & identitate Auchan** (2026-07-07) — taburi + istoric per produs, fix branduri Auchan/HORECA/catalog (migrațiile 0028–0030), import Tobra pe cod mare + realiniere cod_produs (migrația 0031), pagina de produs unificată pe denumiri. Cereri owner 2026-07-07. Rămâne: owner reimportă/verifică fișierul Tobra iulie pe prod după deploy-ul 0031.
 - `[x]` **Modul Comercial → Solduri neîncasate** (2026-07-05) — upload raport ERP + dashboard aging (carduri Nescadent/Scadent 7/30/60 + catch-all, tabel per client/agent/factură, filtrare pe card, export Excel). Referință = azi. Migrație 0021.
 - `[x]` **Solduri: navigare drill-down + pagină facturi client** (2026-07-05) — agent → clienți → pagină client cu toate facturile deschise (emitere, scadență, termen, sumă, zile întârziere, categorie), export Excel per client, link către fișa de vânzări. Cerere owner 2026-07-05.
 - `[x]` **Solduri: bucket-uri disjuncte + terminologie nouă** (2026-07-06) — intervale 1-7/8-30/31-60/>60 pe ambele părți (fără catch-all), redenumire „În termen” / „Scadență depășită” peste tot. Cerere owner 2026-07-06.

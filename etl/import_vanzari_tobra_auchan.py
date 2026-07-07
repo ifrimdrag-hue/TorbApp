@@ -17,6 +17,7 @@ Usage:
 
 import sys
 import os
+import re
 import sqlite3
 import xlrd
 from datetime import datetime, timedelta
@@ -192,7 +193,9 @@ def apply_cost_override(conn, records):
     cache = {}
     counts = {"window": 0, "last_known": 0, "excel": 0}
     for r in records:
-        cod = r["cod_produs"]
+        # corr_vanzari_tobra is keyed by Tobra's own codes, not the resolved
+        # Torb cod_produs.
+        cod = r.get("cod_tobra") or r["cod_produs"]
         if not cod:
             counts["excel"] += 1
             continue
@@ -218,17 +221,70 @@ def build_cod_furnizor_lookup(conn):
     return {str(row[0]): row[1] for row in cur.fetchall()}
 
 
-def build_cod_sku_lookup(conn):
-    """Returns {cod_produs: sku} from ERP records (non-Auchan) for SKU name normalization.
-    Tobra XLS may omit parentheses around EAN codes that ERP includes."""
+_CODE_EAN_RE = re.compile(r"(\d{4,6})-(\d{8,13})\)?")
+_CODE_PAREN_EAN_RE = re.compile(r"\((\d{4,6})\)\s*\(\d{8,13}\)\s*$")
+_TRAILING_CODE_RE = re.compile(r"[\s(](\d{4,6})\)?\s*$")
+
+
+def extract_cod_mare(sku):
+    """Supplier article code (cod mare) embedded in a SKU name — '90204' from
+    'KL EARL GREY (25X2G) 90204-4792252942417', '5754' from '... (5754)
+    (5948593000890)', or a bare trailing code like '... 70312'. Returns None
+    when the name carries no code."""
+    if not sku:
+        return None
+    s = str(sku).strip()
+    m = _CODE_EAN_RE.search(s)
+    if m:
+        return m.group(1)
+    m = _CODE_PAREN_EAN_RE.search(s)
+    if m:
+        return m.group(1)
+    m = _TRAILING_CODE_RE.search(s)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _norm_cod_mare(value):
+    """Normalize a cod mare to its bare numeric form ('90204-00' -> '90204')."""
+    m = re.match(r"(\d{4,6})", str(value or "").strip())
+    return m.group(1) if m else None
+
+
+def build_cod_mare_lookup(conn):
+    """{cod_mare: (erp_sku, erp_cod_produs)} from Torb ERP (non-Auchan) rows,
+    most recent wins. Owner rule: COD MARE is the article identifier for the
+    Tobra import — Tobra's cod_produs numbering collides with Torb's (Tobra
+    1508 = KL English Breakfast vs Torb 1508 = C.Goplana), so cod_produs must
+    never drive identity. stoc.cod_mare has priority over the name-embedded
+    code."""
+    stoc_map = {}
+    try:
+        for sku, cm in conn.execute(
+            "SELECT DISTINCT sku, cod_mare FROM stoc "
+            "WHERE cod_mare IS NOT NULL AND cod_mare != ''"
+        ):
+            norm = _norm_cod_mare(cm)
+            if norm:
+                stoc_map[sku] = norm
+    except sqlite3.OperationalError:
+        pass
     cur = conn.cursor()
     cur.execute(
-        "SELECT cod_produs, MAX(sku) AS sku FROM tranzactii "
-        "WHERE cod_produs IS NOT NULL AND cod_produs != '' "
-        f"  AND cod_client != '{AUCHAN_COD_CLIENT}' "
-        "GROUP BY cod_produs"
+        "SELECT sku, cod_produs, MAX(data_dl) AS dmax FROM tranzactii "
+        "WHERE cod_client != ? AND sku IS NOT NULL GROUP BY sku, cod_produs",
+        (AUCHAN_COD_CLIENT,),
     )
-    return {str(row[0]): row[1] for row in cur.fetchall() if row[1]}
+    best = {}
+    for sku, cod, dmax in cur.fetchall():
+        cm = stoc_map.get(sku) or extract_cod_mare(sku)
+        if not cm:
+            continue
+        prev = best.get(cm)
+        if not prev or (dmax or "") > prev[2]:
+            best[cm] = (sku, cod, dmax or "")
+    return {cm: (sku, cod) for cm, (sku, cod, _) in best.items()}
 
 
 def read_tobra_xls(filepath):
@@ -256,7 +312,7 @@ def read_tobra_xls(filepath):
     return rows, book.datemode
 
 
-def process_rows(rows_raw, cp_lookup, datemode, cod_sku_lookup=None):
+def process_rows(rows_raw, cp_lookup, datemode, cod_mare_lookup=None):
     records = []
     skipped_no_date = 0
     for raw in rows_raw:
@@ -272,9 +328,14 @@ def process_rows(rows_raw, cp_lookup, datemode, cod_sku_lookup=None):
 
         sku        = normalize_str(raw.get("den_b"))
         cod_produs = normalize_str(raw.get("codprod"))
-        # Normalize SKU to match ERP canonical form (Tobra XLS may omit parentheses around EAN)
-        if cod_produs and cod_sku_lookup and cod_produs in cod_sku_lookup:
-            sku = cod_sku_lookup[cod_produs]
+        cod_tobra  = cod_produs
+        # Owner rule: identify the article by COD MARE (the supplier code in
+        # the product name), never by Tobra's cod_produs. On a match, adopt
+        # the Torb ERP name AND Torb cod_produs so the whole app — including
+        # the per-article history in Stoc & Comenzi — sees a single article.
+        cm = extract_cod_mare(sku)
+        if cm and cod_mare_lookup and cm in cod_mare_lookup:
+            sku, cod_produs = cod_mare_lookup[cm]
         cantitate = normalize_num(raw.get("cantit")) or 0
         pvanz     = normalize_num(raw.get("pvanz")) or 0
         pcump     = normalize_num(raw.get("pcump")) or 0
@@ -293,6 +354,7 @@ def process_rows(rows_raw, cp_lookup, datemode, cod_sku_lookup=None):
             "nr_factura":     normalize_str(raw.get("factout")),
             "nr_comanda":     normalize_str(raw.get("nrcomandametro")),
             "cod_produs":     cod_produs,
+            "cod_tobra":      cod_tobra,
             "sku":            sku,
             "furnizor":       derive_furnizor(sku or "", cp_lookup, cod_produs or ""),
             "um":             normalize_str(raw.get("um")) or "BUC",
@@ -365,10 +427,10 @@ def run(filepath=None):
 
     conn = sqlite3.connect(DB_PATH)
     cp_lookup = build_cod_furnizor_lookup(conn)
-    cod_sku_lookup = build_cod_sku_lookup(conn)
+    cod_mare_lookup = build_cod_mare_lookup(conn)
 
     rows_raw, datemode = read_tobra_xls(filepath)
-    records = process_rows(rows_raw, cp_lookup, datemode, cod_sku_lookup)
+    records = process_rows(rows_raw, cp_lookup, datemode, cod_mare_lookup)
     print(f"    → {len(records):,} rânduri procesate")
 
     apply_cost_override(conn, records)

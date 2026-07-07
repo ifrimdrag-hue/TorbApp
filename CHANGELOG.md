@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Import Tobra→Auchan: identitatea articolului pe COD MARE + istoric unificat în Stoc & Comenzi (2026-07-07)
+
+Owner report (screenshot prod, Auchan Iul 2026): the July KL sales appeared as "C.Goplana Jeleuri" (Celmar) on Tobra codes 1508/1509, and Auchan's history was missing from the per-article view in Stoc & Comenzi. Owner rule: **cod mare is the article identifier for the Tobra import**.
+
+- **Root cause**: the July import "normalized" SKU names via a `{cod_produs: sku}` lookup built from Torb ERP rows — but Tobra's numbering collides with Torb's, so the KL rows were renamed to the Torb article for the same numeric cod (C.Goplana) and misfiled under Celmar. Separately, Auchan rows kept Tobra's `cod_produs`, so Stoc & Comenzi (which aggregates `tranzactii` per `cod_produs`) never saw Auchan's history on the real article.
+- **ETL** (`import_vanzari_tobra_auchan.py`): identity now comes from the cod mare embedded in the product name (`extract_cod_mare` + `build_cod_mare_lookup` — stoc `cod_mare` first, then the name-embedded code). On a match the row adopts the Torb ERP sku **and Torb `cod_produs`**; unmatched rows keep the Tobra name/cod verbatim. The Tobra cod survives as `cod_tobra` for the `corr_vanzari_tobra` cost lookup. The cod_produs-based rename is gone.
+- **Migration 0031**: (1) un-renames the collision-hit rows (restores the historical Auchan sku/furnizor; a same-cod-mare pair = legitimate ERP rename, left alone), (2) aligns Auchan rows' `cod_produs` to the Torb ERP cod via cod mare — Auchan KL history now sits on articles 1661/1662/… alongside the other clients, and future-import dedup keys stay consistent.
+- **Stoc & Comenzi article history** (`/api/forecast/sku-clients/<sku>` → `sku_clients_monthly`) aggregates over all SKU spellings of the article (`sku_variants`) — verified: KL Earl Grey queried by the ERP name now lists AUCHAN (13.680 buc) among its clients.
+- Tests: 266 passing (cod-mare extraction incl. Leonex paren form, collision-proof identity resolution, migration repair + idempotency on a synthetic DB). Business rule documented in `docs/BUSINESS_LOGIC.md` §3 (Auchan/Tobra exception) + §5.
+
 ### Fix: catalog pe brandul corect + pagina de produs unificată pe denumiri (2026-07-07)
 
 Owner report on articles 90204/90205 (KL Earl Grey / English Breakfast): a July KingsLeaf sale to Auchan wasn't visible. Root causes were the Tobra data-flow lag (sale sits under client Tobra until the monthly "Vânzări Auchan" import — by design) plus two real defects found while tracing:

@@ -130,12 +130,26 @@ Torb→Auchan sales are invoiced through the intermediary **Tobra Invest SRL**
 - `etl/import_vanzari_tobra_auchan.py` imports Tobra→Auchan invoices as if they
   were Torb→Auchan sales (client 732 `AUCHAN ROMANIA SA`, agent Oana Filip;
   invoice numbers keep the `TOBRA` prefix as a marker).
+- **Identity rule (2026-07-07, owner decision):** the article identity of each
+  imported row comes from the **COD MARE** embedded in the product name
+  (`extract_cod_mare`: '90204' from `KL EARL GREY (25X2G) 90204-...`), NEVER
+  from Tobra's `cod_produs` — Tobra's numbering collides with Torb's (Tobra
+  `1508` = KL English Breakfast vs Torb `1508` = C.Goplana/Celmar). On a cod
+  mare match against Torb ERP rows (`build_cod_mare_lookup`, stoc `cod_mare`
+  first, then the name-embedded code), the row adopts the **Torb ERP sku and
+  Torb `cod_produs`** — so Stoc & Comenzi per-article history (grouped by
+  `cod_produs`) includes the Auchan sales. Unmatched rows keep the Tobra
+  name/cod verbatim (no cod_produs-based renaming — the pre-0031 name
+  normalization by colliding cod misfiled the July 2026 KL sales as
+  C.Goplana). The original Tobra cod stays on the in-memory record as
+  `cod_tobra` for the cost lookup below. Existing rows realigned by migration
+  `0031`.
 - **Cost rule (2026-07-02):** each imported row's `pret_cumparare` is overridden
-  with the simple average of `corr_vanzari_tobra` costs for that `cod_produs` over
-  the 30 days before the row's own `data_dl`; fallback: most recent cost ≤ row
-  date, then the value from the Tobra file. `val_achizitie` and `marja_bruta`
-  are recomputed. Upload order matters: import Vânzări ERP before Vânzări
-  Auchan so the cost table is fresh.
+  with the simple average of `corr_vanzari_tobra` costs for that row's **Tobra**
+  `cod_produs` (`cod_tobra`) over the 30 days before the row's own `data_dl`;
+  fallback: most recent cost ≤ row date, then the value from the Tobra file.
+  `val_achizitie` and `marja_bruta` are recomputed. Upload order matters:
+  import Vânzări ERP before Vânzări Auchan so the cost table is fresh.
 
 ---
 
@@ -213,9 +227,13 @@ Tipson catalog rows, since 2026-07-07).
 
 The same physical product can also carry **different tranzactii SKU spellings
 per data source** (ERP `KL CEAI EARL GREY (25X2G) 90204-...` vs Tobra/Auchan
-file `KL EARL GREY (25X2G) 90204-...`). The produs detail page and its Excel
-export aggregate over all spellings that resolve to the same catalog article
-(`queries.sku_variants`, built on `resolve_catalog_sku`).
+file `KL EARL GREY (25X2G) 90204-...`). The produs detail page, its Excel
+export and the Stoc & Comenzi per-article client history
+(`sku_clients_monthly`) aggregate over all spellings that resolve to the same
+catalog article (`queries.sku_variants`, built on `resolve_catalog_sku`).
+Since 2026-07-07 the Tobra import itself resolves new rows to the Torb ERP
+spelling/cod via cod mare (see §3 The Auchan/Tobra exception), so new variants
+should stop appearing.
 
 **HORECA formats keep their own brand** (since 2026-07-07): names like
 `HORECA TS ...` (Tipson 80xxx) / `HORECA KL ...` / `HORECA ORGANSIA...` are
