@@ -30,6 +30,9 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
 
+    pnl_torb_folder: str = r"G:\My Drive\1_a_Torb\Buget2026\Balante 2025"
+    pnl_tobra_folder: str = r"G:\My Drive\1_a_Torb\Buget2026\Balante 2025\balante"
+
     anthropic_api_key: str = ""
     ai_model: str = "claude-sonnet-4-6"
 

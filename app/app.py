@@ -34,6 +34,7 @@ def create_app(test_config=None):
     from blueprints.campanii import campanii_bp
     from blueprints.postari import postari_bp
     from blueprints.pachete import pachete_bp
+    from blueprints.pnl import pnl_bp
 
     # ── Logging ──────────────────────────────────────────────────────────────
     from logging_config import setup_logging
@@ -98,6 +99,7 @@ def create_app(test_config=None):
     app.register_blueprint(campanii_bp)
     app.register_blueprint(postari_bp)
     app.register_blueprint(pachete_bp)
+    app.register_blueprint(pnl_bp)
 
     # ── Startup tasks (skipped in test mode) ─────────────────────────────────
     if not app.config.get('TESTING'):
