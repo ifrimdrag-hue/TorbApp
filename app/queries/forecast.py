@@ -393,14 +393,14 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
             'sug_piete':         sug_piete,
         })
 
-    # Adaugă produse cu vânzări recente (90 zile) dar fără stoc și fără tranzit activ
+    # Adaugă produse cu vânzări recente (365 zile) dar fără stoc și fără tranzit activ
     import re as _re
     existing_skus = {r['sku'] for r in rows}
     sold_no_stoc = query("""
         SELECT DISTINCT sku, furnizor,
                (SELECT MAX(s2.cod_mare) FROM stoc s2 WHERE s2.sku = tranzactii.sku) AS cod_mare
         FROM tranzactii
-        WHERE data_dl >= date('now', '-90 days')
+        WHERE data_dl >= date('now', '-365 days')
           AND sku NOT IN (
               SELECT sku FROM stoc
               WHERE data_snapshot = (SELECT MAX(data_snapshot) FROM stoc)
