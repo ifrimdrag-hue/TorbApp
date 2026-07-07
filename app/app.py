@@ -199,17 +199,37 @@ def create_app(test_config=None):
             return None
         return (d - datetime.date.today()).days
 
+    # ── Static cache busting ─────────────────────────────────────────────────
+    # Append ?v=<mtime> to static URLs so browsers pick up new JS/CSS after a
+    # deploy instead of serving a stale cached copy.
+    @app.url_defaults
+    def static_cache_bust(endpoint, values):
+        if endpoint == 'static' and 'filename' in values:
+            path = os.path.join(app.static_folder, values['filename'])
+            try:
+                values['v'] = int(os.stat(path).st_mtime)
+            except OSError:
+                pass
+
     # ── Context processor ────────────────────────────────────────────────────
+    _MONTHS_RO = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun',
+                  'Iul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
     @app.context_processor
     def inject_globals():
         from feature_flags import SHOW_TESTING
         cy = datetime.date.today().year
+        an = request.args.get('an', type=int) or cy
+        luna = request.args.get('luna', type=int)
+        month = _MONTHS_RO[luna - 1] + ' ' if luna and 1 <= luna <= 12 else ''
         return {
             'current_year': cy,
             'today': datetime.date.today(),
             'display_years': [cy - 2, cy - 1, cy],
             'sku_cod_mare': queries.get_sku_cod_mare_map(),
             'show_testing': SHOW_TESTING,
+            'period_cy': f'{month}{an}',
+            'period_py': f'{month}{an - 1}',
         }
 
     # ── Error handlers ───────────────────────────────────────────────────────

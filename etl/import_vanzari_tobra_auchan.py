@@ -53,8 +53,18 @@ DB_COLS = [
 
 
 def derive_furnizor(sku: str, cp_lookup: dict, cod_produs: str) -> str:
+    furn = _furnizor_from_sku_name(sku)
+    if furn != "Altele":
+        return furn
+    # Fallback only: Tobra's cod_produs numbering collides with Torb's ERP codes
+    # (e.g. 1508 = 'KL ENGLISH BREAKFAST' at Tobra but 'C.GOPLANA' / Celmar at
+    # Torb), so the SKU-name rules must win whenever they match.
     if cod_produs and cod_produs in cp_lookup:
         return cp_lookup[cod_produs]
+    return "Altele"
+
+
+def _furnizor_from_sku_name(sku: str) -> str:
     if not sku:
         return "Altele"
     s = str(sku).strip()
@@ -84,6 +94,15 @@ def derive_furnizor(sku: str, cp_lookup: dict, cod_produs: str) -> str:
             return "Solvex"
     if su.startswith("IMAJ "):
         return "Solvex"
+    # HORECA formats of the virtual sub-brands keep their own brand
+    # (TS = Tipson 80xxx, KL = KingsLeaf 90xxx, Organsia) — must be checked
+    # before the generic HORECA -> Basilur rule.
+    if su.startswith("HORECA TS ") or su.startswith("H TS "):
+        return "Tipson"
+    if su.startswith("HORECA KL ") or su.startswith("H KL "):
+        return "KingsLeaf"
+    if su.startswith("HORECA ORGANSIA") or su.startswith("HORECA B.ECO ORGANSIA"):
+        return "Organsia"
     if su.startswith("HORECA ") or su.startswith("H "):
         return "Basilur"
     if (su.startswith("CUTIE HORECA") or su.startswith("CUTIE LEMN")

@@ -20,6 +20,11 @@
       <span class="badge bg-primary me-1">{{ kpi.furnizor or '—' }}</span>
       {{ kpi.cantitate }} buc. vândute · {{ kpi.nr_clienti }} clienți · {{ kpi.nr_agenti }} agenți
     </small>
+    {% if sku_variants %}
+    <br><small class="text-muted"><i class="bi bi-link-45deg"></i> include și denumirea:
+      {% for v in sku_variants %}<em title="{{ v }}">{{ v | truncate(60, True, '…') }}</em>{% if not loop.last %} · {% endif %}{% endfor %}
+    </small>
+    {% endif %}
   </div>
   <div class="d-flex gap-2 align-items-center">
     <a href="{{ url_for('reports.export_excel', report='produs', sku=sku, an=an) }}"
@@ -129,16 +134,23 @@
 
 <!-- Clienți care cumpără produsul -->
 <div class="card shadow-sm border-0">
-  <div class="card-header bg-white fw-semibold d-flex justify-content-between">
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
     <span>
       <i class="bi bi-building me-1 text-secondary"></i>
       Clienți care cumpără acest produs — {{ period_cy }}
-      <span class="badge bg-secondary ms-1">{{ clients | length }}</span>
+      <span class="badge bg-secondary ms-1" id="cliPeriodCount">{{ clients | length }}</span>
+      <span class="badge bg-secondary ms-1 d-none" id="cliIstoricCount">{{ clients_istoric | length }}</span>
     </span>
-    <input type="text" class="form-control form-control-sm w-auto" id="cliSearch"
-           placeholder="Filtrare client…" oninput="filterCli(this.value)">
+    <div class="d-flex gap-2 align-items-center">
+      <div class="btn-group btn-group-sm">
+        <button type="button" class="btn btn-primary active" id="btnCliPeriod" onclick="switchCli('period')">Perioadă</button>
+        <button type="button" class="btn btn-outline-primary" id="btnCliIstoric" onclick="switchCli('istoric')">Istoric</button>
+      </div>
+      <input type="text" class="form-control form-control-sm w-auto" id="cliSearch"
+             placeholder="Filtrare client…" oninput="filterCli(this.value)">
+    </div>
   </div>
-  <div class="table-responsive">
+  <div class="table-responsive" id="wrapCliPeriod">
     <table class="table table-sm table-hover mb-0" id="cliTable">
       <thead class="table-dark">
         <tr>
@@ -185,6 +197,43 @@
       </tbody>
     </table>
   </div>
+  <div class="table-responsive d-none" id="wrapCliIstoric">
+    <table class="table table-sm table-hover mb-0" id="cliIstoricTable">
+      <thead class="table-dark">
+        <tr>
+          <th>Client</th>
+          <th>Agent</th>
+          {% for yr in istoric_years %}
+          <th class="text-end">Val Netă {{ yr }}</th>
+          {% endfor %}
+          <th class="text-end">Total Val Netă</th>
+          <th class="text-end">Cant. totală</th>
+          <th>Ultima achiziție</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clients_istoric %}
+        <tr>
+          <td>
+            <a href="{{ url_for('analytics.client_detail', cod_client=c.cod_client, an=an, luna=luna) if luna else url_for('analytics.client_detail', cod_client=c.cod_client, an=an) }}"
+               class="text-decoration-none small">{{ c.client | truncate(35, True, '…') }}</a>
+          </td>
+          <td class="small text-muted">{{ c.agent or '—' }}</td>
+          {% for yr in istoric_years %}
+          <td class="text-end small {% if c.per_an.get(yr) is none %}text-muted{% endif %}">
+            {{ c.per_an.get(yr) | ron if c.per_an.get(yr) is not none else '—' }}
+          </td>
+          {% endfor %}
+          <td class="text-end small fw-semibold">{{ c.val_neta | ron }}</td>
+          <td class="text-end small">{{ c.cantitate | int }}</td>
+          <td class="small text-muted">{{ c.ultima_achizitie or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ 5 + istoric_years | length }}" class="text-center text-muted py-3">Nicio vânzare înregistrată</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}
 
@@ -217,9 +266,25 @@ const PAL = {
 
 function filterCli(q) {
   const lq = q.toLowerCase();
-  document.querySelectorAll('#cliTable tbody tr').forEach(r => {
+  document.querySelectorAll('#cliTable tbody tr, #cliIstoricTable tbody tr').forEach(r => {
     r.style.display = r.textContent.toLowerCase().includes(lq) ? '' : 'none';
   });
+}
+
+function switchCli(mode) {
+  const isPeriod = mode === 'period';
+  document.getElementById('wrapCliPeriod').classList.toggle('d-none', !isPeriod);
+  document.getElementById('wrapCliIstoric').classList.toggle('d-none', isPeriod);
+  document.getElementById('cliPeriodCount').classList.toggle('d-none', !isPeriod);
+  document.getElementById('cliIstoricCount').classList.toggle('d-none', isPeriod);
+  const bp = document.getElementById('btnCliPeriod');
+  const bi = document.getElementById('btnCliIstoric');
+  bp.classList.toggle('btn-primary', isPeriod);
+  bp.classList.toggle('btn-outline-primary', !isPeriod);
+  bp.classList.toggle('active', isPeriod);
+  bi.classList.toggle('btn-primary', !isPeriod);
+  bi.classList.toggle('btn-outline-primary', isPeriod);
+  bi.classList.toggle('active', !isPeriod);
 }
 </script>
 {% endblock %}

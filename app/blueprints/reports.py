@@ -42,15 +42,19 @@ def produs_detail(sku):
     an      = int(request.args.get('an', datetime.date.today().year))
     luna    = request.args.get('luna', type=int)
     max_luna = None if luna else queries.max_luna_for_year(an)
-    kpi     = queries.product_kpi(sku, an, luna=luna, max_luna=max_luna)
-    kpi_py  = queries.product_kpi(sku, an - 1, luna=luna, max_luna=max_luna)
+    # Same physical product can exist under several tranzactii spellings
+    # (ERP vs Tobra/Auchan file) — aggregate the whole page over all of them.
+    variants = queries.sku_variants(sku)
+    kpi     = queries.product_kpi(variants, an, luna=luna, max_luna=max_luna)
+    kpi_py  = queries.product_kpi(variants, an - 1, luna=luna, max_luna=max_luna)
     if not kpi:
         abort(404)
     kpi['delta_vn'] = _delta_pct(kpi.get('val_neta', 0), (kpi_py or {}).get('val_neta', 0))
 
-    clients = queries.product_clients(sku, an, luna=luna, max_luna=max_luna)
-    monthly = queries.product_monthly(sku)
-    yearly  = queries.product_yearly(sku)
+    clients = queries.product_clients(variants, an, luna=luna, max_luna=max_luna)
+    clients_istoric, istoric_years = queries.product_clients_istoric(variants)
+    monthly = queries.product_monthly(variants)
+    yearly  = queries.product_yearly(variants)
 
     trend = {}
     for r in monthly:
@@ -63,6 +67,8 @@ def produs_detail(sku):
         sku=sku, an=an, luna=luna,
         kpi=kpi, kpi_py=kpi_py,
         clients=clients, yearly=yearly,
+        clients_istoric=clients_istoric, istoric_years=istoric_years,
+        sku_variants=[v for v in variants if v != sku],
         trend_json=json.dumps(trend),
         months_json=json.dumps(MONTHS_RO),
     )
@@ -335,14 +341,15 @@ def export_excel(report):
         sku = request.args.get('sku', '').strip()
         if not sku:
             abort(404)
-        kpi = queries.product_kpi(sku, an)
+        variants = queries.sku_variants(sku)
+        kpi = queries.product_kpi(variants, an)
         if not kpi:
             abort(404)
         sheets = {
             'KPI': [dict(kpi)],
-            f'Clienți {an}': queries.product_clients(sku, an),
-            'Evoluție Anuală': queries.product_yearly(sku),
-            'Trend Lunar': queries.product_monthly(sku),
+            f'Clienți {an}': queries.product_clients(variants, an),
+            'Evoluție Anuală': queries.product_yearly(variants),
+            'Trend Lunar': queries.product_monthly(variants),
         }
         safe_sku = sku.replace(' ', '_').replace('/', '_')[:30]
         return send_excel(sheets, timestamped_filename(f'produs_{safe_sku}_{an}'))

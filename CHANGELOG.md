@@ -34,6 +34,40 @@ The standalone monthly P&L app (`pnl_app/`, own Flask + SQLite on port 5002) is 
 - **Config** — `pnl_torb_folder`/`pnl_tobra_folder` in `app/config.py` (env-backed, folder-scan sources).
 - Existing `pnl.db` data (1948 balance rows across 2025–2026) copied once into `torb.db` locally via a throwaway dev script (not committed); dev/prod load their own data through the upload UI. `pnl_app/` deleted. Tests: 278 passing (20 new across db/queries/logic/import/export/routes). Verified end-to-end against copied data (torb 2026 Mar: CA 1.39M, EBITDA 204k, Profit net 145k; workbook builds).
 
+### Fix: catalog pe brandul corect + pagina de produs unificată pe denumiri (2026-07-07)
+
+Owner report on articles 90204/90205 (KL Earl Grey / English Breakfast): a July KingsLeaf sale to Auchan wasn't visible. Root causes were the Tobra data-flow lag (sale sits under client Tobra until the monthly "Vânzări Auchan" import — by design) plus two real defects found while tracing:
+
+- **Catalog (`produse`) brand**: the monitorizare spreadsheet lists KingsLeaf/Tipson articles with Furnizor=Basilur and the sub-brand only in the Brand column ('KINGSLEAF', 'TIPSON TEA'), so 54 KingsLeaf + 56 Tipson articles sat under furnizor='Basilur'. `import_preturi` now normalizes via the Brand column (`VIRTUAL_BRAND_CANON`, catches typos like 'KINSGELAF' and CHRISTMAS-named KL articles); migration 0032 backfills. Also fixed the dead `SUPPLIER_ORIGIN` key 'Kings Leaf' → 'KingsLeaf'.
+- **Product page split per SKU spelling**: the same article exists under two tranzactii names (ERP 'KL CEAI EARL GREY 90204-...' vs Tobra/Auchan 'KL EARL GREY 90204-...'), so `/produs/<sku>` showed only half the history — Auchan was invisible on the ERP-named page. `queries.sku_variants` (built on `resolve_catalog_sku`) now aggregates the page, its KPIs, client tables and Excel export over all spellings of the same catalog article; the header lists the merged names.
+- Verified in browser: the ERP-named KL Earl Grey page now shows brand KingsLeaf, combined KPIs (74.039 RON YTD 2026) and Auchan in Istoric (55.574 RON total). Tests: 261 passing.
+
+### Fix: produsele HORECA ale sub-brandurilor virtuale rămân pe brandul lor (2026-07-07)
+
+Owner rule: Basilur / KingsLeaf / Tipson / Organsia must always show separately, everywhere.
+
+- The generic `HORECA ` → Basilur name rule ran before any virtual-brand check, so Tipson's HORECA line (`HORECA TS ...`, ERP 80xxx — 9 SKUs, ~5.8k RON) sat under Basilur in `tranzactii` and `produse`. All three ETL derivation functions (`import_stoc`, `import_vanzari_erp`, `import_vanzari_tobra_auchan`) now check `HORECA TS ` / `HORECA KL ` / `HORECA ORGANSIA` first; migration 0031 reclassifies existing rows across `tranzactii`/`stoc`/`produse` (idempotent).
+- Docs: `docs/BUSINESS_LOGIC.md` §5. Tests: 261 passing (new coverage for the HORECA variants on all three derivers). Verified post-migration: zero family SKUs left under a wrong brand.
+
+### Fix: branduri greșit atribuite la Auchan — KingsLeaf lipsea din raportare (2026-07-07)
+
+Owner report: KingsLeaf never showed up as a separate brand in Auchan's client reporting/history.
+
+- **Root cause**: the Tobra→Auchan import resolved `furnizor` through a `cod_produs` lookup built from Torb ERP rows, but Tobra's product-code numbering collides with Torb's (e.g. Tobra `1508` = *KL English Breakfast*, Torb `1508` = *C.Goplana*/Celmar). Result at Auchan: KingsLeaf tea filed under Celmar (135k RON) and Basilur (12k), Toras chocolate under Basilur (137k) and Solvex (6.6k), Celmar tea under Basilur (34k) — ~325k RON misattributed across 2024–2026.
+- **ETL** (`etl/import_vanzari_tobra_auchan.py`): SKU-name prefix rules now run **before** the cod_produs lookup; the lookup remains only as fallback for names with no rule. Tests cover the collision case.
+- **Migration 0030** re-applies the prefix rules to existing Auchan rows (idempotent, same rule order as the ETL). Verified after migration: KingsLeaf appears at Auchan with full history (70.080 / 56.749 / 20.089 RON on 2024/2025/2026) and zero mislabeled KL/T./CELMAR rows remain.
+- Docs: `docs/BUSINESS_LOGIC.md` §5 records the lookup-fallback rule. Tests: 260 passing.
+
+### Analiză: istoric clienți pe produs, taburi produse la client, cache-busting statice (2026-07-07)
+
+Owner report: on the product page a client like Auchan "disappears" if it only bought in past years; the produse nelistate list sat below the sold-products table; filters looked dead in the browser.
+
+- **Produs → Clienți: toggle Perioadă/Istoric** — the client table on `/produs/<sku>` only showed buyers in the selected period, hiding historic buyers entirely. New *Istoric* view (`queries.product_clients_istoric`) lists every client that ever bought the SKU with dynamic per-year Val Netă columns, totals and last-purchase date; the quick client search filters both views.
+- **Client page: Produse Cumpărate / Produse Nelistate as tabs** — the two stacked cards became Bootstrap tabs; the Perioadă/Istoric toggle and column filters live inside the Nelistate tab unchanged.
+- **Static cache-busting** — `url_for('static', ...)` now appends `?v=<mtime>`, so browsers pick up new JS/CSS right after a deploy. Likely the reason the (working) table filters appeared broken: `table-filter.js` reached prod on 2026-07-06 but stale cached assets kept the buttons dead until a hard refresh.
+- **Period labels** — templates referenced undefined `period_cy`/`period_py` (headers rendered as "Val Netă  vs "); the context processor now derives them from `an`/`luna` ("2026", "Mar 2026").
+- Tests: 258 passing. Verified in browser: Auchan visible in Istoric on a 2024/2025-only SKU; tabs + filters work on `/client/732`.
+
 ### Solduri: disjoint aging buckets + new terminology (2026-07-06)
 
 Owner changed the aging rule and vocabulary, applied module-wide (cards, all three table views, client page, invoice category labels, Excel exports).

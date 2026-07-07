@@ -203,14 +203,31 @@ names that differ across tables depending on data source:
   `ORGANSIA - ORGANIC - BOX - ...` → match prefix **`ORGANSIA`** (the `B.ECO
   ORGANSIA` form never appears in `produse`).
 
-KingsLeaf's `KL ` and Tipson's `TS ` prefixes do not have this split — they look
-the same in every table, because they don't overlap with a shared ERP letter
-prefix the way Organsia/Basilur (`B.`) do.
+KingsLeaf's `KL ` and Tipson's `TS ` prefixes hold in `stoc`/`tranzactii`, but
+NOT in `produse`: the monitorizare spreadsheet names them `KINGSLEAF - FMCG -
+BOX - ...` / `TIPSON - ...` (sometimes `CHRISTMAS - ...` or with typos like
+`KINSGELAF`), with Furnizor=Basilur and the sub-brand only in the **Brand
+column** — so `import_preturi` normalizes furnizor/brand via the Brand column
+(`VIRTUAL_BRAND_CANON` map; migration `0032` backfilled 54 KingsLeaf + 56
+Tipson catalog rows, since 2026-07-07).
+
+The same physical product can also carry **different tranzactii SKU spellings
+per data source** (ERP `KL CEAI EARL GREY (25X2G) 90204-...` vs Tobra/Auchan
+file `KL EARL GREY (25X2G) 90204-...`). The produs detail page and its Excel
+export aggregate over all spellings that resolve to the same catalog article
+(`queries.sku_variants`, built on `resolve_catalog_sku`).
+
+**HORECA formats keep their own brand** (since 2026-07-07): names like
+`HORECA TS ...` (Tipson 80xxx) / `HORECA KL ...` / `HORECA ORGANSIA...` are
+checked BEFORE the generic `HORECA ` → Basilur rule in all three derivation
+functions — otherwise the HORECA rule swallowed them into Basilur (real case:
+9 `HORECA TS` SKUs; corrected by migration `0031` across
+`tranzactii`/`stoc`/`produse`).
 
 **Where the rule lives (duplicated by design — no shared module):**
 - `etl/import_stoc.py` — `derive_furnizor()` matches `sku.upper().startswith("B.ECO ORGANSIA")` (checked before the generic `s.startswith("B.")` Basilur rule), `s.startswith("KL ")`, `s.startswith("TS ")`; `derive_gama()` maps `furnizor` → `gama` via `gama_map`
 - `etl/import_vanzari_erp.py` — `_furnizor_from_prefix()`
-- `etl/import_vanzari_tobra_auchan.py` — `derive_furnizor()`
+- `etl/import_vanzari_tobra_auchan.py` — `derive_furnizor()`. **SKU-name rules run FIRST; the `cod_produs`→furnizor lookup is only a fallback** (since 2026-07-07): Tobra's cod_produs numbering collides with Torb's ERP codes (e.g. Tobra `1508` = `KL ENGLISH BREAKFAST` vs Torb `1508` = `C.GOPLANA`/Celmar), which used to file Auchan's KingsLeaf tea under Celmar/Basilur and Toras chocolate under Basilur/Solvex (~325k RON, 2024–2026; corrected by migration `0030`)
 - `etl/import_preturi.py` — `import_monitorizare()` overrides `furnizor`/`brand` to `"Organsia"` for the `produse` table when `descriere.upper()` starts with `"ORGANSIA"` (the pricing spreadsheet uses this form, not the ERP `B.ECO ORGANSIA` form — the `"B.ECO ORGANSIA"` check in that same `if` is defensive and doesn't currently match any `produse` row)
 - `etl/update_data.py` + `etl/rebuild_db.py` — `GAMA_MAP` / lead-time seed
 

@@ -38,12 +38,22 @@ HS_DUTY = {
 SUPPLIER_ORIGIN = {
     'Basilur':   ('Sri Lanka',  'import_extraeu'),
     'Tipson':    ('Sri Lanka',  'import_extraeu'),
-    'Kings Leaf':('Sri Lanka',  'import_extraeu'),
+    'KingsLeaf': ('Sri Lanka',  'import_extraeu'),
     'Organsia':  ('Sri Lanka',  'import_extraeu'),
     'Delaviuda': ('Spania',     'eu'),
     'Celmar':    ('Polonia',    'eu'),
     'Torras':    ('Spania',     'eu'),
     'Leonex':    ('Romania',    'intern'),
+}
+
+# Spreadsheet Brand-column spellings -> canonical tranzactii furnizor for the
+# Basilur virtual sub-brands (see docs/BUSINESS_LOGIC.md §5).
+VIRTUAL_BRAND_CANON = {
+    'KINGSLEAF': 'KingsLeaf',
+    'KINGS LEAF': 'KingsLeaf',
+    'TIPSON': 'Tipson',
+    'TIPSON TEA': 'Tipson',
+    'ORGANSIA': 'Organsia',
 }
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -107,6 +117,12 @@ def import_monitorizare(conn):
         if _d.startswith("ORGANSIA") or _d.startswith("B.ECO ORGANSIA"):
             furnizor = "Organsia"
             brand = "Organsia"
+        elif brand.upper() in VIRTUAL_BRAND_CANON:
+            # Virtual sub-brands of Basilur: the sheet's Furnizor column says
+            # Basilur (the real supplier), but the Brand column identifies the
+            # sub-brand — normalize to the canonical tranzactii furnizor so
+            # the four brands stay separate everywhere.
+            furnizor = brand = VIRTUAL_BRAND_CANON[brand.upper()]
         categorie= str(row[col.get('Categorie', 0)] or '').strip() if col.get('Categorie') is not None else ''
         moneda   = str(row[col['Monedă']] or 'USD').strip()
         pret_cur = to_float(row[col.get('Preț curent')])

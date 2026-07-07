@@ -278,6 +278,32 @@ def brand_clients(furnizor, an, max_luna=None, luna=None, limit=200):
 
 
 
+def _sku_in(sku, col='sku'):
+    """(fragment, params) matching one SKU or a list of SKU name variants.
+    The same physical product can appear in tranzactii under several
+    spellings (ERP vs Tobra file naming) — see sku_variants()."""
+    skus = [sku] if isinstance(sku, str) else list(sku)
+    ph = ','.join(f':sku{i}' for i in range(len(skus)))
+    return f"{col} IN ({ph})", {f'sku{i}': s for i, s in enumerate(skus)}
+
+
+def sku_variants(sku):
+    """All tranzactii SKU spellings that resolve to the same catalog article
+    (e.g. 'KL EARL GREY (25X2G) 90204-...' from the Tobra/Auchan file and
+    'KL CEAI EARL GREY (25X2G) 90204-...' from the ERP). Returns [sku] when
+    the product is unknown to the catalog."""
+    from queries._shared import get_catalog_resolver
+    resolve = get_catalog_resolver()
+    key = resolve(sku)
+    if not key:
+        return [sku]
+    variants = [r['sku'] for r in query("SELECT DISTINCT sku FROM tranzactii")
+                if resolve(r['sku']) == key]
+    if sku not in variants:
+        variants.append(sku)
+    return variants
+
+
 def product_kpi(sku, an, luna=None, max_luna=None):
     """KPI card for a single SKU in a given year/period (proportional condition attribution)."""
     if luna:
@@ -286,12 +312,14 @@ def product_kpi(sku, an, luna=None, max_luna=None):
         period_filter = "AND luna <= :max_luna"
     else:
         period_filter = ""
+    sku_f, sku_params = _sku_in(sku)
+    sku_ft, _ = _sku_in(sku, col='t.sku')
 
     sql = f"""
         WITH
         base_cf AS (
             SELECT cod_client, furnizor, SUM(val_neta) AS val_neta
-            FROM tranzactii WHERE sku = :sku AND an = :an {period_filter}
+            FROM tranzactii WHERE {sku_f} AND an = :an {period_filter}
             GROUP BY cod_client, furnizor
         ),
         cond_matched AS (
@@ -332,9 +360,9 @@ def product_kpi(sku, an, luna=None, max_luna=None):
             COUNT(DISTINCT t.agent)  AS nr_agenti,
             MAX(t.data_dl)           AS ultima_vanzare
         FROM tranzactii t
-        WHERE t.sku = :sku AND t.an = :an {period_filter}
+        WHERE {sku_ft} AND t.an = :an {period_filter}
     """
-    params = {'sku': sku, 'an': an}
+    params = {'an': an, **sku_params}
     if luna:
         params['luna'] = luna
     elif max_luna:
@@ -351,7 +379,9 @@ def product_clients(sku, an, luna=None, max_luna=None):
     else:
         period_filter = ""
 
-    cond_cte = _COND_CTE.format(where_inner=f"sku = :sku AND an = :an {period_filter}")
+    sku_f, sku_params = _sku_in(sku)
+    sku_ft, _ = _sku_in(sku, col='t.sku')
+    cond_cte = _COND_CTE.format(where_inner=f"{sku_f} AND an = :an {period_filter}")
     sql = f"""
         WITH {cond_cte},
         client_py AS (
@@ -359,7 +389,7 @@ def product_clients(sku, an, luna=None, max_luna=None):
                 SUM(cantitate) AS cantitate_py,
                 SUM(val_neta)  AS val_neta_py
             FROM tranzactii
-            WHERE sku = :sku AND an = :an - 1 {period_filter}
+            WHERE {sku_f} AND an = :an - 1 {period_filter}
             GROUP BY cod_client
         )
         SELECT t.client, t.cod_client, t.agent,
@@ -377,11 +407,11 @@ def product_clients(sku, an, luna=None, max_luna=None):
         FROM tranzactii t
         LEFT JOIN cond_cost cc ON cc.cod_client = t.cod_client
         LEFT JOIN client_py py ON py.cod_client = t.cod_client
-        WHERE t.sku = :sku AND t.an = :an {period_filter}
+        WHERE {sku_ft} AND t.an = :an {period_filter}
         GROUP BY t.client
         ORDER BY val_neta DESC
     """
-    params = {'sku': sku, 'an': an}
+    params = {'an': an, **sku_params}
     if luna:
         params['luna'] = luna
     elif max_luna:
@@ -389,16 +419,48 @@ def product_clients(sku, an, luna=None, max_luna=None):
     return query(sql, params)
 
 
+def product_clients_istoric(sku):
+    """All clients that ever bought this SKU: Val Netă pivot per year + totals.
+    Membership is all-time, so historic buyers stay visible even when the
+    period view (product_clients) has no rows for them.
+    Returns (rows, years) — years drive the dynamic columns in the template."""
+    sku_ft, sku_params = _sku_in(sku, col='t.sku')
+    raw = query(f"""
+        SELECT t.client, t.cod_client, MAX(t.agent) AS agent, t.an,
+            ROUND(SUM(t.cantitate), 0) AS cantitate,
+            ROUND(SUM(t.val_neta), 0)  AS val_neta,
+            MAX(t.data_dl)             AS ultima_achizitie
+        FROM tranzactii t
+        WHERE {sku_ft}
+        GROUP BY t.client, t.an
+    """, sku_params)
+    years = sorted({r['an'] for r in raw})
+    clients = {}
+    for r in raw:
+        c = clients.setdefault(r['client'], {
+            'client': r['client'], 'cod_client': r['cod_client'], 'agent': r['agent'],
+            'per_an': {}, 'cantitate': 0, 'val_neta': 0, 'ultima_achizitie': None,
+        })
+        c['per_an'][r['an']] = r['val_neta'] or 0
+        c['cantitate'] += r['cantitate'] or 0
+        c['val_neta'] += r['val_neta'] or 0
+        if not c['ultima_achizitie'] or (r['ultima_achizitie'] or '') > c['ultima_achizitie']:
+            c['ultima_achizitie'] = r['ultima_achizitie']
+            c['agent'] = r['agent']
+    rows = sorted(clients.values(), key=lambda c: c['val_neta'], reverse=True)
+    return rows, years
+
+
 def product_monthly(sku):
     """Monthly trend for a SKU across last 3 years."""
-    params = {'sku': sku}
+    sku_f, params = _sku_in(sku)
     params.update(_years_params())
-    return query("""
+    return query(f"""
         SELECT an, luna,
             ROUND(SUM(val_neta), 0)  AS val_neta,
             ROUND(SUM(cantitate), 0) AS cantitate
         FROM tranzactii
-        WHERE sku = :sku AND an IN (:y0, :y1, :y2)
+        WHERE {sku_f} AND an IN (:y0, :y1, :y2)
         GROUP BY an, luna
         ORDER BY an, luna
     """, params)
@@ -406,11 +468,13 @@ def product_monthly(sku):
 
 def product_yearly(sku):
     """Yearly VN + MB + MN trend for a SKU."""
-    return query("""
+    sku_f, sku_params = _sku_in(sku)
+    sku_ft, _ = _sku_in(sku, col='t.sku')
+    return query(f"""
         WITH
         base_acf AS (
             SELECT an, cod_client, furnizor, SUM(val_neta) AS val_neta
-            FROM tranzactii WHERE sku = :sku GROUP BY an, cod_client, furnizor
+            FROM tranzactii WHERE {sku_f} GROUP BY an, cod_client, furnizor
         ),
         cond_matched AS (
             SELECT b.an, CASE WHEN c.tip_valoare='pct' THEN b.val_neta * c.valoare / 100.0
@@ -448,10 +512,10 @@ def product_yearly(sku):
             COUNT(DISTINCT t.client) AS nr_clienti
         FROM tranzactii t
         LEFT JOIN cond_per_year cy ON cy.an = t.an
-        WHERE t.sku = :sku
+        WHERE {sku_ft}
         GROUP BY t.an
         ORDER BY t.an
-    """, {'sku': sku})
+    """, sku_params)
 
 
 # ── Profitabilitate — ranking și matrice ─────────────────────────────────────
