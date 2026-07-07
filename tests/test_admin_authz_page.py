@@ -30,3 +30,15 @@ def test_admin_role_not_a_column(client):
     html = client.get("/admin/authorizations").get_data(as_text=True)
     # admin must not be an editable column
     assert "grant:admin:" not in html
+
+
+def test_malformed_grant_field_does_not_500(client, db_path):
+    c = sqlite3.connect(db_path)
+    c.execute("INSERT OR IGNORE INTO adm_roles (name,label,is_system) VALUES ('acc','Contabil',0)")
+    c.commit()
+    c.close()
+    rv = client.post("/admin/authorizations", data={
+        "grant:": "on",
+        "grant:acc:pnl": "on",
+    })
+    assert rv.status_code in (200, 302)

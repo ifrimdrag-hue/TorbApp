@@ -184,7 +184,8 @@ ENDPOINT_OVERRIDES = {
 # Doubles as the audit allowlist in Task 6.
 UNGATED_ENDPOINTS = {
     "actualizare.api_actualizare_date_status",  # global import chip poll (every page)
-    "reports.export_excel",                     # generic multi-feature export
+    # generic multi-feature export — gated per-report inside the handler (see reports.export_excel)
+    "reports.export_excel",
     "postari.postari_ai_generate",              # shared by Instagram + Facebook pages
     # dev-only testing checklist; SHOW_TESTING flag 404s it in prod, and its
     # sidebar link lives outside the nav registry (raw <a>, not a NavItem)

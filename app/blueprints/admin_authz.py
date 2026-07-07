@@ -16,12 +16,23 @@ def authorizations():
     roles = [r for r in authz.all_roles() if r["name"] != authz.ADMIN_ROLE]
 
     if request.method == "POST":
+        from flask import current_app, abort
+        from flask_wtf.csrf import validate_csrf
+        if current_app.config.get("WTF_CSRF_ENABLED", True):
+            try:
+                validate_csrf(request.form.get("csrf_token"))
+            except Exception:
+                abort(403)
+
         grants = {r["name"]: [] for r in roles}
         for field in request.form:
             # fields look like "grant:<role>:<navkey>"
             if not field.startswith("grant:"):
                 continue
-            _, role_name, nav_key = field.split(":", 2)
+            parts = field.split(":", 2)
+            if len(parts) != 3:
+                continue
+            _, role_name, nav_key = parts
             if role_name in grants:
                 grants[role_name].append(nav_key)
         authz.save_matrix(grants)

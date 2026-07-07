@@ -89,7 +89,8 @@ def role_delete(rid):
         if in_use:
             flash(f"Rolul este atribuit la {in_use} utilizator(i). Reatribuiți-i întâi.", "warning")
             return redirect(url_for("admin.users"))
-        c.execute("DELETE FROM adm_roles WHERE id=?", (rid,))  # cascade clears adm_role_nav
+        c.execute("DELETE FROM adm_role_nav WHERE role_id=?", (rid,))
+        c.execute("DELETE FROM adm_roles WHERE id=?", (rid,))
     _log(current_user.id, "role_deleted", request.remote_addr or "0.0.0.0", row["name"])
     flash("Rol șters.", "success")
     return redirect(url_for("admin.users"))

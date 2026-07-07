@@ -2,6 +2,8 @@ import datetime
 import json
 import logging
 from flask import Blueprint, render_template, request, abort, send_file
+from flask_login import current_user
+import authz
 import queries
 from exports import ppt_export
 from exports.excel_export import send_excel, timestamped_filename
@@ -9,6 +11,20 @@ from exports.excel_export import send_excel, timestamped_filename
 reports_bp = Blueprint('reports', __name__)
 
 logger = logging.getLogger(__name__)
+
+_EXPORT_NAV_KEY = {
+    "dashboard": "dashboard",
+    "team": "team",
+    "agent": "team",
+    "clients": "clients",
+    "client": "clients",
+    "products": "products",
+    "produs": "products",
+    "forecast": "forecast",
+    "preturi": "preturi",
+    "conditii": "conditii",
+    "profitabilitate": "profitabilitate",
+}
 
 MONTHS_RO = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun',
              'Iul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -230,6 +246,10 @@ def _forecast_export_row(r):
 @reports_bp.route('/export/<report>')
 def export_excel(report):
     an = int(request.args.get('an', datetime.date.today().year))
+
+    _nav = _EXPORT_NAV_KEY.get(report)
+    if _nav and not authz.can_access_nav(current_user.role, _nav):
+        abort(403)
 
     if report == 'dashboard':
         sheets = {

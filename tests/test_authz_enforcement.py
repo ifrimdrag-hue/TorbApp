@@ -40,3 +40,11 @@ def test_admin_reaches_everything(client):
     # 'client' fixture is the seeded testadmin (role admin)
     assert client.get("/pnl").status_code == 200
     assert client.get("/solduri-neincasate").status_code == 200
+
+
+def test_denied_role_cannot_export_gated_report(limited_client):
+    assert limited_client.get("/export/clients?an=2026").status_code == 403
+
+
+def test_granted_dashboard_export_allowed(limited_client):
+    assert limited_client.get("/export/dashboard?an=2026").status_code != 403
