@@ -163,12 +163,12 @@ Each phase is independently shippable, tested, and ends reconciled to 121 on the
 
 ---
 
-## 5. Open questions for the owner (answer before F1/F3)
+## 5. Open questions — ANSWERED by the owner (2026-07-08)
 
-- **Q1 (F3):** Do Torb and Tobra trade with each other (Torb sells to Tobra or vice-versa)? If yes, monthly manual elimination is the F3 design; if never, skip the eliminations feature entirely.
-- **Q2 (F1):** Bucket placement to confirm: 612 chirii under „Chirii & utilități" (cannot split warehouse vs office at synthetic level); 608 ambalaje under Cost marfă; 613 asigurări under Servicii terți. OK?
-- **Q3 (F1):** Tobra's tax regime — profit (691) or micro (698)? Both are seeded either way; answer only affects which line label the owner expects to see populated.
-- **Q4 (F3):** For „Lunar vs an precedent", preferred display: PY value + Δ% beneath each month (denser) or interleaved PY columns (wider)? Default: beneath.
+- **Q1 (F3):** Torb and Tobra are related but **currently do not trade with each other**. Build the manual monthly eliminations editor as designed (defaults 0, so Grup = simple sum until they do trade); lowest priority within F3.
+- **Q2 (F1):** **Confirmed** — 612 chirii under „Chirii & utilități"; 608 ambalaje under Cost marfă; 613 asigurări under Servicii terți.
+- **Q3 (F1):** Tobra pays **profit tax (691)**. Seed both 691 and 698 anyway (698 stays as safety).
+- **Q4 (F3):** **PY value + Δ% beneath each month** (the denser default).
 
 ## 6. Conventions for the implementer
 
