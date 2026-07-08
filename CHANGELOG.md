@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P&L: first real-data validation + asset-disposal mapping fix (2026-07-08)
+
+Imported the owner's real balance files (16 .xls — Tobra full 2025 + Jan–Mar 2026, Torb Mar 2026) through `pnl_import` and reconciled the computed P&L against the account-121 balance for every period: **all match to the cent** after one fix.
+
+- **Fix** — migration **0039** maps `7583` (VENITURI DIN CEDARI DE ACTIVE → Alte venituri exploatare, +1) and its pair `6583` (→ Alte cheltuieli exploatare, −1), both absent from the 0033 seed. Tobra 2025 net profit had missed the 121 balance by exactly 7583's 16,426.43 RON.
+- **Validated** — Tobra 2025 (−536,776), Tobra 2026 Q1 (+26,415), Torb 2026 (+355,255) all reconcile to ±0.01 vs balance; `/pnl` grid renders for entity and group views.
+- **Known data gap** — Torb has only the March 2026 balance, so its "March" column (and the group view) actually holds cumulative Q1; Jan/Feb 2026 Torb files are needed for true monthly splits. 2025 Torb balances needed for the year-over-year comparison.
+- Files: `migrations/0039_20260708_pnl_map_cedari_active.py`, `tests/test_pnl_import.py` (+1), `tests/test_pnl_db.py` (seed count 33 → 35). Tests: 324 passing.
+
 ### Actualizare: Solduri drag-and-drop zone (2026-07-08)
 
 Added a **Solduri neîncasate** drop zone to the Actualizare Date page so the receivables report is uploaded alongside the other ERP files (backend `tip='solduri'` → `import_solduri_neincasate.py` already existed; only the zone + history icon/label were missing). Also widened the row-count parser regex to accept `randuri` (plain-a) so the solduri import shows its count instead of `?`. Files: `app/templates/actualizare.html`, `app/blueprints/actualizare.py`. Verified end-to-end on the real `neincasate.xls` (1,716 rows).

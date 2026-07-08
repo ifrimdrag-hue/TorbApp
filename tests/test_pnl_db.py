@@ -11,5 +11,5 @@ def test_pnl_tables_exist():
 def test_pnl_seed_counts():
     m = db.query_one("SELECT COUNT(*) AS n FROM pnl_mapping_conturi")['n']
     c = db.query_one("SELECT COUNT(*) AS n FROM pnl_config")['n']
-    assert m == 33
+    assert m == 35  # 33 from 0033 seed + 7583/6583 from 0039
     assert c == 9

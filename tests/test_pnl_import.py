@@ -30,3 +30,12 @@ def test_persist_rows_and_log():
     assert got['rulcd'] == 1000.0
     log = db.query_one("SELECT status, rows FROM pnl_import_log ORDER BY id DESC LIMIT 1")
     assert log['status'] == 'ok' and log['rows'] == 1
+
+
+def test_mapping_covers_asset_disposal_accounts():
+    # 7583 was missing from the 0033 seed: Tobra 2025 net profit missed the
+    # 121 balance by exactly its 16,426.43 RON (migration 0039)
+    mapping = {r['cont']: (r['pnl_line'], r['semn']) for r in db.query(
+        "SELECT cont, pnl_line, semn FROM pnl_mapping_conturi WHERE cont IN ('7583','6583')")}
+    assert mapping['7583'] == ('Alte venituri exploatare', 1)
+    assert mapping['6583'] == ('Alte cheltuieli exploatare', -1)
