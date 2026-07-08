@@ -173,6 +173,8 @@ def solduri_client_header(codcli):
                MIN(numeag) AS numeag, MIN(telefon) AS telefon, MIN(canal) AS canal,
                MAX(plafon) AS plafon,
                ROUND(SUM(sumdeincas),2) AS total,
+               ROUND(COALESCE(SUM(cec_val),0),2) AS total_cec,
+               ROUND(SUM(sumdeincas) - COALESCE(SUM(cec_val),0),2) AS total_neacoperit,
                ROUND(SUM(CASE WHEN {_days_expr} <= -1 THEN sumdeincas ELSE 0 END),2)
                    AS total_scadent,
                {_bucket_sum_cols()},

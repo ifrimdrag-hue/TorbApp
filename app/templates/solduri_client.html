@@ -122,9 +122,15 @@
       </tbody>
       {% if rows %}
       <tfoot>
-        <tr class="fw-bold">
+        <tr class="fw-bold border-top">
           <td colspan="4" class="text-end">Total</td>
           <td class="text-end">{{ header.total | ron }}</td>
+          <td class="text-end text-warning-emphasis">{{ header.total_cec | ron }}</td>
+          <td colspan="3"></td>
+        </tr>
+        <tr class="fw-bold">
+          <td colspan="4" class="text-end">Neacoperit de CEC <span class="fw-normal text-muted small">(sold − CEC)</span></td>
+          <td class="text-end text-danger">{{ header.total_neacoperit | ron }}</td>
           <td colspan="4"></td>
         </tr>
       </tfoot>
