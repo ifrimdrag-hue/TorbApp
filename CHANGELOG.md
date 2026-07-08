@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Actualizare: multi-file upload for P&L balances (2026-07-08)
+
+The **Balanțe P&L** drop zone now accepts multiple .xls files at once (drag a whole selection or multi-pick from the file dialog). Files import sequentially with per-file progress ("3/18: bal 03 2026 tobra.xls"), ending with a total (files + rows) or an error summary listing exactly which files failed. Other zones stay single-file by design (replace-style imports) but now show an explicit error when handed multiple files instead of silently importing only the first. File: `app/templates/actualizare.html`.
+
 ### P&L: account-mapping screen + toolbar links (2026-07-08)
 
 New read-only screen **/pnl/mapare** showing the full account → P&L-line mapping (grouped by P&L line, +/− sign badge, category) plus a warning panel listing any class-6/7 accounts found in imported balances that are **not** mapped (their amounts would silently miss the P&L — exactly the 7583 bug class). Green all-clear when coverage is complete. The /pnl toolbar gains links to Mapare conturi, Import balanțe and Alarme (previously unreachable by click). Files: `app/queries/pnl.py` (+`pnl_mapping_rows`, `pnl_unmapped_accounts`), `app/queries/__init__.py`, `app/blueprints/pnl.py`, `app/templates/pnl/mapping.html` (new), `app/templates/pnl/pnl.html`.

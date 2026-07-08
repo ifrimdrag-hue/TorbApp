@@ -139,9 +139,9 @@
          ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
       <div class="zone-icon fs-1 mb-2">📒</div>
       <div class="zone-title fw-semibold mb-1">Balanțe P&amp;L</div>
-      <div class="zone-hint text-muted small mb-3">balanța .xls (Torb / Tobra)</div>
+      <div class="zone-hint text-muted small mb-3">balanțe .xls (Torb / Tobra) · poți trage mai multe deodată</div>
       <div class="zone-status small"></div>
-      <input type="file" class="d-none file-input" accept=".xls">
+      <input type="file" class="d-none file-input" accept=".xls" multiple>
     </div>
   </div>
 
@@ -221,8 +221,21 @@ function onDragLeave(zone) {
 function onDrop(e, zone) {
   e.preventDefault();
   zone.classList.remove('dragover');
-  const file = e.dataTransfer.files[0];
-  if (file) startUpload(zone, file);
+  handleFiles(zone, e.dataTransfer.files);
+}
+
+// Balanțe P&L acceptă mai multe fișiere deodată; celelalte zone câte unul
+function handleFiles(zone, files) {
+  if (!files || !files.length) return;
+  if (zone.dataset.tip === 'balante_pnl') {
+    uploadBalantePnl(zone, Array.from(files));
+  } else {
+    if (files.length > 1) {
+      showError(zone, 'Un singur fișier', 'Această zonă acceptă un singur fișier per import. A fost ignorat restul selecției — încarcă fișierele pe rând.');
+      return;
+    }
+    startUpload(zone, files[0]);
+  }
 }
 
 // Click pe zonă → deschide file picker
@@ -231,7 +244,7 @@ document.querySelectorAll('.drop-zone').forEach(function(zone) {
     zone.querySelector('.file-input').click();
   });
   zone.querySelector('.file-input').addEventListener('change', function(e) {
-    if (e.target.files[0]) startUpload(zone, e.target.files[0]);
+    handleFiles(zone, e.target.files);
     e.target.value = '';
   });
 });
@@ -269,6 +282,42 @@ function setZoneState(zone, state, text) {
   }
 }
 
+// Balanțe P&L: endpoint propriu (import sincron), fișiere multiple importate pe rând
+async function uploadBalantePnl(zone, files) {
+  if (zone.classList.contains('uploading')) return;
+  var okCount = 0, totalRows = 0, errors = [];
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    setZoneState(zone, 'uploading',
+      '<span class="spinner-border spinner-border-sm me-1"></span> ' +
+      'Se importă ' + (i + 1) + '/' + files.length + ': <em>' + escHtml(f.name) + '</em>...');
+    var fd = new FormData();
+    fd.append('file', f);
+    try {
+      var r = await fetch('/pnl/api/upload', { method: 'POST', body: fd });
+      var d = await r.json();
+      if (r.ok && d.ok) {
+        okCount++;
+        totalRows += d.rows || 0;
+      } else {
+        errors.push(f.name + ': ' + (d.error || 'HTTP ' + r.status));
+      }
+    } catch (err) {
+      errors.push(f.name + ': ' + ((err && err.message) ? err.message : String(err)));
+    }
+  }
+  if (errors.length) {
+    showError(zone,
+      okCount + '/' + files.length + ' importate, ' + errors.length + ' erori',
+      errors.join('\n'));
+  } else {
+    setZoneState(zone, 'success',
+      '<i class="bi bi-check-circle-fill me-1"></i>' +
+      files.length + ' fișier' + (files.length > 1 ? 'e' : '') +
+      ' · ' + totalRows.toLocaleString('ro') + ' rând.');
+  }
+}
+
 function startUpload(zone, file) {
   if (zone.classList.contains('uploading')) return;
   const tip = zone.dataset.tip;
@@ -278,25 +327,6 @@ function startUpload(zone, file) {
 
   const fd = new FormData();
   fd.append('file', file);
-
-  // Balanțe P&L folosesc endpoint-ul propriu (import sincron, altă tabelă de log)
-  if (tip === 'balante_pnl') {
-    fetch('/pnl/api/upload', { method: 'POST', body: fd })
-      .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
-      .then(function(res) {
-        if (!res.ok || !res.d.ok) {
-          showError(zone, file.name, (res.d && res.d.error) || 'Eroare import');
-          return;
-        }
-        setZoneState(zone, 'success',
-          '<i class="bi bi-check-circle-fill me-1"></i>' + escHtml(file.name) +
-          ' · ' + Number(res.d.rows).toLocaleString('ro') + ' rând.');
-      })
-      .catch(function(err) {
-        showError(zone, file.name, (err && err.message) ? err.message : String(err));
-      });
-    return;
-  }
 
   fetch('/api/upload/' + tip, { method: 'POST', body: fd })
     .then(function(r) {
