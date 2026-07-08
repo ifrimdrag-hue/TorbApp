@@ -106,7 +106,7 @@
           <td class="text-end small">{{ r.term_pl_cl if r.term_pl_cl is not none else '—' }}</td>
           <td class="text-end small {% if (r.sumdeincas or 0) < 0 %}text-primary{% endif %}">{{ r.sumdeincas | ron }}</td>
           <td class="text-end small {% if r.cec %}fw-semibold text-warning-emphasis{% endif %}">
-            {% if r.cec_val %}{{ r.cec_val | ron }}{% elif r.cec %}<span class="badge bg-warning text-dark">CEC</span>{% else %}—{% endif %}
+            {% if r.cec %}{% if r.cec_val %}{{ r.cec_val | ron }} {% endif %}<span class="badge bg-warning text-dark ms-1" style="font-size:.65em">CEC</span>{% else %}—{% endif %}
           </td>
           <td class="small">{{ r.scad_cec or '—' }}</td>
           <td class="text-end small {% if (r.zile or 0) < 0 %}text-danger fw-semibold{% else %}text-muted{% endif %}"
