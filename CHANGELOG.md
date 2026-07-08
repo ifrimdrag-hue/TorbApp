@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P&L: account-mapping screen + toolbar links (2026-07-08)
+
+New read-only screen **/pnl/mapare** showing the full account → P&L-line mapping (grouped by P&L line, +/− sign badge, category) plus a warning panel listing any class-6/7 accounts found in imported balances that are **not** mapped (their amounts would silently miss the P&L — exactly the 7583 bug class). Green all-clear when coverage is complete. The /pnl toolbar gains links to Mapare conturi, Import balanțe and Alarme (previously unreachable by click). Files: `app/queries/pnl.py` (+`pnl_mapping_rows`, `pnl_unmapped_accounts`), `app/queries/__init__.py`, `app/blueprints/pnl.py`, `app/templates/pnl/mapping.html` (new), `app/templates/pnl/pnl.html`.
+
 ### P&L: first real-data validation + asset-disposal mapping fix (2026-07-08)
 
 Imported the owner's real balance files (16 .xls — Tobra full 2025 + Jan–Mar 2026, Torb Mar 2026) through `pnl_import` and reconciled the computed P&L against the account-121 balance for every period: **all match to the cent** after one fix.

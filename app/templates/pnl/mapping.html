@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Mapare conturi P&L — Torb Logistic{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+  <h5 class="mb-0"><i class="bi bi-diagram-3 text-primary me-2"></i>Mapare conturi → linii P&L</h5>
+  <span class="text-muted small">{{ rows | length }} conturi mapate</span>
+  <a href="{{ url_for('pnl.pnl') }}" class="btn btn-sm btn-outline-secondary ms-auto">
+    <i class="bi bi-arrow-left"></i> Înapoi la P&L
+  </a>
+</div>
+
+{% if unmapped %}
+<div class="alert alert-warning">
+  <i class="bi bi-exclamation-triangle-fill me-1"></i>
+  <strong>{{ unmapped | length }} conturi din balanțe NU sunt mapate</strong> — rulajele lor nu apar în P&L:
+  <ul class="mb-0 mt-1">
+    {% for u in unmapped %}
+    <li><code>{{ u.cont }}</code> {{ u.dencont }}
+      <span class="text-muted small">({{ u.entitati }}, {{ u.din_an }}{% if u.pana_an != u.din_an %}–{{ u.pana_an }}{% endif %})</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% else %}
+<div class="alert alert-success py-2">
+  <i class="bi bi-check-circle-fill me-1"></i>
+  Toate conturile de venituri/cheltuieli (clasa 6/7) din balanțele importate sunt mapate.
+</div>
+{% endif %}
+
+<div class="card shadow-sm border-0">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0" style="font-size:.9em">
+      <thead class="table-dark">
+        <tr>
+          <th class="ps-3">Linie P&L</th>
+          <th>Cont</th>
+          <th>Denumire cont</th>
+          <th class="text-center">Semn</th>
+          <th>Categorie</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set ns = namespace(prev=none) %}
+        {% for r in rows %}
+        <tr>
+          <td class="ps-3 {% if r.pnl_line != ns.prev %}fw-semibold border-top{% else %}text-muted small{% endif %}">
+            {% if r.pnl_line != ns.prev %}{{ r.pnl_line }}{% endif %}
+          </td>
+          <td><code>{{ r.cont }}</code></td>
+          <td class="small">{{ r.dencont }}</td>
+          <td class="text-center">
+            {% if r.semn > 0 %}<span class="badge bg-success">+</span>
+            {% else %}<span class="badge bg-danger">−</span>{% endif %}
+          </td>
+          <td class="small text-muted">{{ r.categorie }}</td>
+        </tr>
+        {% set ns.prev = r.pnl_line %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="text-muted small mt-2 mb-0">
+  Semn <span class="badge bg-success">+</span> = rulajul contului se adună la linia P&L;
+  <span class="badge bg-danger">−</span> = se scade (cheltuieli / reduceri acordate).
+</p>
+{% endblock %}

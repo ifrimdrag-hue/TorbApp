@@ -78,6 +78,15 @@ def import_page():
     return render_template('pnl/import.html', logs=queries.pnl_import_log(50))
 
 
+@pnl_bp.route('/pnl/mapare')
+def mapping_page():
+    line_order = {key: i for i, (_t, _lbl, key) in enumerate(pnl_logic.PNL_STRUCTURE)}
+    rows = sorted(queries.pnl_mapping_rows(),
+                  key=lambda r: (line_order.get(r['pnl_line'], 99), r['cont']))
+    return render_template('pnl/mapping.html', rows=rows,
+                           unmapped=queries.pnl_unmapped_accounts())
+
+
 @pnl_bp.route('/pnl/api/scan', methods=['POST'])
 def api_scan():
     return jsonify({'ok': True, 'results': pnl_import.scan_folders()})

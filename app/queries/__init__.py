@@ -176,4 +176,6 @@ from queries.pnl import (
     pnl_rulcd as pnl_rulcd,
     pnl_config_rows as pnl_config_rows,
     pnl_import_log as pnl_import_log,
+    pnl_mapping_rows as pnl_mapping_rows,
+    pnl_unmapped_accounts as pnl_unmapped_accounts,
 )

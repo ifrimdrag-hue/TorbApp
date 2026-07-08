@@ -22,9 +22,20 @@
   </form>
   <a href="?entitate={{ entitate }}&an={{ cy }}&pct={{ '0' if show_pct else '1' }}"
      class="btn btn-sm {{ 'btn-primary' if show_pct else 'btn-outline-secondary' }}">% din CA</a>
-  <a href="{{ url_for('pnl.export_pnl', an=cy) }}" class="btn btn-sm btn-outline-success ms-auto">
-    Export Excel
-  </a>
+  <div class="ms-auto d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('pnl.mapping_page') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-diagram-3"></i> Mapare conturi
+    </a>
+    <a href="{{ url_for('pnl.import_page') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-cloud-upload"></i> Import balanțe
+    </a>
+    <a href="{{ url_for('pnl.alarm_config') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-bell"></i> Alarme
+    </a>
+    <a href="{{ url_for('pnl.export_pnl', an=cy) }}" class="btn btn-sm btn-outline-success">
+      Export Excel
+    </a>
+  </div>
 </div>
 
 {% set ca = ytd_cy.get('CIFRA DE AFACERI NETA', 0) %}
