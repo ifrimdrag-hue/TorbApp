@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P&L redesign F0: correctness foundation (2026-07-08)
+
+Phase F0 of `docs/plans/2026-07-08-pnl-redesign.md` — the P&L is now structurally correct with any subset of months imported, and every import is validated and visible.
+
+- **Full-replace import** — re-importing a corrected balance now DELETEs all rows of that (entitate, an, luna) and inserts the new file in one transaction, so accounts that disappeared from the corrected file no longer survive as ghosts. Migration **0040** rebuilds `pnl_balante_raw` without `ON CONFLICT REPLACE` (plain UNIQUE kept) and adds `replaced`/`validari` columns to `pnl_import_log`. The import log records how many rows were replaced.
+- **Monthly values from the month's own turnovers** — `compute_pnl_month` now reads `rulld` (expense accounts) / `rullc` (revenue accounts, chosen by mapping semn) instead of Δ`rulcd`, so a month renders correctly even when the prior month is missing (the C2 "cumulative shown as monthly" bug is gone). YTD comes from cumulative `rulcd` at the through-month — the figure that reconciles with account 121. When the prior month exists, a Δ`rulcd` cross-check flags per-line divergences as ⚠ tooltips in the grid (caught a real 499.36 RON prior-period correction on account 628, Torb Mar 2026).
+- **Import validations** persisted as JSON per import and surfaced in the upload-zone summary and `/pnl/import` history: `echilibru` (Σdebit=Σcredit on opening/closing/turnover), `inlantuire` (cumulative-turnover chaining vs the prior month — `sid/sic` proved to be *year*-opening balances in these files, so chaining is checked on `rulcd/rulcc` increments instead), `reconciliere_121` (computed net profit YTD vs the 121 balance in the same file). Imports always succeed; problems are warnings.
+- **Freshness header on /pnl** — per entity: last imported month, import timestamp, and a 121-reconciliation badge (verde "reconciliat" / roșu "diferență X RON" / gri "verificare parțială"). Missing months inside the displayed range render as em-dash columns with a "balanță neîncărcată" tooltip, never as zero.
+- **Real-data validation** — all 18 balance files re-imported through the new path: net profit YTD reconciles with 121 to ±0.01 for Tobra 2025 (−536,776.35), Tobra 2026 Q1 (+26,414.76), Torb 2026 Q1 (+355,255.31); Torb 2026 monthly CA unchanged vs the old method (Jan 1,134,530 / Feb 1,448,865 / Mar 1,388,083); double-import leaves identical row counts. Torb Jan/Feb 2026 show a real 0.52 RON 121 gap (clears by March) — correctly flagged as a warning.
+- Files: `migrations/0040_20260708_pnl_full_replace.py` (new), `app/pnl_import.py`, `app/pnl_logic.py`, `app/queries/pnl.py`, `app/queries/__init__.py`, `app/blueprints/pnl.py`, `app/templates/pnl/pnl.html`, `app/templates/pnl/import.html`, `app/templates/actualizare.html`, `tests/test_pnl_import.py`, `tests/test_pnl_logic.py`. Tests: 336 passing (+12).
+
 ### Actualizare: multi-file upload for P&L balances (2026-07-08)
 
 The **Balanțe P&L** drop zone now accepts multiple .xls files at once (drag a whole selection or multi-pick from the file dialog). Files import sequentially with per-file progress ("3/18: bal 03 2026 tobra.xls"), ending with a total (files + rows) or an error summary listing exactly which files failed. Other zones stay single-file by design (replace-style imports) but now show an explicit error when handed multiple files instead of silently importing only the first. File: `app/templates/actualizare.html`.

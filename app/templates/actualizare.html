@@ -283,9 +283,23 @@ function setZoneState(zone, state, text) {
 }
 
 // Balanțe P&L: endpoint propriu (import sincron), fișiere multiple importate pe rând
+var PNL_WARN_RO = {
+  echilibru: 'balanța nu se echilibrează (debit ≠ credit)',
+  inlantuire: 'nu se înlănțuie cu luna anterioară',
+  reconciliere_121: 'profit calculat ≠ cont 121'
+};
+function pnlWarnings(validari) {
+  if (!validari) return [];
+  var out = [];
+  ['echilibru', 'inlantuire', 'reconciliere_121'].forEach(function(k) {
+    if (validari[k] && validari[k].ok === false) out.push(PNL_WARN_RO[k]);
+  });
+  return out;
+}
+
 async function uploadBalantePnl(zone, files) {
   if (zone.classList.contains('uploading')) return;
-  var okCount = 0, totalRows = 0, errors = [];
+  var okCount = 0, totalRows = 0, errors = [], warns = [];
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
     setZoneState(zone, 'uploading',
@@ -299,6 +313,8 @@ async function uploadBalantePnl(zone, files) {
       if (r.ok && d.ok) {
         okCount++;
         totalRows += d.rows || 0;
+        var w = pnlWarnings(d.validari);
+        if (w.length) warns.push(f.name + ': ' + w.join('; '));
       } else {
         errors.push(f.name + ': ' + (d.error || 'HTTP ' + r.status));
       }
@@ -309,7 +325,15 @@ async function uploadBalantePnl(zone, files) {
   if (errors.length) {
     showError(zone,
       okCount + '/' + files.length + ' importate, ' + errors.length + ' erori',
-      errors.join('\n'));
+      errors.join('\n') + (warns.length ? '\n\nAvertismente:\n' + warns.join('\n') : ''));
+  } else if (warns.length) {
+    setZoneState(zone, 'success',
+      '<i class="bi bi-exclamation-triangle-fill me-1 text-warning"></i>' +
+      files.length + ' fișier' + (files.length > 1 ? 'e' : '') +
+      ' · ' + totalRows.toLocaleString('ro') + ' rând · ' +
+      warns.length + ' cu avertismente');
+    AppError.show('Import cu avertismente',
+      warns.join('\n'), 'Balanțe P&L');
   } else {
     setZoneState(zone, 'success',
       '<i class="bi bi-check-circle-fill me-1"></i>' +

@@ -1,4 +1,5 @@
 import os
+import json
 import datetime
 import tempfile
 from flask import Blueprint, render_template, request, jsonify, send_file
@@ -35,6 +36,34 @@ def _severity_class(sev):
             'success': 'table-success', 'ok': '', None: ''}.get(sev, '')
 
 
+def _freshness_cards():
+    """One card per source entity: last imported month, timestamp, 121 badge."""
+    labels = {'torb': 'Torb Logistic', 'tobra': 'Tobra Invest'}
+    cards = []
+    for row in queries.pnl_freshness():
+        ent = row['entitate']
+        if ent not in labels:
+            continue
+        an, luna = row['an'], row['luna']
+        recon = pnl_logic.reconciliere_121(ent, an, luna)
+        prior_present = (luna == 1) or (
+            (luna - 1) in queries.pnl_available_months(an, ent))
+        if recon is None:
+            badge = {'state': 'gri', 'text': 'reconciliere indisponibilă (cont 121 lipsă)'}
+        elif not recon['ok']:
+            badge = {'state': 'rosu', 'text': f"diferență {recon['diff']:,.2f} RON".replace(',', '.')}
+        elif not prior_present:
+            badge = {'state': 'gri', 'text': 'luna precedentă lipsă — verificare parțială'}
+        else:
+            badge = {'state': 'verde', 'text': 'reconciliat'}
+        cards.append({
+            'entitate': ent, 'label': labels[ent],
+            'luna_ro': MONTHS_RO[luna - 1], 'an': an,
+            'timestamp': (row['timestamp'] or '')[:19].replace('T', ' '),
+            'badge': badge})
+    return cards
+
+
 @pnl_bp.route('/pnl')
 def pnl():
     years = pnl_logic.available_years()
@@ -45,16 +74,21 @@ def pnl():
 
     data_cy = pnl_logic.compute_pnl_year(entitate, cy)
     data_py = pnl_logic.compute_pnl_year(entitate, py)
-    luni_cy = sorted(data_cy.keys())
+    luni_importate = sorted(data_cy.keys())
     luni_py = queries.pnl_available_months(py, entitate)
 
-    max_luna_cy = max(luni_cy) if luni_cy else 0
+    max_luna_cy = max(luni_importate) if luni_importate else 0
+    # Render every month up to the latest import so interior gaps show as em-dash.
+    luni_cy = list(range(1, max_luna_cy + 1))
     ytd_cy = pnl_logic.compute_ytd(entitate, cy, max_luna_cy) if max_luna_cy else {}
     ytd_py = pnl_logic.compute_ytd(entitate, py, max_luna_cy) if luni_py else {}
 
+    warnings = {luna: pnl_logic.compute_pnl_month_warnings(entitate, cy, luna)
+                for luna in luni_importate}
+
     alarm_config = pnl_logic.load_alarm_config()
     alarms = {}
-    for luna in luni_cy:
+    for luna in luni_importate:
         for _, _label, key in pnl_logic.PNL_STRUCTURE:
             cy_val = data_cy.get(luna, {}).get(key)
             py_val = data_py.get(luna, {}).get(key)
@@ -68,14 +102,34 @@ def pnl():
     return render_template(
         'pnl/pnl.html',
         years=years, cy=cy, py=py, entitate=entitate, entitati=ENTITATI,
-        luni_cy=luni_cy, months_ro=MONTHS_RO, structure=pnl_logic.PNL_STRUCTURE,
+        luni_cy=luni_cy, luni_importate=set(luni_importate),
+        months_ro=MONTHS_RO, structure=pnl_logic.PNL_STRUCTURE,
         data_cy=data_cy, data_py=data_py, ytd_cy=ytd_cy, ytd_py=ytd_py,
-        alarms=alarms, show_pct=show_pct, severity_class=_severity_class)
+        alarms=alarms, warnings=warnings, freshness=_freshness_cards(),
+        show_pct=show_pct, severity_class=_severity_class)
+
+
+def _validari_flags(validari_json):
+    """Parse the stored validari JSON into a list of failed-check codes."""
+    if not validari_json:
+        return []
+    try:
+        v = json.loads(validari_json)
+    except (ValueError, TypeError):
+        return []
+    flags = []
+    for key in ('echilibru', 'inlantuire', 'reconciliere_121'):
+        if key in v and not v[key].get('ok', True):
+            flags.append(key)
+    return flags
 
 
 @pnl_bp.route('/pnl/import')
 def import_page():
-    return render_template('pnl/import.html', logs=queries.pnl_import_log(50))
+    logs = queries.pnl_import_log(50)
+    for log in logs:
+        log['warnings'] = _validari_flags(log.get('validari'))
+    return render_template('pnl/import.html', logs=logs)
 
 
 @pnl_bp.route('/pnl/mapare')

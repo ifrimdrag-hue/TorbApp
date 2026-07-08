@@ -5,6 +5,12 @@
   .pct-row td { font-style: italic; color: #555; font-size: .92em; }
   .alarm-trend::after { content: " \2198"; color: #fd7e14; font-size:.85em; }
   .delta-badge { font-size: .78em; margin-left: 4px; }
+  .fresh-badge { font-size: .78em; padding: .2em .5em; }
+  .fresh-verde { background:#d1e7dd; color:#0f5132; }
+  .fresh-rosu  { background:#f8d7da; color:#842029; }
+  .fresh-gri   { background:#e2e3e5; color:#41464b; }
+  .line-warn { color:#fd7e14; cursor:help; font-size:.85em; }
+  .col-lipsa { color:#adb5bd; }
 </style>
 <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
   <form method="get" class="d-flex gap-2 align-items-center">
@@ -37,6 +43,20 @@
     </a>
   </div>
 </div>
+
+{% if freshness %}
+<div class="d-flex gap-2 flex-wrap mb-3">
+  {% for f in freshness %}
+  <div class="border rounded px-3 py-2 small bg-white">
+    <span class="fw-semibold">{{ f.label }}</span> ·
+    ultima lună <span class="fw-semibold">{{ f.luna_ro }} {{ f.an }}</span>
+    <span class="text-muted">(import {{ f.timestamp }})</span>
+    <span class="badge fresh-badge fresh-{{ f.badge.state }} ms-1"
+          title="Reconciliere profit net vs. cont 121">{{ f.badge.text }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 {% set ca = ytd_cy.get('CIFRA DE AFACERI NETA', 0) %}
 {% set ca_py = ytd_py.get('CIFRA DE AFACERI NETA', 0) %}
@@ -89,13 +109,18 @@
     <tr class="{{ 'subtotal-row' if row_type == 'subtotal' else ('pct-row' if row_type == 'pct' else '') }}">
       <td>{{ label }}</td>
       {% for luna in luni_cy %}
+        {% if luna not in luni_importate %}
+        <td class="text-end col-lipsa" colspan="2" title="Balanță neîncărcată pentru {{ months_ro[luna-1] }} {{ cy }}">&mdash;</td>
+        {% else %}
         {% set v = data_cy.get(luna, {}).get(key, 0) %}
         {% set vp = data_py.get(luna, {}).get(key, 0) %}
         {% set delta = ((v - vp) / vp * 100) if vp else 0 %}
         {% set alarm = alarms.get((luna, key), {}) %}
         {% set sev = alarm.get('delta_severity') or alarm.get('prag_severity') %}
         {% set trend = alarm.get('trend', False) %}
+        {% set warn = warnings.get(luna, {}).get(key) %}
         <td class="text-end {{ severity_class(sev) }} {{ 'alarm-trend' if trend else '' }}">
+          {% if warn %}<span class="line-warn" title="Valoarea lunii ({{ warn.monthly | round(2) }}) diferă de Δrulcd ({{ warn.delta | round(2) }}) — posibilă corecție de perioadă anterioară în balanță">&#9888;</span> {% endif %}
           {% if show_pct and not is_pct_line %}
             {% set ca_v = data_cy.get(luna, {}).get('CIFRA DE AFACERI NETA', 0) %}
             {{ (v / ca_v * 100) | pct if ca_v else '&mdash;' | safe }}
@@ -108,6 +133,7 @@
         <td class="text-end {{ 'text-success' if delta >= 2 else ('text-danger' if delta <= -2 else 'text-muted') }}">
           {% if vp %}{{ '%+.1f' | format(delta) }}%{% else %}&mdash;{% endif %}
         </td>
+        {% endif %}
       {% endfor %}
       {% set ytd_v  = ytd_cy.get(key, 0) %}
       {% set ytd_vp = ytd_py.get(key, 0) %}

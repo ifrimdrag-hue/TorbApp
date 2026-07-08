@@ -29,18 +29,32 @@
 </div>
 
 <h6>Istoric importuri recente</h6>
-<table class="table table-sm table-hover">
-  <thead><tr><th>Timestamp</th><th>Fisier</th><th>Entitate</th><th>An</th><th>Luna</th><th>Randuri</th><th>Status</th></tr></thead>
+{% set warn_ro = {
+  'echilibru': 'Balanța nu se echilibrează (debit ≠ credit)',
+  'inlantuire': 'Nu se înlănțuie cu luna anterioară — reimportă lunile următoare corectării',
+  'reconciliere_121': 'Profitul calculat nu se reconciliază cu contul 121'} %}
+<table class="table table-sm table-hover align-middle">
+  <thead><tr><th>Timestamp</th><th>Fisier</th><th>Entitate</th><th>An</th><th>Luna</th><th>Randuri</th><th>Inlocuite</th><th>Status</th><th>Validari</th></tr></thead>
   <tbody>
   {% for log in logs %}
     <tr>
       <td>{{ log['timestamp'][:19] }}</td>
-      <td class="text-truncate" style="max-width:300px" title="{{ log['source_file'] }}">{{ log['source_file'].split('\\')[-1].split('/')[-1] }}</td>
+      <td class="text-truncate" style="max-width:280px" title="{{ log['source_file'] }}">{{ log['source_file'].split('\\')[-1].split('/')[-1] }}</td>
       <td>{{ log['entitate'] }}</td>
       <td>{{ log['an'] }}</td>
       <td>{{ log['luna'] }}</td>
       <td>{{ log['rows'] }}</td>
+      <td>{{ log['replaced'] if log['replaced'] is not none else 0 }}</td>
       <td><span class="badge {{ 'bg-success' if log['status'] == 'ok' else 'bg-danger' }}">{{ log['status'] }}</span></td>
+      <td>
+        {% if log['warnings'] %}
+          {% for w in log['warnings'] %}
+            <span class="badge bg-warning text-dark" title="{{ warn_ro.get(w, w) }}">&#9888; {{ w }}</span>
+          {% endfor %}
+        {% elif log['status'] == 'ok' %}
+          <span class="text-success">&#10003;</span>
+        {% endif %}
+      </td>
     </tr>
   {% endfor %}
   </tbody>
