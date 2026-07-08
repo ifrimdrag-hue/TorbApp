@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Actualizare: P&L balance upload as a drag-and-drop zone (2026-07-08)
+
+The P&L balance (.xls) upload now lives on the **Actualizare Date** page next to the other ERP drop zones, so all file updates are in one place. Added a "Financiar (P&L)" section with a **Balanțe P&L** drop zone; it posts to the existing synchronous `/pnl/api/upload` endpoint (no backend change) and shows the imported-row count inline. The standalone `/pnl/import` page (folder scan + upload) is left intact. Stock (`Stoc ERP`) was already a drop zone on this page. File: `app/templates/actualizare.html`.
+
 ### Admin RBAC: dynamic roles + nav authorization matrix (2026-07-07)
 
 ### Added

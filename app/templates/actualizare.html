@@ -112,6 +112,28 @@
 
 </div>
 
+<!-- Zone financiar / P&L -->
+<div class="d-flex align-items-center mb-2 mt-1">
+  <span class="text-muted small fw-semibold text-uppercase" style="letter-spacing:.04em">Financiar (P&amp;L)</span>
+  <hr class="flex-grow-1 ms-2 my-0">
+</div>
+<div class="row g-3 mb-4">
+
+  <!-- Balanțe P&L -->
+  <div class="col-md-4">
+    <div class="drop-zone card h-100 text-center p-4"
+         id="zone-balante-pnl" data-tip="balante_pnl"
+         ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+      <div class="zone-icon fs-1 mb-2">📒</div>
+      <div class="zone-title fw-semibold mb-1">Balanțe P&amp;L</div>
+      <div class="zone-hint text-muted small mb-3">balanța .xls (Torb / Tobra)</div>
+      <div class="zone-status small"></div>
+      <input type="file" class="d-none file-input" accept=".xls">
+    </div>
+  </div>
+
+</div>
+
 <!-- Tabel istoric -->
 <div class="card">
   <div class="card-header d-flex align-items-center gap-2">
@@ -243,6 +265,25 @@ function startUpload(zone, file) {
 
   const fd = new FormData();
   fd.append('file', file);
+
+  // Balanțe P&L folosesc endpoint-ul propriu (import sincron, altă tabelă de log)
+  if (tip === 'balante_pnl') {
+    fetch('/pnl/api/upload', { method: 'POST', body: fd })
+      .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
+      .then(function(res) {
+        if (!res.ok || !res.d.ok) {
+          showError(zone, file.name, (res.d && res.d.error) || 'Eroare import');
+          return;
+        }
+        setZoneState(zone, 'success',
+          '<i class="bi bi-check-circle-fill me-1"></i>' + escHtml(file.name) +
+          ' · ' + Number(res.d.rows).toLocaleString('ro') + ' rând.');
+      })
+      .catch(function(err) {
+        showError(zone, file.name, (err && err.message) ? err.message : String(err));
+      });
+    return;
+  }
 
   fetch('/api/upload/' + tip, { method: 'POST', body: fd })
     .then(function(r) {
