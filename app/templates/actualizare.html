@@ -49,6 +49,19 @@
     </div>
   </div>
 
+  <!-- Solduri neîncasate -->
+  <div class="col-md-4">
+    <div class="drop-zone card h-100 text-center p-4"
+         id="zone-solduri" data-tip="solduri"
+         ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+      <div class="zone-icon fs-1 mb-2">💰</div>
+      <div class="zone-title fw-semibold mb-1">Solduri neîncasate</div>
+      <div class="zone-hint text-muted small mb-3">neinc*.xls / neincasate.xls</div>
+      <div class="zone-status small"></div>
+      <input type="file" class="d-none file-input" accept=".xls,.xlsx">
+    </div>
+  </div>
+
 </div>
 
 <!-- Zone comenzi furnizori -->
@@ -338,8 +351,8 @@ function pollStatus(zone, jobId, fileName) {
 
 // ── Tabel istoric ───────────────────────────────────────────────────────────
 
-const TIP_ICON = { vanzari: '📊', stoc: '📦', auchan: '🛒', comenzi_basilur: '📋', comenzi_toras: '🍫', comenzi_celmar: '🌿', comenzi_leonex: '🧴' };
-const TIP_LABEL = { vanzari: 'Vânzări ERP', stoc: 'Stoc ERP', auchan: 'Auchan', comenzi_basilur: 'Comenzi Basilur', comenzi_toras: 'Comenzi Toras', comenzi_celmar: 'Comenzi Celmar', comenzi_leonex: 'Comenzi Leonex' };
+const TIP_ICON = { vanzari: '📊', stoc: '📦', auchan: '🛒', solduri: '💰', comenzi_basilur: '📋', comenzi_toras: '🍫', comenzi_celmar: '🌿', comenzi_leonex: '🧴' };
+const TIP_LABEL = { vanzari: 'Vânzări ERP', stoc: 'Stoc ERP', auchan: 'Auchan', solduri: 'Solduri neîncasate', comenzi_basilur: 'Comenzi Basilur', comenzi_toras: 'Comenzi Toras', comenzi_celmar: 'Comenzi Celmar', comenzi_leonex: 'Comenzi Leonex' };
 
 function loadLog() {
   fetch('/api/import-log')

@@ -166,7 +166,7 @@ def _run_upload_job(job_id: str, tip: str, fisier_orig: str, dest_path: str):
         # import_stoc.py:        "â†’ Stoc importat: 699 rânduri"
         # import_vanzari_erp.py: "â†’ Inserate: 135,420 | Duplicate..."
         randuri = None
-        for pattern in [r'([\d,]+)\s*rânduri', r'Inserate:\s*([\d,]+)']:
+        for pattern in [r'([\d,]+)\s*r[âa]nduri', r'Inserate:\s*([\d,]+)']:
             m = _re.search(pattern, output)
             if m:
                 randuri = int(m.group(1).replace(',', ''))
