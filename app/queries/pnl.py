@@ -34,6 +34,39 @@ def pnl_rulcd(entitate, an, luna):
         (entitate, an, luna))}
 
 
+def pnl_sold_cont(entitate, an, luna, cont):
+    """Closing balance (sfc − sfd) of one account in one entity+month, or None."""
+    r = query(
+        "SELECT sfc, sfd FROM pnl_balante_raw "
+        "WHERE entitate=? AND an=? AND luna=? AND cont=?",
+        (entitate, an, luna, cont))
+    return (r[0]['sfc'] - r[0]['sfd']) if r else None
+
+
+def pnl_monthly_raw(entitate, an, luna):
+    """{cont: (rulld, rullc)} — the month's own debit/credit turnovers. The P&L
+    picks rulld for expense accounts and rullc for revenue accounts (by mapping
+    semn), so each month is self-sufficient (no prior-month dependency)."""
+    return {r['cont']: (r['rulld'], r['rullc']) for r in query(
+        "SELECT cont, rulld, rullc FROM pnl_balante_raw WHERE entitate=? AND an=? AND luna=?",
+        (entitate, an, luna))}
+
+
+def pnl_freshness():
+    """Latest import per entity: period, timestamp, row count, validari JSON."""
+    return query("""
+        SELECT l.entitate, l.an, l.luna, l.timestamp, l.rows, l.replaced, l.validari
+        FROM pnl_import_log l
+        JOIN (SELECT entitate, MAX(an*100+luna) AS ym
+              FROM pnl_import_log WHERE status='ok' GROUP BY entitate) m
+          ON l.entitate = m.entitate AND (l.an*100+l.luna) = m.ym
+        WHERE l.status='ok'
+        GROUP BY l.entitate
+        HAVING l.timestamp = MAX(l.timestamp)
+        ORDER BY l.entitate
+    """)
+
+
 def pnl_mapping_rows():
     return query(
         "SELECT cont, dencont, pnl_line, semn, categorie "

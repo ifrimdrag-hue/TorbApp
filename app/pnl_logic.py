@@ -31,23 +31,41 @@ PNL_STRUCTURE = [
 ]
 
 
-def _raw_monthly(entitate, an, luna):
-    """{cont: monthly_amount} = rulcd_current - rulcd_prior (raw delta)."""
-    cur = queries.pnl_rulcd(entitate, an, luna)
-    prior = queries.pnl_rulcd(entitate, an, luna - 1) if luna > 1 else {}
-    return {cont: cur[cont] - prior.get(cont, 0.0) for cont in cur}
+def _entity_monthly(entitate, an, luna, mapping):
+    """{cont: monthly_amount} from the month's own turnovers: rulld for expense
+    accounts (mapping semn < 0), rullc for revenue accounts (semn > 0). No
+    prior-month dependency, so any subset of months imports correctly."""
+    raw = queries.pnl_monthly_raw(entitate, an, luna)
+    out = {}
+    for cont, (rulld, rullc) in raw.items():
+        semn = mapping[cont][1] if cont in mapping else 1
+        out[cont] = rulld if semn < 0 else rullc
+    return out
 
 
-def compute_pnl_month(entitate, an, luna):
-    """Full P&L dict for one entity+month. entitate='grup' sums torb+tobra."""
-    mapping = queries.pnl_mapping()
+def _raw_monthly(entitate, an, luna, mapping=None):
+    """{cont: monthly_amount} from own-month turnovers. Grup sums torb+tobra."""
+    if mapping is None:
+        mapping = queries.pnl_mapping()
     if entitate == 'grup':
-        torb = _raw_monthly('torb', an, luna)
-        tobra = _raw_monthly('tobra', an, luna)
-        raw = {c: torb.get(c, 0) + tobra.get(c, 0) for c in set(torb) | set(tobra)}
-    else:
-        raw = _raw_monthly(entitate, an, luna)
+        torb = _entity_monthly('torb', an, luna, mapping)
+        tobra = _entity_monthly('tobra', an, luna, mapping)
+        return {c: torb.get(c, 0) + tobra.get(c, 0) for c in set(torb) | set(tobra)}
+    return _entity_monthly(entitate, an, luna, mapping)
 
+
+def _cumulative(entitate, an, luna):
+    """{cont: rulcd} cumulative debit turnover at this month. Grup sums both.
+    This is the authoritative YTD figure that reconciles with account 121."""
+    if entitate == 'grup':
+        torb = queries.pnl_rulcd('torb', an, luna)
+        tobra = queries.pnl_rulcd('tobra', an, luna)
+        return {c: torb.get(c, 0) + tobra.get(c, 0) for c in set(torb) | set(tobra)}
+    return queries.pnl_rulcd(entitate, an, luna)
+
+
+def _build_lines(raw, mapping):
+    """Assemble the full P&L dict (lines + subtotals + % lines) from {cont: amount}."""
     lines = {}
     for cont, amount in raw.items():
         if cont not in mapping:
@@ -86,6 +104,36 @@ def compute_pnl_month(entitate, an, luna):
     return lines
 
 
+def compute_pnl_month(entitate, an, luna):
+    """Full P&L dict for one entity+month from own-month turnovers. Grup sums both."""
+    mapping = queries.pnl_mapping()
+    return _build_lines(_raw_monthly(entitate, an, luna, mapping), mapping)
+
+
+def compute_pnl_month_warnings(entitate, an, luna):
+    """Cross-check: {pnl_line: {'monthly','delta'}} for lines where the own-month
+    figure diverges from the Δrulcd figure by >= 0.05. Only when the prior month
+    exists (else Δrulcd is meaningless). A divergence flags a source-data anomaly
+    (the accountant's monthly turnovers do not cumulate) — surfaced as ⚠ in the grid."""
+    if luna <= 1 or not queries.pnl_available_months(an, entitate) \
+            or (luna - 1) not in queries.pnl_available_months(an, entitate):
+        return {}
+    mapping = queries.pnl_mapping()
+    own = _build_lines(_raw_monthly(entitate, an, luna, mapping), mapping)
+    cur = _cumulative(entitate, an, luna)
+    prior = _cumulative(entitate, an, luna - 1)
+    delta = {c: cur.get(c, 0) - prior.get(c, 0) for c in set(cur) | set(prior)}
+    delta_lines = _build_lines(delta, mapping)
+    warnings = {}
+    for _t, _lbl, key in PNL_STRUCTURE:
+        if _t != 'line':
+            continue
+        d = abs(own.get(key, 0) - delta_lines.get(key, 0))
+        if d >= 0.05:
+            warnings[key] = {'monthly': own.get(key, 0), 'delta': delta_lines.get(key, 0)}
+    return warnings
+
+
 def compute_pnl_year(entitate, an):
     """{luna: pnl_dict} for all available months."""
     luni = queries.pnl_available_months(an, entitate)
@@ -93,19 +141,37 @@ def compute_pnl_year(entitate, an):
 
 
 def compute_ytd(entitate, an, through_luna):
-    """Sum Jan..through_luna. % lines recomputed from sums."""
-    months = compute_pnl_year(entitate, an)
-    totals = {}
-    pct_keys = {'Marja bruta %', 'EBITDA %', 'Profit net %'}
-    for luna in range(1, through_luna + 1):
-        for k, v in months.get(luna, {}).items():
-            if k not in pct_keys:
-                totals[k] = totals.get(k, 0.0) + v
-    ca = totals.get('CIFRA DE AFACERI NETA', 0)
-    totals['Marja bruta %'] = (totals.get('MARJA BRUTA', 0) / ca * 100) if ca else 0.0
-    totals['EBITDA %'] = (totals.get('EBITDA', 0) / ca * 100) if ca else 0.0
-    totals['Profit net %'] = (totals.get('PROFIT NET', 0) / ca * 100) if ca else 0.0
-    return totals
+    """YTD P&L from cumulative rulcd at through_luna (the figure that reconciles
+    with account 121). Self-sufficient: needs only the through-month's balance,
+    not every intermediate month, and never mislabels cumulative as monthly."""
+    mapping = queries.pnl_mapping()
+    return _build_lines(_cumulative(entitate, an, through_luna), mapping)
+
+
+def reconciliere_121(entitate, an, luna):
+    """Compare computed net-profit YTD (cumulative rulcd × semn) with the 121
+    balance carried in that entity+month. Returns {'pn','sold','diff','ok'} or
+    None when 121 is absent. Grup sums both entities' 121."""
+    if entitate == 'grup':
+        t = reconciliere_121('torb', an, luna)
+        b = reconciliere_121('tobra', an, luna)
+        if t is None or b is None:
+            return None
+        pn = t['pn'] + b['pn']
+        sold = t['sold'] + b['sold']
+        diff = round(pn - sold, 2)
+        return {'pn': round(pn, 2), 'sold': round(sold, 2),
+                'diff': diff, 'ok': abs(diff) < 0.05}
+    mapping = queries.pnl_mapping()
+    cum = queries.pnl_rulcd(entitate, an, luna)
+    pn = sum(mapping[c][1] * v for c, v in cum.items() if c in mapping)
+    sold_121 = queries.pnl_sold_cont(entitate, an, luna, '121')
+    if sold_121 is None:
+        return None
+    sold = sold_121
+    diff = round(pn - sold, 2)
+    return {'pn': round(pn, 2), 'sold': round(sold, 2),
+            'diff': diff, 'ok': abs(diff) < 0.05}
 
 
 def available_years():
