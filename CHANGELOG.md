@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Stock sync: Shopify EAN-fallback matching (2026-07-10)
+
+The ERP renumbered several `codmare` values, which silently broke the Shopify stock sync's only match key (`codmare` ↔ Shopify variant SKU) — affected products kept a frozen stock on Shopify (oversell risk). eMAG was unaffected (it matches on `codbare`/EAN). Renumbered pairs confirmed by name during verification: Shopify SKU `70177-00` vs ERP `70173-00` (Earl Grey 25), `70184-00` vs `70290-00` (English Breakfast 25), `70771-00` vs `70293-00` (English Afternoon 100g), `70427-00` vs `70419-00` (Moroccan Mint 100g).
+
+- **EAN fallback in the Shopify preview matcher** (`app/automations/stocuri_shopify/orchestrator.py`) — items match by normalized `codmare` first, then by report `codbare` vs the Shopify variant `barcode`, so the sync survives ERP code renumbering. `ShopifyPreviewRow` gains `matched_by` (`sku`/`ean`); codmare covered via an EAN match no longer appear in `skus_not_in_shopify`; the "no codmare" warning now fires only for rows with neither codmare nor EAN. An item without SKU can now still sync via barcode.
+- **GraphQL inventory fetch includes `variant.barcode`** (`app/automations/stocuri_shopify/api_client.py`).
+- **UI**: the `/stocuri` Shopify summary shows a "Match pe EAN" counter (`summary.matched_by_ean`; `app/static/js/stocuri.js`).
+- **Verification vs live exports (2026-07-10)** — full comparison of the ERP warehouse report against the eMAG offer export and the Shopify inventory CSV: drift analysis and per-platform catalog issues (products with stock absent from the ERP report, duplicate EANs/SKUs) in `docs/analysis/2026-07-10-stock-sync-verification.md`; owner data-cleanup actions tracked as BACKLOG item 14.
+- Files: `app/automations/stocuri_shopify/orchestrator.py`, `app/automations/stocuri_shopify/api_client.py`, `app/static/js/stocuri.js`, `tests/test_shopify_orchestrator.py` (new). Tests: 343 passing (+7).
+
 ### P&L redesign F0: correctness foundation (2026-07-08)
 
 Phase F0 of `docs/plans/2026-07-08-pnl-redesign.md` — the P&L is now structurally correct with any subset of months imported, and every import is validated and visible.
