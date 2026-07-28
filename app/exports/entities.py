@@ -304,6 +304,12 @@ def build_context(entity, ident, an, luna=None):
     builder = _BUILDERS.get(entity)
     if builder is None or not ident:
         return None
+    # luna=0 is ambiguous downstream: brand_kpi/agent_kpi test `luna is not
+    # None` (0 becomes `luna = 0`, matching nothing) while product_kpi/
+    # client_products_full test truthiness (0 falls through to year-to-date).
+    # Normalize here so all four entities agree on "no month filter".
+    if luna == 0:
+        luna = None
     if luna and not 1 <= luna <= 12:
         return None
     max_luna = None if luna else queries.max_luna_for_year(an)

@@ -113,6 +113,23 @@ def test_build_context_rejects_out_of_range_luna(flask_app, luna):
         assert entities.build_context('client', CLIENT, AN, luna) is None
 
 
+@pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs'])
+def test_build_context_luna_zero_is_year_to_date(flask_app, entity):
+    """luna=0 must be treated as "no month filter" for all four entities,
+    not passed through to the underlying queries where brand_kpi/agent_kpi
+    (testing `is not None`) and product_kpi/client_products_full (testing
+    truthiness) would disagree about what 0 means."""
+    from exports import entities
+    with flask_app.app_context():
+        zero = entities.build_context(entity, ENTITY_IDENT[entity], AN, 0)
+        none = entities.build_context(entity, ENTITY_IDENT[entity], AN, None)
+    assert zero is not None
+    assert none is not None
+    assert zero['subtitle'] == none['subtitle']
+    for sheet_name in none['sheets']:
+        assert len(zero['sheets'][sheet_name]) == len(none['sheets'][sheet_name])
+
+
 def test_client_context_cards_render_margins(flask_app):
     """Regression for the CHANGELOG fix: the client deck's margin cards must
     render actual figures, not '-'. Derived from the seed (tests/conftest.py),
