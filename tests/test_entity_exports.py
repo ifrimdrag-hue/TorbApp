@@ -310,3 +310,17 @@ def test_excel_brand_is_gated_on_products_nav(client, monkeypatch):
     monkeypatch.setattr(authz, 'can_access_nav', lambda role, key: False)
     rv = client.get(f'/export/brand?furnizor={BRAND}&an={AN}')
     assert rv.status_code == 403
+
+
+# ── Page buttons ─────────────────────────────────────────────────────────────
+
+def test_brand_page_offers_both_exports(client):
+    html = client.get(f'/brand/{BRAND}?an={AN}').get_data(as_text=True)
+    assert f'/export/brand?furnizor={BRAND}' in html or '/export/brand?' in html
+    assert '/export/ppt/brand?' in html
+
+
+def test_produs_page_offers_ppt_export(client):
+    html = client.get(f'/produs/{SKU}?an={AN}').get_data(as_text=True)
+    assert '/export/produs?' in html
+    assert '/export/ppt/produs?' in html
