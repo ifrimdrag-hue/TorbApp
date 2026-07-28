@@ -1,0 +1,10 @@
+# Pinned lint contract. Without an explicit `select`, ruff applies whatever its
+# current release considers default — 0.16.0 widened that set and turned a green
+# tree into 436 findings (2026-07-28). The rules below are the set the codebase
+# was written against and the one CLAUDE.md documents.
+#
+# Adopting the wider set is tracked as a BACKLOG item; add families here one at
+# a time, fix the fallout, commit.
+
+[lint]
+select = ["E4", "E7", "E9", "F"]

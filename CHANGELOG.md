@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### CI: pin the ruff version and rule set (2026-07-28)
+
+The lint job installed ruff unpinned and the repo had no ruff config, so CI enforced whatever the newest release considered its default rule set. Ruff **0.16.0** widened that set and a previously green tree failed with **436 findings** — none of them new code. Both halves are now pinned: `ruff.toml` selects `E4, E7, E9, F` (the rules CLAUDE.md documents), and `ruff==0.16.0` is fixed in the lint job and in `requirements-dev.txt`. Adopting the wider set is a deliberate, family-at-a-time job tracked as BACKLOG item 16, which lists the counts. Note there is no local pre-commit hook — CI remains the only gate.
+
 ### Stock sync: Shopify EAN-fallback matching (2026-07-10)
 
 The ERP renumbered several `codmare` values, which silently broke the Shopify stock sync's only match key (`codmare` ↔ Shopify variant SKU) — affected products kept a frozen stock on Shopify (oversell risk). eMAG was unaffected (it matches on `codbare`/EAN). Renumbered pairs confirmed by name during verification: Shopify SKU `70177-00` vs ERP `70173-00` (Earl Grey 25), `70184-00` vs `70290-00` (English Breakfast 25), `70771-00` vs `70293-00` (English Afternoon 100g), `70427-00` vs `70419-00` (Moroccan Mint 100g).
