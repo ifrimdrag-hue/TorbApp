@@ -61,7 +61,7 @@ query GetInventory($locationId: ID!, $cursor: String) {
         item {
           id
           sku
-          variant { displayName product { title } }
+          variant { barcode displayName product { title } }
         }
         quantities(names: ["on_hand"]) { name quantity }
       }
@@ -140,6 +140,7 @@ class ShopifyClient:
                 items.append({
                     "inventory_item_id": inv["id"],
                     "sku": (inv.get("sku") or "").strip(),
+                    "barcode": (variant.get("barcode") or "").strip(),
                     "name": name,
                     "on_hand": on_hand,
                 })

@@ -24,6 +24,7 @@ class ShopifyPreviewRow(NamedTuple):
     old_stock: int
     new_stock: int | None
     status: str  # updated | zeroed_threshold | unchanged | no_sku | no_report
+    matched_by: str | None = None  # sku | ean | None
 
 
 class ShopifyPreviewResult(NamedTuple):
@@ -45,45 +46,45 @@ async def preview(report_bytes: bytes, source_filename: str = "") -> ShopifyPrev
     save_snapshot(parsed, source_filename)
     threshold = settings.shopify_stock_safety_threshold
 
+    # Primary match: codmare vs Shopify variant SKU. Fallback: report EAN vs
+    # variant barcode — survives ERP codmare renumbering (2026-07-10 incident).
     raw_by_sku: dict[str, int] = defaultdict(int)
-    skus_no_codmare: list[dict] = []
+    raw_by_ean: dict[str, int] = defaultdict(int)
+    cms_of_ean: dict[str, set[str]] = defaultdict(set)
+    skus_unmatchable: list[dict] = []
     for row in parsed.rows:
         cm = _norm(row.codmare) if row.codmare else None
         if cm:
             raw_by_sku[cm] += row.qty
-        else:
-            skus_no_codmare.append({"sku": row.sku, "qty": row.qty})
-
-    new_by_sku: dict[str, int] = {
-        cm: (0 if qty <= threshold else qty) for cm, qty in raw_by_sku.items()
-    }
+        if row.ean:
+            raw_by_ean[row.ean] += row.qty
+            if cm:
+                cms_of_ean[row.ean].add(cm)
+        if not cm and not row.ean:
+            skus_unmatchable.append({"sku": row.sku, "qty": row.qty})
 
     client = ShopifyClient()
     live_items = await client.fetch_all_inventory()
 
-    shopify_by_sku: dict[str, dict] = {}
-    for item in live_items:
-        n = _norm(item["sku"])
-        if n:
-            shopify_by_sku[n] = item
-
-    all_shopify_skus = set(shopify_by_sku.keys())
+    all_shopify_skus = {n for n in (_norm(item["sku"]) for item in live_items) if n}
     rows: list[ShopifyPreviewRow] = []
+    matched_eans: set[str] = set()
 
     for item in live_items:
         n = _norm(item["sku"])
+        barcode = (item.get("barcode") or "").strip()
         old = item["on_hand"]
 
-        if not n:
-            rows.append(ShopifyPreviewRow(
-                inventory_item_id=item["inventory_item_id"], sku=item["sku"],
-                name=item["name"], old_stock=old, new_stock=None, status="no_sku",
-            ))
-            continue
+        if n and n in raw_by_sku:
+            real, matched_by = raw_by_sku[n], "sku"
+        elif barcode and barcode in raw_by_ean:
+            real, matched_by = raw_by_ean[barcode], "ean"
+            matched_eans.add(barcode)
+        else:
+            real, matched_by = None, None
 
-        if n in new_by_sku:
-            new = new_by_sku[n]
-            real = raw_by_sku[n]
+        if real is not None:
+            new = 0 if real <= threshold else real
             if real <= threshold:
                 status = "zeroed_threshold" if new != old else "unchanged"
             else:
@@ -91,6 +92,12 @@ async def preview(report_bytes: bytes, source_filename: str = "") -> ShopifyPrev
             rows.append(ShopifyPreviewRow(
                 inventory_item_id=item["inventory_item_id"], sku=item["sku"],
                 name=item["name"], old_stock=old, new_stock=new, status=status,
+                matched_by=matched_by,
+            ))
+        elif not n:
+            rows.append(ShopifyPreviewRow(
+                inventory_item_id=item["inventory_item_id"], sku=item["sku"],
+                name=item["name"], old_stock=old, new_stock=None, status="no_sku",
             ))
         else:
             rows.append(ShopifyPreviewRow(
@@ -98,15 +105,19 @@ async def preview(report_bytes: bytes, source_filename: str = "") -> ShopifyPrev
                 name=item["name"], old_stock=old, new_stock=None, status="unchanged",
             ))
 
+    cms_matched_via_ean: set[str] = set()
+    for ean in matched_eans:
+        cms_matched_via_ean |= cms_of_ean[ean]
+
     skus_not_in_shopify = [
         {"codmare": cm, "qty": raw_by_sku[cm]}
         for cm in raw_by_sku
-        if cm not in all_shopify_skus
+        if cm not in all_shopify_skus and cm not in cms_matched_via_ean
     ]
 
     warnings = list(parsed.warnings)
-    if skus_no_codmare:
-        warnings.append(f"{len(skus_no_codmare)} SKU-uri din raport fara codmare (sarite)")
+    if skus_unmatchable:
+        warnings.append(f"{len(skus_unmatchable)} SKU-uri din raport fara codmare si fara EAN (sarite)")
 
     summary = {
         "total_shopify_items": len(rows),
@@ -115,6 +126,7 @@ async def preview(report_bytes: bytes, source_filename: str = "") -> ShopifyPrev
         "zeroed_threshold": sum(1 for r in rows if r.status == "zeroed_threshold"),
         "unchanged": sum(1 for r in rows if r.status == "unchanged"),
         "no_sku": sum(1 for r in rows if r.status == "no_sku"),
+        "matched_by_ean": sum(1 for r in rows if r.matched_by == "ean"),
         "not_in_shopify": len(skus_not_in_shopify),
         "safety_threshold": threshold,
         "report_warnings": len(parsed.warnings),

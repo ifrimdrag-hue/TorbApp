@@ -309,7 +309,7 @@ Sync history: `sync_sessions` + `sync_rows` tables (with `platform` column and `
 2. `inventorySetQuantities` requires `ignoreCompareQuantity: true` (mandatory since API 2025-04)
 3. Switching the platform radio must reset the file input `.value`, or re-selecting the same file fires no change event
 4. Safety threshold: stock ≤ threshold is sent as 0; independent per platform (`EMAG_STOCK_SAFETY_THRESHOLD`, `SHOPIFY_STOCK_SAFETY_THRESHOLD`), default 5
-5. SKU matching uses `_normalize_sku()` from `csv_filler.py`: strips leading apostrophe + trailing `-XX` suffix; matches `codmare` from the internal report to the Shopify variant SKU
+5. SKU matching uses `_normalize_sku()` from `csv_filler.py`: strips leading apostrophe + trailing `-XX` suffix; matches `codmare` from the internal report to the Shopify variant SKU. **Since 2026-07-10 there is an EAN fallback**: when the codmare doesn't match any variant SKU, the report `codbare` is matched against the variant `barcode` (the ERP renumbered codmare values and froze several products' Shopify stock — see `docs/analysis/2026-07-10-stock-sync-verification.md`). Preview rows carry `matched_by` (`sku`/`ean`) and the summary a `matched_by_ean` counter.
 
 ### Connection status cache
 

@@ -1,6 +1,6 @@
 # Torb — Status Execuție Plan Strategic 2026–2030
 
-**Ultima actualizare:** 2026-07-07
+**Ultima actualizare:** 2026-07-10
 **Document referință:** `docs/BUSINESS.md` §7 — Plan Strategic 2026–2030 (v1.0)
 **Regulă:** actualizează acest fișier la fiecare schimbare de stare (nu la fiecare discuție). Legend: `[ ]` = neînceput · `[~]` = în lucru · `[x]` = livrat · `[!]` = blocat · `[↑]` = întârziat.
 **Istoric livrări:** rezumatele implementărilor livrate stau în `CHANGELOG.md`, nu aici — acest fișier ține doar starea curentă (decizii deschise, acțiuni 90 de zile, în curs/blocaje, pasul următor).
@@ -49,6 +49,7 @@
 
 ## Livrat recent (detalii în CHANGELOG)
 
+- `[x]` **Sincronizare stoc Shopify — fallback pe EAN** (2026-07-10) — renumerotarea codmare din ERP rupsese match-ul codmare↔SKU Shopify (stoc înghețat pe produsele afectate); match-ul face acum fallback pe codbare↔barcode. eMAG neafectat (match pe EAN). Verificare completă ERP vs eMAG vs Shopify: `docs/analysis/2026-07-10-stock-sync-verification.md`; curățenia de date rămasă la owner = BACKLOG #14. Vezi CHANGELOG.
 - `[x]` **Modul Admin — RBAC (roluri dinamice + matrice autorizare navigare)** (2026-07-07) — tabele `adm_roles`/`adm_role_nav`, redenumire `users` → `adm_users` (migrațiile 0037 + 0038, a doua elimină `CHECK(role IN (...))` ca să permită roluri dinamice), registry canonic `app/nav_registry.py` → `app/authz.py` → gate 403 în `before_request`, sidebar randat din registry, modul Admin reorganizat în 3 taburi (Utilizatori, Mentenanță DB, Autorizări); `admin` rămâne superuser hard-coded (nu apare în matrice). Vezi CHANGELOG. De urmărit: UX de reasignare a utilizatorilor înainte de ștergerea unui rol; `postari.postari_ai_generate` rămâne doar login-gated (paginile Instagram/Facebook îl folosesc în comun); `admin.db_restore`/`db_backup_now` folosesc CSRF manual ca restul rutelor admin, dar merită un audit CSRF dedicat (acțiune distructivă). Notă: `reports.export_excel` e gated per-raport în handler (nu prin `before_request`), iar ștergerea unui rol curăță acum explicit rândurile `adm_role_nav` (id-urile de rol pot fi reutilizate, deci curățarea previne moștenirea de permisiuni).
 - `[x]` **Raportare clienți/produse + integritate branduri & identitate Auchan** (2026-07-07) — taburi + istoric per produs, fix branduri Auchan/HORECA/catalog (migrațiile 0028–0030), import Tobra pe cod mare + realiniere cod_produs (migrația 0031), pagina de produs unificată pe denumiri, curățare cohortă buggy compatibilă cu reimportul zilnic (migrația 0032). Cereri owner 2026-07-07. După aprobare pe prod, primul reimport zilnic Tobra reface automat rândurile șterse de 0032 — de verificat a doua zi Auchan/iulie.
 - `[x]` **Modul Comercial → Solduri neîncasate** (2026-07-05) — upload raport ERP + dashboard aging (carduri Nescadent/Scadent 7/30/60 + catch-all, tabel per client/agent/factură, filtrare pe card, export Excel). Referință = azi. Migrație 0021.

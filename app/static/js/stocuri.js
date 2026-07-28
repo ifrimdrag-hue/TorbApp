@@ -134,6 +134,7 @@ const PLATFORMS = {
         <div class="stat warning"><div class="label">Zerificate (&le;${s.safety_threshold})</div><div class="value">${s.zeroed_threshold}</div></div>
         <div class="stat muted"><div class="label">Nemodificate</div><div class="value">${s.unchanged}</div></div>
         <div class="stat muted"><div class="label">Fara SKU</div><div class="value">${s.no_sku}</div></div>
+        <div class="stat muted"><div class="label">Match pe EAN</div><div class="value">${s.matched_by_ean ?? 0}</div></div>
         <div class="stat muted"><div class="label">Negasite pe Shopify</div><div class="value">${s.not_in_shopify}</div></div>`;
     },
     renderSummaryNoReport(s) {
