@@ -99,10 +99,65 @@ def _clients(an, luna, max_luna, filters):
         'trend': None,
     }
 
+def _products(an, luna, max_luna, filters):
+    # The brand table is never brand-filtered — the page filters only the SKU
+    # list, and the brand overview is what gives the filtered SKUs context.
+    brands = queries.products_brands(an, luna=luna, max_luna=max_luna)
+    skus = queries.products_top_skus(
+        an,
+        furnizor=filters.get('brand') or None,
+        search=filters.get('q') or None,
+        luna=luna, max_luna=max_luna, limit=SHEET_ROW_LIMIT,
+    )
+    vn, mb, mn = _totals(brands)
+    left, width = FULL_WIDTH
+
+    return {
+        'nav': 'products',
+        'title': f"Produse {an}",
+        'filename_base': f'produse_{an}',
+        'cards': [
+            ("Val. Netă", fmt_ron(vn)),
+            ("Marjă Brută %", fmt_pct(pct(mb, vn))),
+            ("Marjă Netă", f"{fmt_ron(mn)} / {fmt_pct(pct(mn, vn))}"),
+            ("Branduri / SKU", f"{len(brands)} / {len(skus)}"),
+        ],
+        'tables': [
+            table(f"Branduri {an}", left, width, brands, lambda r: {
+                "Brand": (r.get('furnizor') or "—")[:24],
+                "Val. Netă": fmt_ron(r.get('val_neta')),
+                "MB RON": fmt_ron(r.get('marja_bruta')),
+                "MB%": fmt_pct(r.get('marja_pct')),
+                "MN RON": fmt_ron(r.get('marja_neta')),
+                "MN%": fmt_pct(r.get('marja_neta_pct')),
+                "Clienți": str(r.get('nr_clienti') or 0),
+                "SKU": str(r.get('nr_sku') or 0),
+            }),
+        ],
+        'extra_tables': [
+            table(f"Top SKU {an}", left, width, skus, lambda r: {
+                "Produs": (r.get('sku') or "—")[:30],
+                "Brand": r.get('furnizor') or "—",
+                "Cant.": str(int(r.get('cantitate') or 0)),
+                "Val. Netă": fmt_ron(r.get('val_neta')),
+                "MB%": fmt_pct(r.get('marja_bruta_pct')),
+                "MN RON": fmt_ron(r.get('marja_neta')),
+                "MN%": fmt_pct(r.get('marja_neta_pct')),
+                "Clienți": str(r.get('nr_clienti') or 0),
+            }),
+        ],
+        'sheets': {
+            'Branduri': brands,
+            'Top SKU': skus,
+        },
+        'trend': None,
+    }
+
 
 _BUILDERS = {
     'team': _team,
     'clients': _clients,
+    'products': _products,
 }
 
 REPORTS = tuple(_BUILDERS)

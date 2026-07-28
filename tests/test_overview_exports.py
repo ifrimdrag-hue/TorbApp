@@ -122,3 +122,45 @@ def test_excel_sheet_is_not_truncated_to_the_deck_limit(flask_app, monkeypatch):
     assert len(_rows(ctx['sheets'][f'Clienți {AN}'])) == 40
     assert len(ctx['tables'][0]['rows']) == 15
     assert ctx['tables'][0]['title'] == f'Clienți {AN} — top 15 din 40'
+
+
+def test_products_context_shape(flask_app):
+    from exports import overviews
+    with flask_app.app_context():
+        ctx = overviews.build_context('products', AN, None, {})
+    assert ctx['nav'] == 'products'
+    assert ctx['filename_base'] == f'produse_{AN}'
+    assert list(ctx['sheets']) == ['Branduri', 'Top SKU']
+    brands = [r['furnizor'] for r in _rows(ctx['sheets']['Branduri'])]
+    assert 'Basilur' in brands and 'Toras' in brands
+    assert 'SKU001' in [r['sku'] for r in _rows(ctx['sheets']['Top SKU'])]
+    assert len(ctx['tables']) == 1
+    assert len(ctx['extra_tables']) == 1
+    assert ctx['extra_tables'][0]['title'].startswith(f'Top SKU {AN}')
+
+
+def test_products_context_brand_filter_scopes_skus_only(flask_app):
+    """The page filters only the SKU table by brand — the brand table always
+    shows every brand. The export mirrors that."""
+    from exports import overviews
+    with flask_app.app_context():
+        ctx = overviews.build_context('products', AN, None, {'brand': 'Basilur'})
+    skus = _rows(ctx['sheets']['Top SKU'])
+    assert skus
+    assert {r['furnizor'] for r in skus} == {'Basilur'}
+    assert 'Toras' in [r['furnizor'] for r in _rows(ctx['sheets']['Branduri'])]
+
+
+def test_products_context_search_filter_reaches_the_sku_query(flask_app):
+    from exports import overviews
+    with flask_app.app_context():
+        ctx = overviews.build_context('products', AN, None, {'q': 'SKU002'})
+    assert [r['sku'] for r in _rows(ctx['sheets']['Top SKU'])] == ['SKU002']
+
+
+def test_products_context_honours_luna(flask_app):
+    from exports import overviews
+    with flask_app.app_context():
+        empty = overviews.build_context('products', AN, EMPTY_MONTH, {})
+    assert not _rows(empty['sheets']['Branduri'])
+    assert not _rows(empty['sheets']['Top SKU'])
