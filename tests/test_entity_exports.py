@@ -15,8 +15,10 @@ def test_agent_kpi_exposes_marja_neta_pct(flask_app):
     with flask_app.app_context():
         kpi = queries.agent_kpi(AGENT, AN)
     assert 'marja_neta_pct' in kpi
-    expected = round((kpi['marja_neta'] or 0) * 100 / (kpi['val_neta'] or 1), 1)
-    assert kpi['marja_neta_pct'] == pytest.approx(expected, abs=0.1)
+    # Seed (tests/conftest.py): marja_bruta 200+150=350, val_neta 500+400=900,
+    # no conditii_comerciale rows -> condition cost 0 -> marja_neta == marja_bruta.
+    assert kpi['marja_neta'] == 350
+    assert kpi['marja_neta_pct'] == pytest.approx(38.9, abs=0.1)
 
 
 def test_agent_kpi_marja_neta_pct_is_zero_without_sales(flask_app):
