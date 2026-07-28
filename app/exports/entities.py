@@ -4,66 +4,14 @@ Both the Excel route and the PPT route consume the context produced here, so
 the two formats read the same rows for the same period and cannot drift apart.
 """
 import queries
+from exports.context import SHEET_ROW_LIMIT
+from exports.context import pct as _pct
+from exports.context import period_label as _period_label
+from exports.context import slug as _slug
+from exports.context import slug_with_year as _slug_with_year
+from exports.context import table as _table
+from exports.context import trend as _trend
 from exports.ppt_export import fmt_pct, fmt_ron
-
-MONTHS_RO_FULL = [
-    'Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie',
-    'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie',
-]
-MONTHS_RO_SHORT = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun',
-                   'Iul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-
-def _period_label(an, luna, max_luna):
-    """Human-readable period, so a filtered export is never read as a full year."""
-    if luna:
-        return f"{an} · {MONTHS_RO_FULL[luna - 1]}"
-    if max_luna and max_luna < 12:
-        return f"{an} · Ian–{MONTHS_RO_SHORT[max_luna - 1]}"
-    return str(an)
-
-
-def _slug(text, maxlen):
-    return (text or '').replace(' ', '_').replace('/', '_')[:maxlen]
-
-
-def _slug_with_year(prefix, ident, an, maxlen):
-    """Slug that always keeps the trailing `_<year>` — the identifier is
-    truncated instead of the whole composed string, so a long ident never
-    eats the year suffix (pre-branch behaviour)."""
-    suffix = f"_{an}"
-    ident = (ident or '').replace(' ', '_').replace('/', '_')
-    budget = max(maxlen - len(prefix) - 1 - len(suffix), 0)
-    return f"{prefix}_{ident[:budget]}{suffix}"
-
-
-def _table(title, left, width, rows, mapper, limit=15):
-    """One deck table. States its own truncation so a top-N never reads as a total."""
-    rows = rows or []
-    mapped = [mapper(r) for r in rows[:limit]]
-    caption = title if len(rows) <= limit else f"{title} — top {limit} din {len(rows)}"
-    return {
-        'title': caption,
-        'left': left,
-        'width': width,
-        'headers': list(mapped[0].keys()) if mapped else [],
-        'rows': mapped,
-    }
-
-
-def _trend(rows):
-    """{year: [12 monthly val_neta]} for the trend chart."""
-    out = {}
-    for r in rows:
-        luna = r.get('luna')
-        if not luna:
-            continue
-        out.setdefault(r['an'], [0] * 12)[int(luna) - 1] = r.get('val_neta') or 0
-    return out
-
-
-def _pct(part, whole):
-    return round((part or 0) * 100.0 / whole, 1) if whole else None
 
 
 def _brand_mix(products):
@@ -184,21 +132,13 @@ def _agent(name, an, luna, max_luna):
     }
 
 
-# The workbook sheet is the full-data artifact (unlike the deck table, which
-# declares its own top-N truncation), so its underlying queries must pull
-# effectively all rows. Neither `brand_clients` nor `products_top_skus` accepts
-# `limit=None` for unlimited (their SQL binds `LIMIT :limit`, and SQLite raises
-# on a NULL bind there) — this is comfortably above any real brand's row count.
-_SHEET_ROW_LIMIT = 100_000
-
-
 def _brand(furnizor, an, luna, max_luna):
     kpi = queries.brand_kpi(furnizor, an, max_luna=max_luna, luna=luna)
     if not kpi or not kpi.get('val_neta'):
         return None
     clients = queries.brand_clients(furnizor, an, max_luna=max_luna, luna=luna,
-                                     limit=_SHEET_ROW_LIMIT)
-    skus = queries.products_top_skus(an, furnizor=furnizor, limit=_SHEET_ROW_LIMIT,
+                                     limit=SHEET_ROW_LIMIT)
+    skus = queries.products_top_skus(an, furnizor=furnizor, limit=SHEET_ROW_LIMIT,
                                      luna=luna, max_luna=max_luna)
     monthly = queries.brand_monthly_full(furnizor)
 

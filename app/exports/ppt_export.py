@@ -582,7 +582,7 @@ def timestamped_filename(base):
 # ── Raportare Basilur ─────────────────────────────────────────────────────────
 
 def build_basilur_ppt(an, period_label, kpi_total, kpi_per_brand,
-                      monthly_data, stoc_per_brand, stoc_detail):
+                      monthly_data, stoc_per_brand, stoc_detail, curs=4.55):
     _check()
     BRANDS = ["Basilur", "KingsLeaf", "Tipson", "Organsia"]
     BRAND_COLORS = [
@@ -593,7 +593,7 @@ def build_basilur_ppt(an, period_label, kpi_total, kpi_per_brand,
     ]
     MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    R = 4.55  # RON → USD
+    R = curs or 4.55  # RON → USD; a zero rate would divide by zero below
 
     def _usd(v):
         if v is None:
@@ -643,7 +643,10 @@ def build_basilur_ppt(an, period_label, kpi_total, kpi_per_brand,
 
     kpi_map = {r["furnizor"]: r for r in (kpi_per_brand or [])}
     stoc_map_s2 = {r["furnizor"]: r for r in (stoc_per_brand or [])}
-    card_x = [0.3, 4.6, 8.9]
+    # Derived from len(BRANDS), not hard-coded: a fixed three-slot list made
+    # this slide raise IndexError for the fourth brand, i.e. every time.
+    card_w = 3.1
+    card_x = [0.3 + i * (card_w + 0.15) for i in range(len(BRANDS))]
 
     for col_i, brand in enumerate(BRANDS):
         k  = kpi_map.get(brand, {})
@@ -654,7 +657,6 @@ def build_basilur_ppt(an, period_label, kpi_total, kpi_per_brand,
         nsku = k.get("nr_sku") or 0
         sv   = st.get("valoare_achizitie") or 0
         cx   = card_x[col_i]
-        card_w = 4.1
         _add_rect(slide, cx, 1.15, card_w, 0.4, BRAND_COLORS[col_i])
         _add_text(slide, brand.upper(), cx + 0.1, 1.18, card_w - 0.2, 0.35,
                   font_size=14, bold=True, color=C_WHITE, align=PP_ALIGN.LEFT)

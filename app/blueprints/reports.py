@@ -1,11 +1,11 @@
 import datetime
 import json
 import logging
-from flask import Blueprint, render_template, request, abort, send_file
+from flask import Blueprint, render_template, request, abort, send_file, redirect, url_for
 from flask_login import current_user
 import authz
 import queries
-from exports import entities, ppt_export
+from exports import entities, overviews, ppt_export
 from exports.excel_export import send_excel, timestamped_filename
 
 reports_bp = Blueprint('reports', __name__)
@@ -25,6 +25,7 @@ _EXPORT_NAV_KEY = {
     "preturi": "preturi",
     "conditii": "conditii",
     "profitabilitate": "profitabilitate",
+    "basilur": "basilur",
 }
 
 MONTHS_RO = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun',
@@ -130,6 +131,20 @@ def profitabilitate():
 # ---------------------------------------------------------------------------
 
 # (nav key, request arg carrying the entity id — None for overview decks)
+def _overview_filters(report):
+    """Query args each overview export honours - one source of truth for both
+    dispatchers, so the Excel and PPT links cannot disagree about the filter."""
+    if report == 'clients':
+        return {k: request.args.get(k, '').strip()
+                for k in ('q', 'agent', 'churn', 'brand')}
+    if report == 'products':
+        return {k: request.args.get(k, '').strip() for k in ('brand', 'q')}
+    if report == 'basilur':
+        return {'curs': request.args.get(
+            'curs', type=float, default=overviews.BASILUR_DEFAULT_CURS)}
+    return {}
+
+
 _PPT_ENTITIES = {
     'dashboard':       ('dashboard', None),
     'profitabilitate': ('profitabilitate', None),
@@ -180,23 +195,33 @@ _OVERVIEW_PPT = {
 
 @reports_bp.route('/export/ppt/<entity>')
 def export_ppt(entity):
-    """Generic multi-feature PPT export — gated per-entity here, which is why
+    """Generic multi-feature PPT export - gated per-entity here, which is why
     this endpoint is allow-listed in nav_registry.UNGATED_ENDPOINTS."""
-    spec = _PPT_ENTITIES.get(entity)
-    if spec is None:
+    known = entity in overviews.REPORTS or entity in _PPT_ENTITIES
+    nav = _EXPORT_NAV_KEY.get(entity)
+    if not known or nav is None:
         abort(404)
-    nav, param = spec
     if not authz.can_access_nav(current_user.role, nav):
         abort(403)
 
     an = int(request.args.get('an', datetime.date.today().year))
+    luna = request.args.get('luna', type=int)
 
+    if entity in overviews.REPORTS:
+        ctx = overviews.build_context(entity, an, luna, _overview_filters(entity))
+        if ctx is None:
+            abort(404)
+        builder = ctx.get('ppt_builder')
+        buf = builder() if builder else ppt_export.build_entity_ppt(ctx)
+        return ppt_export.send_ppt(
+            buf, ppt_export.timestamped_filename(ctx['filename_base']))
+
+    param = _PPT_ENTITIES[entity][1]
     if param is None:
         buf, base = _OVERVIEW_PPT[entity](an)
         return ppt_export.send_ppt(buf, ppt_export.timestamped_filename(base))
 
     ident = request.args.get(param, '').strip()
-    luna = request.args.get('luna', type=int)
     ctx = entities.build_context(entity, ident, an, luna) if ident else None
     if ctx is None:
         abort(404)
@@ -254,6 +279,14 @@ def export_excel(report):
     if _nav and not authz.can_access_nav(current_user.role, _nav):
         abort(403)
 
+    if report in overviews.REPORTS:
+        luna = request.args.get('luna', type=int)
+        ctx = overviews.build_context(report, an, luna, _overview_filters(report))
+        if ctx is None:
+            abort(404)
+        return send_excel(ctx['sheets'],
+                          timestamped_filename(ctx['filename_base']))
+
     if report == 'dashboard':
         sheets = {
             'KPI': queries.kpi_cards(),
@@ -264,34 +297,6 @@ def export_excel(report):
             'Churn (>60z)': queries.churn_clients(60),
         }
         return send_excel(sheets, timestamped_filename(f'dashboard_{an}'))
-
-    if report == 'team':
-        rows_cy = queries.team_table(an)
-        rows_py = queries.team_table(an - 1)
-        return send_excel(
-            {f'Echipa {an}': rows_cy, f'Echipa {an-1}': rows_py},
-            timestamped_filename(f'echipa_{an}'),
-        )
-
-    if report == 'clients':
-        search = request.args.get('q', '').strip() or None
-        agent  = request.args.get('agent', '').strip() or None
-        churn  = request.args.get('churn', '').strip() or None
-        brand  = request.args.get('brand', '').strip() or None
-        rows = queries.clients_list(an, search=search, agent=agent, churn=churn, brand=brand)
-        return send_excel(
-            {f'Clienți {an}': rows},
-            timestamped_filename(f'clienti_{an}'),
-        )
-
-    if report == 'products':
-        furnizor = request.args.get('brand', '').strip() or None
-        brand_rows = queries.products_brands(an)
-        sku_rows   = queries.products_top_skus(an, furnizor=furnizor)
-        return send_excel(
-            {'Branduri': brand_rows, 'Top SKU': sku_rows},
-            timestamped_filename(f'produse_{an}'),
-        )
 
     if report == 'forecast':
         gama     = request.args.get('gama', '').strip() or None
@@ -355,20 +360,6 @@ def export_excel(report):
 # Raportare Basilur
 # ---------------------------------------------------------------------------
 
-BASILUR_BRANDS = ['Basilur', 'KingsLeaf', 'Tipson', 'Organsia']
-
-
-def _basilur_monthly_matrix(rows, an):
-    """Convertește rows (furnizor, luna, val_neta) în {furnizor: [12 valori]}."""
-    out = {b: [0] * 12 for b in BASILUR_BRANDS}
-    for r in rows:
-        furn = r['furnizor']
-        luna = r['luna']
-        if furn in out and luna and 1 <= int(luna) <= 12:
-            out[furn][int(luna) - 1] = r['val_neta'] or 0
-    return out
-
-
 @reports_bp.route('/raportare-basilur')
 def raportare_basilur():
     an   = int(request.args.get('an', datetime.date.today().year))
@@ -387,21 +378,22 @@ def raportare_basilur():
     kpi_per_brand = queries.basilur_kpi_per_brand(an, max_luna=max_luna, luna=luna)
     kpi_py_total  = queries.basilur_kpi_total(an - 1, max_luna=max_luna, luna=luna) or {}
     monthly_rows  = queries.basilur_monthly_per_brand(an)
-    monthly_data  = _basilur_monthly_matrix(monthly_rows, an)
+    monthly_data  = overviews.basilur_monthly_matrix(monthly_rows)
     stoc_per_brand = queries.basilur_stoc_per_brand()
     stoc_total     = queries.basilur_stoc_total()
 
-    usd_rate = request.args.get('curs', type=float, default=4.55)
+    usd_rate = request.args.get('curs', type=float,
+                                default=overviews.BASILUR_DEFAULT_CURS)
 
     kpi_map = {r['furnizor']: dict(r) for r in kpi_per_brand}
-    for b in BASILUR_BRANDS:
+    for b in overviews.BASILUR_BRANDS:
         if b not in kpi_map:
             kpi_map[b] = {'furnizor': b, 'val_neta': 0, 'marja_bruta': 0,
                           'marja_pct': 0, 'clienti_activi': 0, 'nr_sku': 0,
                           'val_neta_py': 0, 'delta_vn': None}
 
     stoc_map = {r['furnizor']: dict(r) for r in stoc_per_brand}
-    for b in BASILUR_BRANDS:
+    for b in overviews.BASILUR_BRANDS:
         if b not in stoc_map:
             stoc_map[b] = {'furnizor': b, 'nr_sku': 0, 'total_unitati': 0,
                            'valoare_achizitie': 0}
@@ -415,114 +407,31 @@ def raportare_basilur():
         monthly_data_json=json.dumps(monthly_data),
         months_json=json.dumps(MONTHS_RO),
         stoc_map=stoc_map, stoc_total=dict(stoc_total),
-        basilur_brands=BASILUR_BRANDS,
+        basilur_brands=overviews.BASILUR_BRANDS,
         usd_rate=usd_rate,
     )
 
 
+def _forward_args(*drop):
+    args = request.args.to_dict()
+    for key in drop:
+        args.pop(key, None)
+    return args
+
+
 @reports_bp.route('/raportare-basilur/export/excel')
 def raportare_basilur_excel():
-    an   = int(request.args.get('an', datetime.date.today().year))
-    luna = request.args.get('luna', type=int)
-    max_luna = None if luna else queries.max_luna_for_year(an)
-
-    kpi_per_brand  = queries.basilur_kpi_per_brand(an, max_luna=max_luna, luna=luna)
-    monthly_rows   = queries.basilur_monthly_per_brand(an)
-    stoc_per_brand = queries.basilur_stoc_per_brand()
-    stoc_detail    = queries.basilur_stoc_detail()
-
-    R = request.args.get('curs', type=float, default=4.55)
-
-    # Sheet 1: KPI per brand
-    kpi_rows = [{
-        'Brand':             r['furnizor'],
-        'Net Sales (USD)':   round((r['val_neta'] or 0) / R, 0),
-        'Active Clients':    r['clienti_activi'] or 0,
-        'Active SKUs':       r['nr_sku'] or 0,
-        'Net Sales PY (USD)': round((r['val_neta_py'] or 0) / R, 0),
-        'YoY Delta %':       r['delta_vn'],
-    } for r in kpi_per_brand]
-
-    # Sheet 2: Monthly evolution (pivot: brand x month)
-    MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    monthly_matrix = _basilur_monthly_matrix(monthly_rows, an)
-    pivot_rows = []
-    for brand in BASILUR_BRANDS:
-        vals = monthly_matrix.get(brand, [0] * 12)
-        row = {'Brand': brand}
-        for i, m in enumerate(MONTHS_EN):
-            row[m] = round(vals[i] / R, 0)
-        row['TOTAL'] = round(sum(vals) / R, 0)
-        pivot_rows.append(row)
-    total_row = {'Brand': 'TOTAL'}
-    for i, m in enumerate(MONTHS_EN):
-        total_row[m] = round(sum(monthly_matrix.get(b, [0]*12)[i] for b in BASILUR_BRANDS) / R, 0)
-    total_row['TOTAL'] = sum(total_row[m] for m in MONTHS_EN)
-    pivot_rows.append(total_row)
-    luni_headers = ['Brand'] + MONTHS_EN + ['TOTAL']
-
-    # Sheet 3: Stock per brand
-    stoc_brand_rows = [{
-        'Brand':                  r['furnizor'],
-        'SKU Count':              r['nr_sku'] or 0,
-        'Total Units':            r['total_unitati'] or 0,
-        'Acquisition Value (USD)': round((r['valoare_achizitie'] or 0) / R, 0),
-    } for r in stoc_per_brand]
-
-    # Sheet 4: Stock detail per SKU
-    stoc_sku_rows = [{
-        'Brand':                  r['furnizor'],
-        'Product Code':           r['cod_produs'],
-        'SKU':                    r['sku'],
-        'Quantity':               r['cantitate'] or 0,
-        'Unit Cost (USD)':        round((r['pret_achizitie'] or 0) / R, 2),
-        'Acquisition Value (USD)': round((r['valoare_achizitie'] or 0) / R, 0),
-        'Days in Stock':          r['nr_zile_stoc'],
-        'Entry Date':             r['data_intrare'],
-    } for r in stoc_detail]
-
-    sheets = {
-        'Brand KPIs':     {'rows': kpi_rows,        'headers': list(kpi_rows[0].keys()) if kpi_rows else []},
-        'Monthly Sales':  {'rows': pivot_rows,       'headers': luni_headers},
-        'Stock by Brand': {'rows': stoc_brand_rows,  'headers': list(stoc_brand_rows[0].keys()) if stoc_brand_rows else []},
-        'Stock Detail':   {'rows': stoc_sku_rows,    'headers': list(stoc_sku_rows[0].keys()) if stoc_sku_rows else []},
-    }
-    period_str = f"{MONTHS_EN[luna - 1]}_{an}" if luna else f"{an}_YTD"
-    return send_excel(sheets, timestamped_filename(f'basilur_report_{period_str}'))
+    """Kept so bookmarked links survive - the export moved to the generic
+    dispatcher, which is the only place that builds a basilur context."""
+    return redirect(url_for('reports.export_excel', report='basilur',
+                            **_forward_args('report')))
 
 
 @reports_bp.route('/raportare-basilur/export/ppt')
 def raportare_basilur_ppt():
-    an   = int(request.args.get('an', datetime.date.today().year))
-    luna = request.args.get('luna', type=int)
-    max_luna = None if luna else queries.max_luna_for_year(an)
-
-    if luna:
-        period_label = f"{MONTHS_RO[luna - 1]} {an}"
-    else:
-        ml = max_luna or 1
-        period_label = f"{an} YTD (ian–{MONTHS_RO[ml - 1]})"
-
-    kpi_total      = queries.basilur_kpi_total(an, max_luna=max_luna, luna=luna) or {}
-    kpi_per_brand  = queries.basilur_kpi_per_brand(an, max_luna=max_luna, luna=luna)
-    monthly_rows   = queries.basilur_monthly_per_brand(an)
-    monthly_data   = _basilur_monthly_matrix(monthly_rows, an)
-    stoc_per_brand = queries.basilur_stoc_per_brand()
-    stoc_detail    = queries.basilur_stoc_detail()
-
-    buf = ppt_export.build_basilur_ppt(
-        an=an,
-        period_label=period_label,
-        kpi_total=dict(kpi_total),
-        kpi_per_brand=[dict(r) for r in kpi_per_brand],
-        monthly_data=monthly_data,
-        stoc_per_brand=[dict(r) for r in stoc_per_brand],
-        stoc_detail=[dict(r) for r in stoc_detail],
-    )
-    period_str = f"{MONTHS_RO[luna - 1]}_{an}" if luna else f"{an}_YTD"
-    return ppt_export.send_ppt(buf, ppt_export.timestamped_filename(
-        f'raportare_basilur_{period_str}'))
+    """Kept so bookmarked links survive - see raportare_basilur_excel."""
+    return redirect(url_for('reports.export_ppt', entity='basilur',
+                            **_forward_args('entity')))
 
 
 # ---------------------------------------------------------------------------

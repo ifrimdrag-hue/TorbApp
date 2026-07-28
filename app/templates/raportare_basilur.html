@@ -27,12 +27,12 @@
         <i class="bi bi-arrow-repeat"></i>
       </button>
     </form>
-    <a href="{{ url_for('reports.raportare_basilur_excel', an=an, luna=luna or '', curs=usd_rate) }}"
+    <a href="{{ url_for('reports.export_excel', report='basilur', an=an, luna=luna or '', curs=usd_rate) }}"
        class="btn btn-sm btn-outline-success">
       <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
     </a>
-    <a href="{{ url_for('reports.raportare_basilur_ppt', an=an, luna=luna or '', curs=usd_rate) }}"
-       class="btn btn-sm btn-outline-primary">
+    <a href="{{ url_for('reports.export_ppt', entity='basilur', an=an, luna=luna or '', curs=usd_rate) }}"
+       class="btn btn-sm btn-outline-danger">
       <i class="bi bi-file-earmark-slides me-1"></i>Export PPT
     </a>
   </div>

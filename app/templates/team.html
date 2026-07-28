@@ -4,6 +4,16 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-2">
   <h4 class="mb-0 fw-bold"><i class="bi bi-people-fill text-primary"></i> Performanță Echipă</h4>
+  <div class="d-flex gap-2 align-items-center">
+    <a href="{{ url_for('reports.export_excel', report='team', an=an, luna=luna) }}"
+       class="btn btn-sm btn-outline-success" title="Export Excel">
+      <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+    <a href="{{ url_for('reports.export_ppt', entity='team', an=an, luna=luna) }}"
+       class="btn btn-sm btn-outline-danger" title="Export PPT">
+      <i class="bi bi-file-earmark-slides"></i> PPT
+    </a>
+  </div>
 </div>
 {% include '_period_selector.html' %}
 
