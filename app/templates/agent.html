@@ -23,11 +23,11 @@
     {% endif %}
   </h4>
   <div class="d-flex gap-2 align-items-center">
-    <a href="{{ url_for('reports.export_excel', report='agent', name=agent, an=an) }}"
+    <a href="{{ url_for('reports.export_excel', report='agent', name=agent, an=an, luna=luna) }}"
        class="btn btn-sm btn-outline-success" title="Export Excel">
       <i class="bi bi-file-earmark-excel"></i> Excel
     </a>
-    <a href="{{ url_for('reports.export_ppt_agent', name=agent, an=an) }}"
+    <a href="{{ url_for('reports.export_ppt', entity='agent', name=agent, an=an, luna=luna) }}"
        class="btn btn-sm btn-outline-danger" title="Export PPT">
       <i class="bi bi-file-earmark-slides"></i> PPT
     </a>

@@ -109,9 +109,6 @@ def agent_detail(name):
         abort(404)
     kpi['delta_vn'] = _delta_pct(kpi.get('val_neta', 0), (kpi_py or {}).get('val_neta', 0))
     kpi['max_luna'] = max_luna
-    kpi['marja_neta_pct'] = round(
-        (kpi.get('marja_neta') or 0) * 100 / (kpi.get('val_neta') or 1), 1
-    )
 
     trend_raw  = queries.agent_monthly_full(name)
     trend_vn   = {}

@@ -245,6 +245,8 @@ def agent_kpi(agent, an, max_luna=None, luna=None):
             ROUND(SUM(marja_bruta), 0) AS marja_bruta,
             ROUND(SUM(marja_bruta) * 100.0 / NULLIF(SUM(val_neta), 0), 1) AS marja_pct,
             ROUND(SUM(marja_bruta) - COALESCE((SELECT cost_conditii FROM cond_cost), 0), 0) AS marja_neta,
+            COALESCE(ROUND((SUM(marja_bruta) - COALESCE((SELECT cost_conditii FROM cond_cost), 0))
+                   * 100.0 / NULLIF(SUM(val_neta), 0), 1), 0) AS marja_neta_pct,
             COUNT(DISTINCT client)     AS clienti_activi,
             COUNT(DISTINCT nr_factura) AS nr_facturi,
             ROUND(SUM(val_neta) / NULLIF(COUNT(DISTINCT nr_factura), 0), 0) AS avg_comanda,

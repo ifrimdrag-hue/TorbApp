@@ -128,7 +128,7 @@ def _kpi_card(slide, left, top, width, label, value, delta=None, delta_positive=
                   font_size=10, bold=True, color=col)
 
 
-def _fmt_ron(v):
+def fmt_ron(v):
     if v is None:
         return "—"
     try:
@@ -140,13 +140,18 @@ def _fmt_ron(v):
         return str(v)
 
 
-def _fmt_pct(v, suffix="%"):
+def fmt_pct(v, suffix="%"):
     if v is None:
         return "—"
     try:
         return f"{float(v):.1f}{suffix}"
     except Exception:
         return str(v)
+
+
+# Private aliases kept so the existing slide builders need no edits.
+_fmt_ron = fmt_ron
+_fmt_pct = fmt_pct
 
 
 def _add_table(slide, rows, headers, left, top, width, height, font_size=8):
@@ -191,6 +196,36 @@ def _add_table(slide, rows, headers, left, top, width, height, font_size=8):
             run.font.color.rgb = C_TEXT
 
     return tbl
+
+
+def _slide_kpi_tables(prs, title, subtitle, cards, tables):
+    """Standard entity detail slide: a row of KPI cards, then one or two tables.
+
+    cards  = [(label, value)] — at most 4, laid out left to right
+    tables = [{'title', 'headers', 'rows', 'left', 'width'}] — empty rows are skipped
+    """
+    slide = _blank(prs)
+    _header_bar(slide, title, subtitle)
+    _footer(slide)
+
+    for i, (label, value) in enumerate(cards[:4]):
+        x = 0.3 + i * 3.15
+        _add_rect(slide, x, 1.2, 3.0, 0.8, C_LGRAY)
+        _add_text(slide, label, x + 0.1, 1.25, 2.8, 0.28,
+                  font_size=8, color=C_ACCENT, bold=True)
+        _add_text(slide, value, x + 0.1, 1.5, 2.8, 0.45,
+                  font_size=13, bold=True, color=C_TEXT)
+
+    for t in tables:
+        rows = t.get('rows') or []
+        if not rows:
+            continue
+        _add_text(slide, t['title'], t['left'], 2.15, t['width'], 0.3,
+                  font_size=10, bold=True, color=C_DARK)
+        _add_table(slide, rows, t['headers'], t['left'], 2.45, t['width'],
+                   min(4.5, 0.4 * (len(rows) + 1)), font_size=8)
+
+    return slide
 
 
 # ── Slide builders ────────────────────────────────────────────────────────────
@@ -317,98 +352,6 @@ def _slide_top_clients(prs, an, clients_data, title="Top Clienți după Marjă N
     return slide
 
 
-def _slide_agent_detail(prs, agent_name, an, kpi, clients_data, brands_data):
-    slide = _blank(prs)
-    _header_bar(slide, f"Agent: {agent_name}", f"Performanță detaliată {an}")
-    _footer(slide)
-
-    # KPI mini cards
-    cards = [
-        ("Val. Netă", _fmt_ron(kpi.get('val_neta'))),
-        ("Marjă Brută", f"{_fmt_ron(kpi.get('marja_bruta'))} / {_fmt_pct(kpi.get('marja_pct'))}"),
-        ("Marjă Netă", f"{_fmt_ron(kpi.get('marja_neta'))} / {_fmt_pct(kpi.get('marja_neta_pct') if kpi.get('marja_neta_pct') else None)}"),
-        ("Clienți Activi", str(kpi.get('clienti_activi') or 0)),
-    ]
-    for i, (lbl, val) in enumerate(cards):
-        x = 0.3 + i * 3.15
-        _add_rect(slide, x, 1.2, 3.0, 0.8, C_LGRAY)
-        _add_text(slide, lbl, x + 0.1, 1.25, 2.8, 0.28, font_size=8, color=C_ACCENT, bold=True)
-        _add_text(slide, val, x + 0.1, 1.5, 2.8, 0.45, font_size=13, bold=True, color=C_TEXT)
-
-    # Clients table (left)
-    _add_text(slide, "Clienți", 0.3, 2.15, 7, 0.3, font_size=10, bold=True, color=C_DARK)
-    c_headers = ["Client", "Val. Netă", "MB%", "MN RON", "MN%"]
-    c_rows = [{
-        "Client": (c.get('client') or "—")[:22],
-        "Val. Netă": _fmt_ron(c.get('val_neta')),
-        "MB%": _fmt_pct(c.get('marja_bruta_pct')),
-        "MN RON": _fmt_ron(c.get('marja_neta')),
-        "MN%": _fmt_pct(c.get('marja_neta_pct')),
-    } for c in (clients_data or [])[:8]]
-    if c_rows:
-        _add_table(slide, c_rows, c_headers, 0.3, 2.45, 6.9, min(4.5, 0.4*(len(c_rows)+1)), font_size=8)
-
-    # Brands table (right)
-    _add_text(slide, "Brand Mix", 7.4, 2.15, 5.6, 0.3, font_size=10, bold=True, color=C_DARK)
-    b_headers = ["Brand", "Val. Netă", "MB%", "MN%"]
-    b_rows = [{
-        "Brand": b.get('furnizor') or "—",
-        "Val. Netă": _fmt_ron(b.get('val_neta')),
-        "MB%": _fmt_pct(b.get('marja_bruta_pct')),
-        "MN%": _fmt_pct(b.get('marja_neta_pct')),
-    } for b in (brands_data or [])[:8]]
-    if b_rows:
-        _add_table(slide, b_rows, b_headers, 7.4, 2.45, 5.6, min(4.5, 0.4*(len(b_rows)+1)), font_size=8)
-
-    return slide
-
-
-def _slide_client_detail(prs, client_name, an, kpi, products_data, yearly_data):
-    slide = _blank(prs)
-    _header_bar(slide, f"Client: {client_name[:40]}", f"Profil de profitabilitate {an}")
-    _footer(slide)
-
-    # KPI
-    cards = [
-        ("Val. Netă", _fmt_ron(kpi.get('val_neta_total') or kpi.get('val_neta'))),
-        ("Marjă Brută", _fmt_pct(kpi.get('marja_pct'))),
-        ("Marjă Netă", _fmt_ron(kpi.get('marja_neta'))),
-        ("Nr. Facturi", str(kpi.get('nr_facturi') or 0)),
-    ]
-    for i, (lbl, val) in enumerate(cards):
-        x = 0.3 + i * 3.15
-        _add_rect(slide, x, 1.2, 3.0, 0.8, C_LGRAY)
-        _add_text(slide, lbl, x + 0.1, 1.25, 2.8, 0.28, font_size=8, color=C_ACCENT, bold=True)
-        _add_text(slide, val, x + 0.1, 1.5, 2.8, 0.45, font_size=13, bold=True, color=C_TEXT)
-
-    # Products table (left)
-    _add_text(slide, f"Produse cumpărate {an}", 0.3, 2.15, 7, 0.3, font_size=10, bold=True, color=C_DARK)
-    p_headers = ["Produs", "Brand", "VN", "MB%", "MN%"]
-    p_rows = [{
-        "Produs": (r.get('sku') or "—")[:28],
-        "Brand": r.get('furnizor') or "—",
-        "VN": _fmt_ron(r.get('val_neta')),
-        "MB%": _fmt_pct(r.get('marja_bruta_pct')),
-        "MN%": _fmt_pct(r.get('marja_neta_pct')),
-    } for r in (products_data or [])[:8]]
-    if p_rows:
-        _add_table(slide, p_rows, p_headers, 0.3, 2.45, 7.6, min(4.5, 0.4*(len(p_rows)+1)), font_size=8)
-
-    # Yearly table (right)
-    _add_text(slide, "Evoluție anuală", 8.1, 2.15, 4.9, 0.3, font_size=10, bold=True, color=C_DARK)
-    y_headers = ["An", "Val. Netă", "MB%", "MN%"]
-    y_rows = [{
-        "An": str(r.get('an') or ""),
-        "Val. Netă": _fmt_ron(r.get('val_neta')),
-        "MB%": _fmt_pct(r.get('marja_bruta_pct')),
-        "MN%": _fmt_pct(r.get('marja_neta_pct')),
-    } for r in (yearly_data or [])]
-    if y_rows:
-        _add_table(slide, y_rows, y_headers, 8.1, 2.45, 4.9, min(4.5, 0.4*(len(y_rows)+1)), font_size=9)
-
-    return slide
-
-
 def _slide_risk(prs, an, kaufland_pct, bogdan_pct, churn_list):
     slide = _blank(prs)
     _header_bar(slide, "Riscuri Comerciale", "Concentrare și Churn")
@@ -447,11 +390,13 @@ MONTHS_RO = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun',
              'Iul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 
-def _slide_chart_trend(prs, an, trend_by_year):
+def _slide_chart_trend(prs, an, trend_by_year, title=None,
+                       subtitle="Val Netă RON pe lună"):
     """Bar chart cu trend lunar pe 3 ani (date YTD din monthly_trend)."""
     slide = _blank(prs)
-    _header_bar(slide, f"Trend Lunar Vânzări — Comparativ {an-2}/{an-1}/{an}",
-                "Val Netă RON pe lună")
+    _header_bar(slide,
+                title or f"Trend Lunar Vânzări — Comparativ {an-2}/{an-1}/{an}",
+                subtitle)
     _footer(slide)
 
     data = CategoryChartData()
@@ -536,6 +481,37 @@ def _slide_chart_channels(prs, an, channels_data):
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+def build_entity_ppt(ctx):
+    """Deck for one entity detail page (client / agent / brand / produs).
+
+    ctx comes from exports.entities.build_context — see that module for the
+    key contract. Layout: cover, KPI+tables slide, one slide per extra table,
+    then the monthly trend chart when there is trend data.
+    """
+    _check()
+    prs = _prs()
+    _slide_cover(prs, ctx['title'], "Raport detaliat", ctx['subtitle'])
+    _slide_kpi_tables(prs, ctx['title'], ctx['subtitle'],
+                      ctx['cards'], ctx['tables'])
+
+    for table in ctx.get('extra_tables') or []:
+        if not table['rows']:
+            continue
+        slide = _blank(prs)
+        _header_bar(slide, f"{ctx['title']} — {table['title']}", ctx['subtitle'])
+        _footer(slide)
+        _add_table(slide, table['rows'], table['headers'],
+                   table['left'], 1.2, table['width'], 5.8, font_size=8)
+
+    trend = ctx.get('trend')
+    if trend:
+        an = max(trend)
+        _slide_chart_trend(prs, an, trend,
+                           title=f"{ctx['title']} — Trend Lunar")
+
+    return _to_bytes(prs)
+
+
 def build_dashboard_ppt(an, cy, py, delta_vn, delta_mb, delta_mn, delta_mpct,
                          agents_data, clients_data, kaufland_pct, bogdan_pct, churn_list,
                          trend_by_year=None, brands_data=None, channels_data=None):
@@ -552,39 +528,6 @@ def build_dashboard_ppt(an, cy, py, delta_vn, delta_mb, delta_mn, delta_mpct,
     _slide_agents_table(prs, an, agents_data)
     _slide_top_clients(prs, an, clients_data)
     _slide_risk(prs, an, kaufland_pct, bogdan_pct, churn_list)
-    return _to_bytes(prs)
-
-
-def build_agent_ppt(agent_name, an, kpi, kpi_py, clients_data, brands_data, skus_data):
-    _check()
-    prs = _prs()
-    _slide_cover(prs, f"Agent: {agent_name}", "Raport Individual", an)
-    _slide_agent_detail(prs, agent_name, an, kpi, clients_data, brands_data)
-
-    # Top SKUs slide
-    slide = _blank(prs)
-    _header_bar(slide, f"{agent_name} — Top Produse {an}")
-    _footer(slide)
-    s_rows = [{
-        "Produs": (r.get('sku') or "—")[:30],
-        "Brand": r.get('furnizor') or "—",
-        "VN": _fmt_ron(r.get('val_neta')),
-        "MB%": _fmt_pct(r.get('marja_bruta_pct')),
-        "MN RON": _fmt_ron(r.get('marja_neta')),
-        "MN%": _fmt_pct(r.get('marja_neta_pct')),
-        "Clienți": str(r.get('nr_clienti') or 0),
-    } for r in (skus_data or [])[:15]]
-    if s_rows:
-        _add_table(slide, s_rows, list(s_rows[0].keys()), 0.3, 1.2, 12.7, 5.8, font_size=8)
-
-    return _to_bytes(prs)
-
-
-def build_client_ppt(client_name, an, kpi, products_data, yearly_data):
-    _check()
-    prs = _prs()
-    _slide_cover(prs, f"Client: {client_name[:35]}", "Profil de Profitabilitate", an)
-    _slide_client_detail(prs, client_name, an, kpi, products_data, yearly_data)
     return _to_bytes(prs)
 
 

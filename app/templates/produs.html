@@ -27,9 +27,13 @@
     {% endif %}
   </div>
   <div class="d-flex gap-2 align-items-center">
-    <a href="{{ url_for('reports.export_excel', report='produs', sku=sku, an=an) }}"
+    <a href="{{ url_for('reports.export_excel', report='produs', sku=sku, an=an, luna=luna) }}"
        class="btn btn-sm btn-outline-success">
       <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+    <a href="{{ url_for('reports.export_ppt', entity='produs', sku=sku, an=an, luna=luna) }}"
+       class="btn btn-sm btn-outline-danger" title="Export PPT">
+      <i class="bi bi-file-earmark-slides"></i> PPT
     </a>
   </div>
 </div>

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Export Excel/PPT unificat pentru paginile de entitate: brand, produs, agent, client (2026-07-28)
+
+Pagina de brand primește acum export Excel și PPT; pagina de produs primește export PPT (Excel exista deja). Ambele formate citesc acum din același strat de context (`app/exports/entities.py`), aplicat retroactiv și pentru client/agent, astfel încât fișierul descărcat nu mai poate diverge de ecran.
+
+- **Added** — Export Excel și PPT pe pagina de brand; export PPT pe pagina de produs. Slide de trend lunar în deck-urile de client, agent, brand și produs.
+- **Changed** — Cele patru rute PPT numite (`export_ppt_dashboard`/`_agent`/`_client`/`_profitabilitate`) au fost înlocuite cu un singur dispatcher `/export/ppt/<entity>`, protejat per-entitate în handler (ca `export_excel`). Exporturile de entitate (client, agent, brand, produs) respectă acum filtrul de lună: fișierul descărcat acoperă aceeași perioadă ca ecranul, scrisă explicit pe copertă și în antetul slide-ului. Tabelele din deck-uri își declară trunchierea (ex. „Top SKU — top 15 din 340").
+- **Fixed** — Cardurile „Marjă Brută" și „Marjă Netă" din deck-ul de client afișau „—": sursa lor (`client_info`) nu conține aceste câmpuri. Sunt calculate acum din produsele perioadei selectate. Sheet-ul „Brand Mix" din exportul de client era mereu pe anul întreg (`client_brand_mix` nu are filtru de lună, spre deosebire de restul exportului) — agregat acum din produsele deja filtrate pe perioadă.
+- Files: `app/exports/entities.py` (nou), `app/exports/ppt_export.py`, `app/blueprints/reports.py`, `app/nav_registry.py`, `app/queries/analytics.py`, templates `brand.html`/`produs.html`/`dashboard.html`/`agent.html`/`client.html`/`profitabilitate.html`, `tests/test_entity_exports.py` (nou), `tests/test_ppt_primitive.py` (nou). Tests: 416 passing.
+
 ### Bonus: 0.8× payout step moved from 95% to 90% realizare (2026-07-28)
 
 Owner decision. Realizare in the **90–94.99%** band now pays **0.8×** instead of 0.5× — per KPI row that is `+0.3 × pondere × bonus_lunar` (e.g. +300 RON on a 4000 RON monthly bonus for a KPI weighted 25%). Gate (80%) and every other step unchanged.
