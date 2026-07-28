@@ -77,14 +77,27 @@ def test_build_context_unknown_entity_returns_none(flask_app):
 @pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs'])
 def test_build_context_honours_luna(flask_app, entity):
     """Month 2 has no seeded rows, so its period sheets must come back empty
-    while the unfiltered context has data."""
+    while the unfiltered context has data.
+
+    client's resolve query (client_info) is period-independent, so an empty
+    month still resolves and must show empty period sheets. agent/brand/produs
+    resolve on a period-scoped KPI query, so an empty month makes the builder
+    return None outright — that None IS the period filter working, and is
+    asserted explicitly rather than folded into an `is None or ...` disjunction
+    that would let a broken luna filter on the *list* queries pass unnoticed.
+    """
     from exports import entities
     with flask_app.app_context():
         full = entities.build_context(entity, ENTITY_IDENT[entity], AN, None)
         filtered = entities.build_context(entity, ENTITY_IDENT[entity], AN, EMPTY_MONTH)
     period_sheet = f'Clienți {AN}' if entity != 'client' else f'Produse {AN}'
     assert full['sheets'][period_sheet]
-    assert filtered is None or not filtered['sheets'][period_sheet]
+    if entity == 'client':
+        assert filtered is not None
+        assert not filtered['sheets'][period_sheet]
+        assert not filtered['sheets']['Brand Mix']
+    else:
+        assert filtered is None
 
 
 def test_period_label(flask_app):

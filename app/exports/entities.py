@@ -56,6 +56,19 @@ def _pct(part, whole):
     return round((part or 0) * 100.0 / whole, 1) if whole else None
 
 
+def _brand_mix(products):
+    """Period-scoped Brand Mix, aggregated in Python from the already period-
+    filtered product rows — client_brand_mix has no luna/max_luna and would
+    reintroduce the exact period drift this module exists to eliminate."""
+    totals = {}
+    for r in products:
+        furnizor = r.get('furnizor')
+        totals[furnizor] = totals.get(furnizor, 0) + (r.get('val_neta') or 0)
+    rows = [{'furnizor': furnizor, 'val_neta': val_neta} for furnizor, val_neta in totals.items()]
+    rows.sort(key=lambda r: r['val_neta'], reverse=True)
+    return rows
+
+
 # ── Per-entity builders ──────────────────────────────────────────────────────
 
 def _client(cod, an, luna, max_luna):
@@ -99,7 +112,7 @@ def _client(cod, an, luna, max_luna):
         'sheets': {
             'Informații': [dict(info)],
             f'Produse {an}': products,
-            'Brand Mix': queries.client_brand_mix(cod, an),
+            'Brand Mix': _brand_mix(products),
             'Evoluție Anuală': yearly,
         },
         'trend': _trend(queries.client_monthly_full(cod)),
