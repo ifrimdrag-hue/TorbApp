@@ -41,6 +41,15 @@ class ShopifySyncResult(NamedTuple):
     error_count: int
 
 
+def _norm_ean(value: str | None) -> str:
+    """Normalizeaza un EAN/barcode pentru match: fara spatii, fara apostrof
+    initial (Excel), fara sufix '.0' lasat de conversia float."""
+    s = "".join((value or "").split()).lstrip("'")
+    if s.endswith(".0") and s[:-2].isdigit():
+        s = s[:-2]
+    return s
+
+
 async def preview(report_bytes: bytes, source_filename: str = "") -> ShopifyPreviewResult:
     parsed = parse_excel(report_bytes)
     save_snapshot(parsed, source_filename)
@@ -49,19 +58,27 @@ async def preview(report_bytes: bytes, source_filename: str = "") -> ShopifyPrev
     # Primary match: codmare vs Shopify variant SKU. Fallback: report EAN vs
     # variant barcode — survives ERP codmare renumbering (2026-07-10 incident).
     raw_by_sku: dict[str, int] = defaultdict(int)
-    raw_by_ean: dict[str, int] = defaultdict(int)
+    qty_of_ean: dict[str, int] = {}
     cms_of_ean: dict[str, set[str]] = defaultdict(set)
+    ambiguous_eans: set[str] = set()
     skus_unmatchable: list[dict] = []
     for row in parsed.rows:
         cm = _norm(row.codmare) if row.codmare else None
         if cm:
             raw_by_sku[cm] += row.qty
-        if row.ean:
-            raw_by_ean[row.ean] += row.qty
+        ean = _norm_ean(row.ean)
+        if ean:
+            # Doua randuri de raport cu acelasi EAN = cantitate ambigua; nu
+            # insumam (ar umfla stocul trimis), marcam EAN-ul ca inutilizabil.
+            if ean in qty_of_ean:
+                ambiguous_eans.add(ean)
+            qty_of_ean[ean] = row.qty
             if cm:
-                cms_of_ean[row.ean].add(cm)
-        if not cm and not row.ean:
+                cms_of_ean[ean].add(cm)
+        if not cm and not ean:
             skus_unmatchable.append({"sku": row.sku, "qty": row.qty})
+
+    raw_by_ean = {e: q for e, q in qty_of_ean.items() if e not in ambiguous_eans}
 
     client = ShopifyClient()
     live_items = await client.fetch_all_inventory()
@@ -72,7 +89,7 @@ async def preview(report_bytes: bytes, source_filename: str = "") -> ShopifyPrev
 
     for item in live_items:
         n = _norm(item["sku"])
-        barcode = (item.get("barcode") or "").strip()
+        barcode = _norm_ean(item.get("barcode"))
         old = item["on_hand"]
 
         if n and n in raw_by_sku:
@@ -118,6 +135,11 @@ async def preview(report_bytes: bytes, source_filename: str = "") -> ShopifyPrev
     warnings = list(parsed.warnings)
     if skus_unmatchable:
         warnings.append(f"{len(skus_unmatchable)} SKU-uri din raport fara codmare si fara EAN (sarite)")
+    if ambiguous_eans:
+        warnings.append(
+            f"{len(ambiguous_eans)} EAN-uri apar pe mai multe SKU-uri in raport "
+            "(fallback pe EAN dezactivat pentru ele)"
+        )
 
     summary = {
         "total_shopify_items": len(rows),

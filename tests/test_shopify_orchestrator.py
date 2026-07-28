@@ -25,6 +25,11 @@ REPORT = _report_bytes([
     ("999", "88888-00", "333", 60),
     # no codmare and no EAN -> unmatchable warning
     ("777", None, None, 10),
+    # two SKUs sharing one EAN -> ambiguous, EAN fallback disabled for it
+    ("1200", "71000-00", "555", 20),
+    ("1201", "71001-00", "555", 30),
+    # EAN written by Excel as a float / with an apostrophe + spaces
+    ("1300", "72000-00", "4792252009999.0", 40),
 ])
 
 SHOPIFY_ITEMS = [
@@ -38,6 +43,10 @@ SHOPIFY_ITEMS = [
      "name": "No identifiers", "on_hand": 5},
     {"inventory_item_id": "gid://5", "sku": "50000-00", "barcode": "444",
      "name": "Not in report", "on_hand": 7},
+    {"inventory_item_id": "gid://6", "sku": "71099-00", "barcode": "555",
+     "name": "Ambiguous EAN", "on_hand": 9},
+    {"inventory_item_id": "gid://7", "sku": "72099-00", "barcode": "' 4792252009999 ",
+     "name": "Messy barcode", "on_hand": 1},
 ]
 
 
@@ -91,9 +100,24 @@ def test_unmatched_item_left_unchanged(preview_result):
 def test_ean_matched_codmare_not_reported_missing(preview_result):
     missing = {d["codmare"] for d in preview_result.skus_not_in_shopify}
     assert "70173" not in missing          # covered via EAN fallback
-    assert missing == {"88888"}
+    assert "72000" not in missing          # covered via normalized EAN
+    assert missing == {"88888", "71000", "71001"}
+
+
+def test_shared_ean_is_not_summed(preview_result):
+    row = _row(preview_result, "gid://6")
+    assert row.matched_by is None          # 20 + 30 would have oversold
+    assert row.status == "unchanged"
+    assert row.new_stock is None
+
+
+def test_ean_normalization_matches_messy_barcode(preview_result):
+    row = _row(preview_result, "gid://7")
+    assert row.matched_by == "ean"
+    assert row.new_stock == 40
 
 
 def test_summary_and_warnings(preview_result):
-    assert preview_result.summary["matched_by_ean"] == 1
+    assert preview_result.summary["matched_by_ean"] == 2
     assert any("fara codmare si fara EAN" in w for w in preview_result.warnings)
+    assert any("pe mai multe SKU-uri" in w for w in preview_result.warnings)

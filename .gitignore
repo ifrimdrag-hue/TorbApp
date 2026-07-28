@@ -20,6 +20,7 @@ __pycache__/
 # Claude Code / AI session artifacts — ignore session state, keep shared skills
 .claude/settings.json
 .claude/settings.local.json
+.claude/launch.json
 .claude/__store/
 docs/specs/
 extra/
