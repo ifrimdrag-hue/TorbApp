@@ -165,9 +165,6 @@ def export_ppt_agent():
         abort(404)
     kpi    = queries.agent_kpi(name, an) or {}
     kpi_py = queries.agent_kpi(name, an - 1) or {}
-    kpi['marja_neta_pct'] = round(
-        (kpi.get('marja_neta') or 0) * 100 / (kpi.get('val_neta') or 1), 1
-    )
     clients = queries.agent_clients_full(name, an)
     brands  = queries.agent_brands_full(name, an)
     skus    = queries.agent_skus_full(name, an)
