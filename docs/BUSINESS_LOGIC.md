@@ -302,7 +302,7 @@ Sync history: `sync_sessions` + `sync_rows` tables (with `platform` column and `
 - `app/automations/stocuri_shopify/request_logger.py` — rotating JSON log, last 20 entries → `logs/shopify_req.json`, token masked as `***`
 - `app/blueprints/stocuri_shopify.py` — `/preview`, `/sync`, `/connection-test`
 
-**Auth:** OAuth client credentials. App "SyncStoc" created in the Shopify Dev Dashboard (not legacy admin). Scopes: `write_inventory, read_inventory, read_locations, read_products`. Token endpoint: `POST https://{shop}/admin/oauth/access_token` with `grant_type=client_credentials`. GraphQL API version `2025-04`.
+**Auth:** OAuth client credentials. App "SyncStoc" created in the Shopify Dev Dashboard (not legacy admin). Scopes: `write_inventory, read_inventory, read_locations, read_products, write_products` (`write_products` added 2026-07-15 for variant-barcode writes — see `etl/update_shopify_barcodes.py`). Changing scopes requires releasing a new app version in the Dev Dashboard **and** re-installing/updating the app on the store to re-grant; verify with `GET /admin/oauth/access_scopes.json`. Token endpoint: `POST https://{shop}/admin/oauth/access_token` with `grant_type=client_credentials`. GraphQL API version `2025-04`.
 
 **Gotchas fixed during delivery (do not reintroduce):**
 1. The field on `InventoryLevel` is `item`, not `inventoryItem`
