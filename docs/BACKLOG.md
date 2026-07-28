@@ -29,6 +29,9 @@ Combines the leftovers of the 2026-05-28 code audit (re-verified against code on
     - `BLE001` — 39 bare `except Exception`. Each needs a judgement call on the real exception type; some are deliberate top-level guards and want `# noqa` with a reason.
     - `RUF013` (30 implicit `Optional`), `PIE810` (23 collapsible `startswith`/`endswith`), `RUF100` (16 now-unused `noqa`) — small, mechanical, mostly auto-fixable. Good first batch.
     - Long tail (~50): `S110`, `B023`, `UP012`, `SIM102`, `PLW1510`, `RUF012/015/046`, etc. `B023` (function uses loop variable, 6) is the only one that can hide a real bug — worth reading before dismissing.
+17. **Etichete românești pentru coloanele din exporturile Excel.** Anteturile sunt numele brute din DB (`val_neta`, `marja_neta_pct`) în 9 din 10 rapoarte; doar forecast le mapează. Soluție: un dicționar `COLUMN_LABELS` partajat în `app/exports/excel_export.py`, aplicat în `_write_sheet`.
+18. **Registru pentru lanțul `if` din `export_excel`.** Cele 8 rapoarte non-entitate primesc filtre foarte diferite; un registru ar avea nevoie de un extractor de parametri per intrare. De reevaluat dacă se mai adaugă rapoarte.
+19. **Pagina de client și exportul de client calculează Brand Mix diferit.** Pagina de client (`/client/<cod>`) folosește `queries.client_brand_mix` (sum-then-round în SQL), în timp ce exportul de entitate agregă acum Brand Mix din rândurile de produs deja rotunjite per-SKU (round-then-sum) — vezi `app/exports/entities.py::_brand_mix`, adăugat pentru că `client_brand_mix` nu are filtru de lună. Cele două pot diferi cu 1-2 lei pentru același brand și aceeași perioadă. De reconciliat făcând pagina să folosească aceeași agregare ca exportul.
 
 ### Resolved (kept for the record)
 

@@ -49,6 +49,7 @@
 
 ## Livrat recent (detalii în CHANGELOG)
 
+- `[x]` **Export Excel/PPT unificat pe pagini de entitate — brand, produs, agent, client** (2026-07-28) — pagina de brand primește export Excel + PPT, pagina de produs primește PPT; cele patru rute PPT numite au fost înlocuite cu dispatcherul unic `/export/ppt/<entity>`; exporturile respectă acum filtrul de lună (fix: cardurile de marjă din deck-ul de client, care afișau „—"). Vezi CHANGELOG; 2 itemi deferați în `docs/BACKLOG.md` (etichete coloane Excel, registru `export_excel`) + 1 discrepanță de agregare Brand Mix (item 19).
 - `[x]` **Bonus — treapta 0.8× mutată de la 95% la 90% realizare** (2026-07-28) — decizie owner, migrația 0041 (toate `agent_key`). Lunile închise păstrează snapshot-ul înghețat; lunile deschise (inclusiv din trecut) se recalculează cu noua grilă. La deploy: migrația rulează automat. Vezi CHANGELOG.
 - `[x]` **Bonus — legenda grilei de payout randată din DB** (2026-07-28) — legenda de pe `/bonus` omitea treapta 102% → 1.1×; ambele legende se generează acum din `bonus_payout_grid`. Fără schimbare de calcul. Vezi CHANGELOG; praguri + formulă în `docs/BUSINESS_LOGIC.md` §4.
 - `[x]` **Sincronizare stoc Shopify — fallback pe EAN** (2026-07-10) — renumerotarea codmare din ERP rupsese match-ul codmare↔SKU Shopify (stoc înghețat pe produsele afectate); match-ul face acum fallback pe codbare↔barcode. eMAG neafectat (match pe EAN). Verificare completă ERP vs eMAG vs Shopify: `docs/analysis/2026-07-10-stock-sync-verification.md`; curățenia de date rămasă la owner = BACKLOG #14. Vezi CHANGELOG.
