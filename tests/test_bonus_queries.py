@@ -26,6 +26,10 @@ def test_default_payout_grid_seeded():
                  "WHERE agent_key='_default' ORDER BY threshold")
     assert (rows[0]['threshold'], rows[0]['multiplier']) == (0.0, 0.0)
     assert (rows[-1]['threshold'], rows[-1]['multiplier']) == (1.2, 1.5)
+    # migrația 0041: treapta 0.8× pornește de la 90%, nu 95%
+    steps = {r['threshold']: r['multiplier'] for r in rows}
+    assert steps.get(0.90) == 0.8
+    assert 0.95 not in steps
 
 
 def test_bonus_agents_returns_field_agents():

@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Bonus: 0.8× payout step moved from 95% to 90% realizare (2026-07-28)
+
+Owner decision. Realizare in the **90–94.99%** band now pays **0.8×** instead of 0.5× — per KPI row that is `+0.3 × pondere × bonus_lunar` (e.g. +300 RON on a 4000 RON monthly bonus for a KPI weighted 25%). Gate (80%) and every other step unchanged.
+
+- Migration **0041** updates `bonus_payout_grid` for **every** `agent_key` (only `_default` exists today; a future per-agent grid must not silently keep the old step). It deletes a conflicting 0.90 row first so `UNIQUE(agent_key, threshold)` cannot trip, and compares thresholds with a 1e-9 epsilon rather than float equality. Re-runnable.
+- `PAYOUT_GRID` in `app/bonus_calc.py` (the no-grid fallback) updated to match.
+- **Retroactivity, as requested**: closed months keep their frozen `bonus_istoric.lunar_data` snapshot; every month still open — past ones included — is recalculated at the new step. The grid is not versioned per month, so this is the only behavior available; close a month to freeze its payout.
+- Files: `migrations/0041_20260728_bonus_grid_090.py` (new), `app/bonus_calc.py`, `tests/test_bonus_calc.py`, `tests/test_bonus_queries.py`. Documented in `docs/BUSINESS_LOGIC.md` §4. Tests: 349 passing.
+
+### Bonus: payout-grid legend rendered from the DB (2026-07-28)
+
+The `/bonus` tracker legend had drifted from the grid actually applied — it listed six steps and omitted **102% → 1.1×**, so a user reading the page under-estimated the bonus between 102% and 110% realizare. `/bonus/obiective` listed all seven but was likewise hardcoded and free to drift again.
+
+- Both legends now render from `bonus_payout_grid` via the new partial `app/templates/bonus/_payout_grid_info.html`; the routes pass `grid=queries.payout_grid('_default')`. The gate label (`<80% → 0 lei`) and the `≥` on the top step are derived, so editing the grid in the DB updates the UI with no template change.
+- `tests/test_bonus_routes.py::test_payout_legend_matches_db_grid` asserts every threshold/multiplier pair from the DB grid appears on both pages — the drift cannot come back silently.
+- No calculation change: the applied grid stays `0/0.80/0.95/1.00/1.02/1.10/1.20 → 0/0.5/0.8/1.0/1.1/1.2/1.5`, applied per KPI row.
+- Files: `app/templates/bonus/_payout_grid_info.html` (new), `app/templates/bonus.html`, `app/templates/bonus/obiective.html`, `app/blueprints/bonus.py`, `tests/test_bonus_routes.py`. Documented in `docs/BUSINESS_LOGIC.md` §4 (new "Payout grid" sub-section: thresholds, formula, call sites).
+
 ### CI: pin the ruff version and rule set (2026-07-28)
 
 The lint job installed ruff unpinned and the repo had no ruff config, so CI enforced whatever the newest release considered its default rule set. Ruff **0.16.0** widened that set and a previously green tree failed with **436 findings** — none of them new code. Both halves are now pinned: `ruff.toml` selects `E4, E7, E9, F` (the rules CLAUDE.md documents), and `ruff==0.16.0` is fixed in the lint job and in `requirements-dev.txt`. Adopting the wider set is a deliberate, family-at-a-time job tracked as BACKLOG item 16, which lists the counts.

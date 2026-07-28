@@ -18,7 +18,9 @@ def test_payout_below_gate_returns_zero():
 def test_payout_at_80pct():
     assert payout_multiplier(0.80) == 0.5
 
-def test_payout_at_95pct():
+def test_payout_at_90pct():
+    assert payout_multiplier(0.89) == 0.5   # sub prag → treapta anterioară
+    assert payout_multiplier(0.90) == 0.8
     assert payout_multiplier(0.95) == 0.8
 
 def test_payout_at_100pct():
@@ -37,7 +39,7 @@ def test_payout_at_120pct_and_above():
 
 # ── payout_multiplier cu grilă parametrizabilă (Task 2) ──────────────────────
 
-_GRID = [(0.0, 0.0), (0.80, 0.5), (0.95, 0.8), (1.00, 1.0),
+_GRID = [(0.0, 0.0), (0.80, 0.5), (0.90, 0.8), (1.00, 1.0),
          (1.02, 1.1), (1.10, 1.2), (1.20, 1.5)]
 
 def test_payout_with_explicit_grid():

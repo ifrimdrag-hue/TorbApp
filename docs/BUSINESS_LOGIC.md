@@ -173,7 +173,33 @@ Config-driven bonus module: monthly objectives per agent (vânzări, marjă, 9 g
 - Pages: `/bonus`, `/bonus/obiective`, `/bonus/inchidere`, `/bonus/config`, `/bonus/clienti-noi-gama`
 - Full design + implementation plan: `docs/plans/2026-06-16-modul-bonus-redesign.md`
 
+#### Payout grid (the thresholds actually applied)
+
+Seeded as `agent_key='_default'` by migration 0011, second step moved 95% → 90% by migration **0041** (owner decision 2026-07-28, applied to every `agent_key`); `queries.payout_grid(agent_key)` returns a per-agent grid when one exists and falls back to `_default`. `app/bonus_calc.py` keeps the same values as the `PAYOUT_GRID` constant, used only when a caller passes no grid.
+
+| Realizare ≥ | Multiplier |
+|---|---|
+| 0% | 0.0 (gate — below 80% pays nothing) |
+| 80% | 0.5 |
+| 90% | 0.8 |
+| 100% | 1.0 |
+| 102% | 1.1 |
+| 110% | 1.2 |
+| 120% | 1.5 (cap) |
+
+Applied **per KPI row**, not on the aggregate score: `payout_multiplier()` picks the last threshold ≤ `realizare` (`actual / target`, 0 when target is 0), then
+
+```
+bonus_kpi = bonus_lunar × pondere_kpi × multiplier_kpi × (1 − penalty)
+scor      = Σ (pondere_kpi × multiplier_kpi)
+total     = bonus_lunar × scor × (1 − penalty)
+```
+
+Call sites: `blueprints/bonus.build_agent_month()` (live view of `/bonus`, `/bonus/inchidere`, Excel export) and `blueprints/bonus.inchidere_lock()`, which recalculates with the manual KPI values and freezes the result into `bonus_istoric.lunar_data` — a closed month is read back from that snapshot, so a later grid change does not rewrite closed months. The grid is **not** versioned per month: any month still open — including past ones — is recalculated with the current grid. Close a month before changing the grid if its payout must stay frozen. The UI legend on `/bonus` and `/bonus/obiective` is rendered from the DB grid (`app/templates/bonus/_payout_grid_info.html`), never hardcoded.
+
 ### Original Excel-based design (reference — the system the module replaced)
+
+> Historical only. The 0.85 gate and the 1.4 payout cap below are **not** applied anywhere — the live thresholds are the payout grid above.
 
 ```
   Each month, per employee:
