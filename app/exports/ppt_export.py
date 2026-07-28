@@ -128,7 +128,7 @@ def _kpi_card(slide, left, top, width, label, value, delta=None, delta_positive=
                   font_size=10, bold=True, color=col)
 
 
-def _fmt_ron(v):
+def fmt_ron(v):
     if v is None:
         return "—"
     try:
@@ -140,13 +140,18 @@ def _fmt_ron(v):
         return str(v)
 
 
-def _fmt_pct(v, suffix="%"):
+def fmt_pct(v, suffix="%"):
     if v is None:
         return "—"
     try:
         return f"{float(v):.1f}{suffix}"
     except Exception:
         return str(v)
+
+
+# Private aliases kept so the existing slide builders need no edits.
+_fmt_ron = fmt_ron
+_fmt_pct = fmt_pct
 
 
 def _add_table(slide, rows, headers, left, top, width, height, font_size=8):
@@ -191,6 +196,36 @@ def _add_table(slide, rows, headers, left, top, width, height, font_size=8):
             run.font.color.rgb = C_TEXT
 
     return tbl
+
+
+def _slide_kpi_tables(prs, title, subtitle, cards, tables):
+    """Standard entity detail slide: a row of KPI cards, then one or two tables.
+
+    cards  = [(label, value)] — at most 4, laid out left to right
+    tables = [{'title', 'headers', 'rows', 'left', 'width'}] — empty rows are skipped
+    """
+    slide = _blank(prs)
+    _header_bar(slide, title, subtitle)
+    _footer(slide)
+
+    for i, (label, value) in enumerate(cards[:4]):
+        x = 0.3 + i * 3.15
+        _add_rect(slide, x, 1.2, 3.0, 0.8, C_LGRAY)
+        _add_text(slide, label, x + 0.1, 1.25, 2.8, 0.28,
+                  font_size=8, color=C_ACCENT, bold=True)
+        _add_text(slide, value, x + 0.1, 1.5, 2.8, 0.45,
+                  font_size=13, bold=True, color=C_TEXT)
+
+    for t in tables:
+        rows = t.get('rows') or []
+        if not rows:
+            continue
+        _add_text(slide, t['title'], t['left'], 2.15, t['width'], 0.3,
+                  font_size=10, bold=True, color=C_DARK)
+        _add_table(slide, rows, t['headers'], t['left'], 2.45, t['width'],
+                   min(4.5, 0.4 * (len(rows) + 1)), font_size=8)
+
+    return slide
 
 
 # ── Slide builders ────────────────────────────────────────────────────────────
@@ -447,11 +482,13 @@ MONTHS_RO = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun',
              'Iul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 
-def _slide_chart_trend(prs, an, trend_by_year):
+def _slide_chart_trend(prs, an, trend_by_year, title=None,
+                       subtitle="Val Netă RON pe lună"):
     """Bar chart cu trend lunar pe 3 ani (date YTD din monthly_trend)."""
     slide = _blank(prs)
-    _header_bar(slide, f"Trend Lunar Vânzări — Comparativ {an-2}/{an-1}/{an}",
-                "Val Netă RON pe lună")
+    _header_bar(slide,
+                title or f"Trend Lunar Vânzări — Comparativ {an-2}/{an-1}/{an}",
+                subtitle)
     _footer(slide)
 
     data = CategoryChartData()
