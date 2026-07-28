@@ -1,5 +1,8 @@
 """Exports for the list/report pages: context, filters, period, Excel, PPT, authz."""
 
+import io
+
+import openpyxl
 import pytest
 from pptx import Presentation
 
@@ -242,3 +245,83 @@ def test_build_basilur_ppt_lays_out_every_brand(flask_app):
              for sh in s.shapes if sh.has_text_frame]
     for brand in overviews.BASILUR_BRANDS:
         assert brand.upper() in texts
+
+
+REPORTS = ['team', 'clients', 'products', 'basilur']
+
+EXPECTED_SHEETS = {
+    'team': [f'Echipa {AN}', f'Echipa {AN - 1}'],
+    'clients': [f'Clienți {AN}'],
+    'products': ['Branduri', 'Top SKU'],
+    'basilur': ['Brand KPIs', 'Monthly Sales', 'Stock by Brand', 'Stock Detail'],
+}
+
+
+@pytest.mark.parametrize('report', REPORTS)
+def test_excel_route_returns_openable_workbook(client, report):
+    rv = client.get(f'/export/{report}?an={AN}')
+    assert rv.status_code == 200
+    assert rv.mimetype == XLSX_MIME
+    wb = openpyxl.load_workbook(io.BytesIO(rv.data))
+    assert wb.sheetnames == EXPECTED_SHEETS[report]
+
+
+@pytest.mark.parametrize('report', REPORTS)
+def test_ppt_route_returns_openable_deck(client, report):
+    rv = client.get(f'/export/ppt/{report}?an={AN}')
+    assert rv.status_code == 200
+    assert rv.mimetype == PPT_MIME
+    assert len(Presentation(io.BytesIO(rv.data)).slides) >= 2
+
+
+def test_team_excel_no_longer_ignores_luna(client):
+    """Regression: /export/team called team_table(an) with no month filter, so
+    it shipped a full year while the page showed a single month."""
+    rv = client.get(f'/export/team?an={AN}&luna={EMPTY_MONTH}')
+    assert rv.status_code == 200
+    wb = openpyxl.load_workbook(io.BytesIO(rv.data))
+    assert wb[f'Echipa {AN}']['A1'].value == 'Nu există date pentru acest raport.'
+
+
+def test_products_excel_honours_the_page_search_filter(client):
+    """Regression: /export/products ignored ?q entirely."""
+    rv = client.get(f'/export/products?an={AN}&q=SKU002')
+    wb = openpyxl.load_workbook(io.BytesIO(rv.data))
+    skus = [row[0] for row in wb['Top SKU'].iter_rows(min_row=2, values_only=True)]
+    assert skus == ['SKU002']
+
+
+@pytest.mark.parametrize('report', REPORTS)
+@pytest.mark.parametrize('luna', [13, -1])
+def test_routes_reject_out_of_range_luna(client, report, luna):
+    assert client.get(f'/export/{report}?an={AN}&luna={luna}').status_code == 404
+    assert client.get(f'/export/ppt/{report}?an={AN}&luna={luna}').status_code == 404
+
+
+@pytest.mark.parametrize('report', REPORTS)
+def test_routes_deny_role_without_nav_access(client, monkeypatch, report):
+    import authz
+    monkeypatch.setattr(authz, 'can_access_nav', lambda role, key: False)
+    assert client.get(f'/export/{report}?an={AN}').status_code == 403
+    assert client.get(f'/export/ppt/{report}?an={AN}').status_code == 403
+
+
+def test_legacy_basilur_excel_url_redirects(client):
+    rv = client.get(f'/raportare-basilur/export/excel?an={AN}&curs=5')
+    assert rv.status_code == 302
+    assert '/export/basilur' in rv.headers['Location']
+    assert 'curs=5' in rv.headers['Location']
+
+
+def test_legacy_basilur_ppt_url_redirects(client):
+    rv = client.get(f'/raportare-basilur/export/ppt?an={AN}&curs=5')
+    assert rv.status_code == 302
+    assert '/export/ppt/basilur' in rv.headers['Location']
+    assert 'curs=5' in rv.headers['Location']
+
+
+def test_basilur_page_still_renders(client):
+    """The page route now imports BASILUR_BRANDS from exports.overviews."""
+    rv = client.get(f'/raportare-basilur?an={AN}')
+    assert rv.status_code == 200
+    assert 'KingsLeaf' in rv.get_data(as_text=True)
