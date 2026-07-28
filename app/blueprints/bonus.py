@@ -120,8 +120,10 @@ def bonus():
         'ytd_bonus':  round(sum(a['ytd']['bonus'] for a in agents)),
         'ytd_target': round(sum(a['ytd']['target'] for a in agents)),
     }
+    # Grid shown in the UI legend = the '_default' one (per-agent overrides are rare)
     return render_template('bonus.html', agents=agents, an=an, luna=luna,
-                           team=team, months_ro=BONUS_MONTHS_RO)
+                           team=team, months_ro=BONUS_MONTHS_RO,
+                           grid=queries.payout_grid('_default'))
 
 
 @bonus_bp.route('/bonus/export')
@@ -203,7 +205,8 @@ def obiective():
             "kpis": existing or _proposed_kpis(a['db_agent'], an, luna, growth),
         })
     return render_template('bonus/obiective.html', agents=agents, an=an, luna=luna,
-                           all_game=ALL_GAME, months_ro=BONUS_MONTHS_RO)
+                           all_game=ALL_GAME, months_ro=BONUS_MONTHS_RO,
+                           grid=queries.payout_grid('_default'))
 
 
 @bonus_bp.route('/bonus/obiective/save', methods=['POST'])

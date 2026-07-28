@@ -46,6 +46,22 @@ def test_obiective_page_renders(app_client):
     assert 'Reguli de comisionare' in html   # legenda grilă + prag 80%
 
 
+def _grid_legend_fragments():
+    """Fragments the legend must contain, derived from the DB grid itself."""
+    from queries.bonus import payout_grid
+    pos = [(t, m) for t, m in payout_grid('_default') if m > 0]
+    return pos, ['%g%%' % (t * 100) for t, _ in pos] + ['%g&times;' % m for _, m in pos]
+
+
+@pytest.mark.parametrize('url', ['/bonus?an=2026&luna=6', '/bonus/obiective?an=2026&luna=7'])
+def test_payout_legend_matches_db_grid(app_client, url):
+    pos, fragments = _grid_legend_fragments()
+    html = app_client.get(url).get_data(as_text=True)
+    for frag in fragments:
+        assert frag in html, f'legenda grilei nu conține {frag} ({url})'
+    assert '&lt;%g%% &rarr; 0 lei' % (pos[0][0] * 100) in html
+
+
 def test_obiective_save_roundtrip(app_client):
     payload = {
         "an": 2026, "luna": 9, "agent_key": "Ionut",

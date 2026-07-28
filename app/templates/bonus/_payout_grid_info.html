@@ -1,0 +1,7 @@
+{# Payout steps rendered from bonus_payout_grid ('_default') — never hardcode them here. #}
+{%- set pos = [] -%}
+{%- for thr, mul in (grid or []) if mul > 0 -%}{%- set _ = pos.append((thr, mul)) -%}{%- endfor -%}
+{%- if pos -%}
+<span class="text-danger">&lt;{{ '%g' | format(pos[0][0] * 100) }}% &rarr; 0 lei</span>
+{%- for thr, mul in pos %} &middot; {{ '&ge;' | safe if loop.last }}{{ '%g' | format(thr * 100) }}% &rarr; {{ '%g' | format(mul) }}&times;{% endfor -%}
+{%- endif -%}
