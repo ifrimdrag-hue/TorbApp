@@ -8,7 +8,8 @@ AI consulting for **Torb Logistic SRL**, a Romanian FMCG distributor. Goal: iden
 - Before any batch operation (multi-file edits, bulk scripts), save progress to memory first so work can resume after a context reset.
 
 ## Code quality rules (enforced in CI)
-- **Linter**: `ruff` — all Python must pass `ruff check .` with zero errors before commit. Nothing enforces this locally (no git hook); the gate is the `lint` job in `.github/workflows/deploy_VPS.yml`, which runs after push. Rules and version are both pinned (`ruff.toml`, `requirements-dev.txt`) — never unpin, a ruff release can widen the default rule set. Widening it deliberately is BACKLOG item 16.
+- **Linter**: `ruff` — all Python must pass `ruff check .` with zero errors before commit. Rules and version are both pinned (`ruff.toml`, `requirements-dev.txt`) — never unpin, a ruff release can widen the default rule set. Widening it deliberately is BACKLOG item 16.
+- **Gates**: `.githooks/pre-push` runs `ruff check .` + `pytest tests/` before every push (enable per clone: `git config core.hooksPath .githooks`; bypass once with `git push --no-verify`). The authoritative gate is still the `lint`/`test` jobs in `.github/workflows/deploy_VPS.yml`. Nothing runs at commit time.
 - **Auto-fix hook**: a `PostToolUse` hook in `~/.claude/settings.json` runs `ruff check --fix --quiet` on every `.py` file Claude writes or edits. No manual lint pass needed.
 - **Forbidden patterns**: `E401` (multiple imports), `E402` (import not at top), `E701/E702` (compound statements), `E722` (bare except), `E741` (ambiguous names `l`, `O`, `I`), `F401` (unused imports), `F841` (unused variables).
 

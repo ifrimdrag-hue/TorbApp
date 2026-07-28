@@ -6,7 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### CI: pin the ruff version and rule set (2026-07-28)
 
-The lint job installed ruff unpinned and the repo had no ruff config, so CI enforced whatever the newest release considered its default rule set. Ruff **0.16.0** widened that set and a previously green tree failed with **436 findings** — none of them new code. Both halves are now pinned: `ruff.toml` selects `E4, E7, E9, F` (the rules CLAUDE.md documents), and `ruff==0.16.0` is fixed in the lint job and in `requirements-dev.txt`. Adopting the wider set is a deliberate, family-at-a-time job tracked as BACKLOG item 16, which lists the counts. Note there is no local pre-commit hook — CI remains the only gate.
+The lint job installed ruff unpinned and the repo had no ruff config, so CI enforced whatever the newest release considered its default rule set. Ruff **0.16.0** widened that set and a previously green tree failed with **436 findings** — none of them new code. Both halves are now pinned: `ruff.toml` selects `E4, E7, E9, F` (the rules CLAUDE.md documents), and `ruff==0.16.0` is fixed in the lint job and in `requirements-dev.txt`. Adopting the wider set is a deliberate, family-at-a-time job tracked as BACKLOG item 16, which lists the counts.
+
+Also added `.githooks/pre-push`, which runs the same `ruff check .` + `pytest tests/` that CI does, so a failing push is caught before it leaves the machine (~11s). Hooks live outside version control by default, so the directory is tracked and enabled per clone with `git config core.hooksPath .githooks`; `git push --no-verify` bypasses it. `.gitattributes` forces `eol=lf` on it — `core.autocrlf=true` would otherwise check the script out with CRLF and break the shebang.
 
 ### Stock sync: Shopify EAN-fallback matching (2026-07-10)
 

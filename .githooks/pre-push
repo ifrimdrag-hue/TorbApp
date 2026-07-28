@@ -1,0 +1,36 @@
+#!/bin/sh
+# Mirrors the lint + test jobs of .github/workflows/deploy_VPS.yml so a failing
+# push is caught here instead of in CI. Enable once per clone with:
+#     git config core.hooksPath .githooks
+# Bypass a single push with `git push --no-verify`.
+
+# Nothing to check when the push only deletes refs.
+only_deletes=1
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+    if [ "$local_sha" != "0000000000000000000000000000000000000000" ]; then
+        only_deletes=0
+    fi
+done
+if [ "$only_deletes" = "1" ]; then
+    exit 0
+fi
+
+if [ -x .venv/Scripts/python.exe ]; then
+    PY=.venv/Scripts/python.exe
+elif [ -x .venv/bin/python ]; then
+    PY=.venv/bin/python
+else
+    PY=python
+fi
+
+echo "pre-push: ruff"
+if ! "$PY" -m ruff check .; then
+    echo "pre-push: ruff failed — fix, or push with --no-verify" >&2
+    exit 1
+fi
+
+echo "pre-push: pytest"
+if ! "$PY" -m pytest tests/ -q; then
+    echo "pre-push: tests failed — fix, or push with --no-verify" >&2
+    exit 1
+fi

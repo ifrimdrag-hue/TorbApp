@@ -1,0 +1,3 @@
+# core.autocrlf=true would check these out with CRLF, and `sh` chokes on the
+# trailing \r in the shebang.
+.githooks/* text eol=lf
