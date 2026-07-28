@@ -325,3 +325,36 @@ def test_basilur_page_still_renders(client):
     rv = client.get(f'/raportare-basilur?an={AN}')
     assert rv.status_code == 200
     assert 'KingsLeaf' in rv.get_data(as_text=True)
+
+
+PAGE_URL = {
+    'team': '/team',
+    'clients': '/clients',
+    'products': '/products',
+    'basilur': '/raportare-basilur',
+}
+
+
+@pytest.mark.parametrize('report', REPORTS)
+def test_page_offers_both_exports(client, report):
+    html = client.get(f'{PAGE_URL[report]}?an={AN}').get_data(as_text=True)
+    assert f'/export/{report}?' in html
+    assert f'/export/ppt/{report}?' in html
+
+
+def test_clients_page_export_links_carry_the_active_filters(client):
+    html = client.get(
+        f'/clients?an={AN}&agent=Agent+Test&brand=Basilur').get_data(as_text=True)
+    assert 'agent=Agent+Test' in html
+    assert 'brand=Basilur' in html
+
+
+def test_products_page_export_links_carry_the_active_filters(client):
+    html = client.get(
+        f'/products?an={AN}&brand=Basilur&q=SKU001').get_data(as_text=True)
+    assert 'q=SKU001' in html
+
+
+def test_basilur_page_export_links_carry_the_rate(client):
+    html = client.get(f'/raportare-basilur?an={AN}&curs=5.1').get_data(as_text=True)
+    assert 'curs=5.1' in html
