@@ -27,6 +27,16 @@ def _slug(text, maxlen):
     return (text or '').replace(' ', '_').replace('/', '_')[:maxlen]
 
 
+def _slug_with_year(prefix, ident, an, maxlen):
+    """Slug that always keeps the trailing `_<year>` — the identifier is
+    truncated instead of the whole composed string, so a long ident never
+    eats the year suffix (pre-branch behaviour)."""
+    suffix = f"_{an}"
+    ident = (ident or '').replace(' ', '_').replace('/', '_')
+    budget = max(maxlen - len(prefix) - 1 - len(suffix), 0)
+    return f"{prefix}_{ident[:budget]}{suffix}"
+
+
 def _table(title, left, width, rows, mapper, limit=15):
     """One deck table. States its own truncation so a top-N never reads as a total."""
     rows = rows or []
@@ -90,7 +100,7 @@ def _client(cod, an, luna, max_luna):
         'cards': [
             ("Val. Netă", fmt_ron(vn)),
             ("Marjă Brută %", fmt_pct(_pct(mb, vn))),
-            ("Marjă Netă", fmt_ron(mn)),
+            ("Marjă Netă", f"{fmt_ron(mn)} / {fmt_pct(_pct(mn, vn))}"),
             ("Nr. Produse", str(len(products))),
         ],
         'tables': [
@@ -126,11 +136,12 @@ def _agent(name, an, luna, max_luna):
     clients = queries.agent_clients_full(name, an, luna=luna, max_luna=max_luna)
     brands = queries.agent_brands_full(name, an, luna=luna, max_luna=max_luna)
     skus = queries.agent_skus_full(name, an, luna=luna, max_luna=max_luna)
+    monthly = queries.agent_monthly_full(name)
 
     return {
         'nav': 'team',
         'title': f"Agent: {name}",
-        'filename_base': _slug(f"agent_{name}_{an}", 40),
+        'filename_base': _slug_with_year('agent', name, an, 40),
         'cards': [
             ("Val. Netă", fmt_ron(kpi.get('val_neta'))),
             ("Marjă Brută", f"{fmt_ron(kpi.get('marja_bruta'))} / {fmt_pct(kpi.get('marja_pct'))}"),
@@ -167,24 +178,34 @@ def _agent(name, an, luna, max_luna):
             'KPI Agent': [dict(kpi)],
             f'Clienți {an}': clients,
             f'Top SKU {an}': skus,
-            'Trend Lunar': queries.agent_monthly_full(name),
+            'Trend Lunar': monthly,
         },
-        'trend': _trend(queries.agent_monthly_full(name)),
+        'trend': _trend(monthly),
     }
+
+
+# The workbook sheet is the full-data artifact (unlike the deck table, which
+# declares its own top-N truncation), so its underlying queries must pull
+# effectively all rows. Neither `brand_clients` nor `products_top_skus` accepts
+# `limit=None` for unlimited (their SQL binds `LIMIT :limit`, and SQLite raises
+# on a NULL bind there) — this is comfortably above any real brand's row count.
+_SHEET_ROW_LIMIT = 100_000
 
 
 def _brand(furnizor, an, luna, max_luna):
     kpi = queries.brand_kpi(furnizor, an, max_luna=max_luna, luna=luna)
     if not kpi or not kpi.get('val_neta'):
         return None
-    clients = queries.brand_clients(furnizor, an, max_luna=max_luna, luna=luna)
-    skus = queries.products_top_skus(an, furnizor=furnizor, limit=300,
+    clients = queries.brand_clients(furnizor, an, max_luna=max_luna, luna=luna,
+                                     limit=_SHEET_ROW_LIMIT)
+    skus = queries.products_top_skus(an, furnizor=furnizor, limit=_SHEET_ROW_LIMIT,
                                      luna=luna, max_luna=max_luna)
+    monthly = queries.brand_monthly_full(furnizor)
 
     return {
         'nav': 'products',
         'title': f"Brand: {furnizor}",
-        'filename_base': _slug(f"brand_{furnizor}_{an}", 40),
+        'filename_base': _slug_with_year('brand', furnizor, an, 40),
         'cards': [
             ("Val. Netă", fmt_ron(kpi.get('val_neta'))),
             ("Marjă Brută %", fmt_pct(kpi.get('marja_pct'))),
@@ -210,9 +231,9 @@ def _brand(furnizor, an, luna, max_luna):
             'KPI': [dict(kpi)],
             f'Clienți {an}': clients,
             f'Top SKU {an}': skus,
-            'Trend Lunar': queries.brand_monthly_full(furnizor),
+            'Trend Lunar': monthly,
         },
-        'trend': _trend(queries.brand_monthly_full(furnizor)),
+        'trend': _trend(monthly),
     }
 
 
@@ -230,7 +251,7 @@ def _produs(sku, an, luna, max_luna):
     return {
         'nav': 'products',
         'title': f"Produs: {sku[:38]}",
-        'filename_base': _slug(f"produs_{sku}_{an}", 40),
+        'filename_base': _slug_with_year('produs', sku, an, 40),
         'cards': [
             ("Val. Netă", fmt_ron(kpi.get('val_neta'))),
             ("Marjă Brută %", fmt_pct(kpi.get('marja_bruta_pct'))),
@@ -282,6 +303,8 @@ def build_context(entity, ident, an, luna=None):
     """
     builder = _BUILDERS.get(entity)
     if builder is None or not ident:
+        return None
+    if luna and not 1 <= luna <= 12:
         return None
     max_luna = None if luna else queries.max_luna_for_year(an)
     ctx = builder(ident, an, luna, max_luna)

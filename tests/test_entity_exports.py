@@ -104,6 +104,32 @@ def test_build_context_honours_luna(flask_app, entity):
         assert filtered is None
 
 
+@pytest.mark.parametrize('luna', [13, -1])
+def test_build_context_rejects_out_of_range_luna(flask_app, luna):
+    """luna=13/-1 must 404 like an unresolvable entity, not 500 (out-of-range
+    index into MONTHS_RO_FULL) or a silently mislabelled period."""
+    from exports import entities
+    with flask_app.app_context():
+        assert entities.build_context('client', CLIENT, AN, luna) is None
+
+
+def test_client_context_cards_render_margins(flask_app):
+    """Regression for the CHANGELOG fix: the client deck's margin cards must
+    render actual figures, not '-'. Derived from the seed (tests/conftest.py),
+    not from running the code: C001 has one 2026 transaction with val_neta 500
+    and marja_bruta 200, and no conditii_comerciale rows, so marja neta equals
+    marja bruta (200) and both percentages are 200/500 = 40.0%."""
+    from exports import entities
+    with flask_app.app_context():
+        ctx = entities.build_context('client', CLIENT, AN, None)
+    assert ctx['cards'] == [
+        ("Val. Netă", "500 RON"),
+        ("Marjă Brută %", "40.0%"),
+        ("Marjă Netă", "200 RON / 40.0%"),
+        ("Nr. Produse", "1"),
+    ]
+
+
 def test_period_label(flask_app):
     from exports import entities
     with flask_app.app_context():
@@ -111,6 +137,16 @@ def test_period_label(flask_app):
         assert entities._period_label(2026, None, 7) == '2026 · Ian–Iul'
         assert entities._period_label(2026, None, 12) == '2026'
         assert entities._period_label(2026, None, None) == '2026'
+
+
+def test_slug_with_year_keeps_year_for_long_identifier(flask_app):
+    """A long identifier must be truncated instead of the year suffix, so the
+    composed filename never loses the period it names (pre-branch behaviour)."""
+    from exports import entities
+    long_sku = 'X' * 60
+    slug = entities._slug_with_year('produs', long_sku, 2026, 40)
+    assert slug.endswith('_2026')
+    assert len(slug) == 40
 
 
 def test_table_caption_reports_truncation(flask_app):
@@ -231,7 +267,13 @@ def test_ppt_route_unknown_ident_is_404(client, entity):
     assert rv.status_code == 404
 
 
-@pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs', 'dashboard'])
+@pytest.mark.parametrize('luna', [13, -1])
+def test_ppt_route_out_of_range_luna_is_404(client, luna):
+    rv = client.get(f'/export/ppt/client?{PPT_QUERY["client"]}&an={AN}&luna={luna}')
+    assert rv.status_code == 404
+
+
+@pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs', 'dashboard', 'profitabilitate'])
 def test_ppt_route_denies_role_without_nav_access(client, monkeypatch, entity):
     import authz
     monkeypatch.setattr(authz, 'can_access_nav', lambda role, key: False)
@@ -302,6 +344,12 @@ def test_excel_route_honours_luna(client, entity):
 def test_excel_route_unknown_ident_is_404(client, entity):
     param = XLSX_QUERY[entity].split('=')[0]
     rv = client.get(f'/export/{entity}?{param}=NU_EXISTA_XYZ&an={AN}')
+    assert rv.status_code == 404
+
+
+@pytest.mark.parametrize('luna', [13, -1])
+def test_excel_route_out_of_range_luna_is_404(client, luna):
+    rv = client.get(f'/export/client?{XLSX_QUERY["client"]}&an={AN}&luna={luna}')
     assert rv.status_code == 404
 
 
