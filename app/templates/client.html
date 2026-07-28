@@ -43,7 +43,7 @@
        class="btn btn-sm btn-outline-success">
       <i class="bi bi-file-earmark-excel"></i> Excel
     </a>
-    <a href="{{ url_for('reports.export_ppt_client', cod_client=info.cod_client, an=an) }}"
+    <a href="{{ url_for('reports.export_ppt', entity='client', cod_client=info.cod_client, an=an, luna=luna) }}"
        class="btn btn-sm btn-outline-danger">
       <i class="bi bi-file-earmark-slides"></i> PPT
     </a>

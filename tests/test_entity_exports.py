@@ -1,6 +1,9 @@
 """Exports for the entity detail pages: context, Excel round-trip, PPT, authz."""
 
+import io
+
 import pytest
+from pptx import Presentation
 
 AN = 2026
 AGENT = 'Agent Test'
@@ -136,3 +139,117 @@ def test_produs_context_aggregates_sku_variants(flask_app, monkeypatch):
     with flask_app.app_context():
         entities.build_context('produs', SKU, AN, None)
     assert seen['sku'] == [SKU, SKU + ' VARIANTA']
+
+
+# ── Deck builder ─────────────────────────────────────────────────────────────
+
+EXPECTED_SLIDES = {'client': 3, 'agent': 4, 'brand': 3, 'produs': 3}
+
+
+@pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs'])
+def test_build_entity_ppt_slide_count(flask_app, entity):
+    from exports import entities, ppt_export
+    with flask_app.app_context():
+        ctx = entities.build_context(entity, ENTITY_IDENT[entity], AN, None)
+        buf = ppt_export.build_entity_ppt(ctx)
+    prs = Presentation(buf)
+    assert len(prs.slides) == EXPECTED_SLIDES[entity]
+
+
+def test_build_entity_ppt_cover_shows_period(flask_app):
+    from exports import entities, ppt_export
+    with flask_app.app_context():
+        ctx = entities.build_context('brand', BRAND, AN, 1)
+        buf = ppt_export.build_entity_ppt(ctx)
+    prs = Presentation(buf)
+    texts = [s.text_frame.text for s in prs.slides[0].shapes if s.has_text_frame]
+    assert '2026 · Ianuarie' in texts
+    assert 'Brand: Basilur' in texts
+
+
+def test_build_entity_ppt_without_trend_drops_the_chart_slide(flask_app):
+    from exports import entities, ppt_export
+    with flask_app.app_context():
+        ctx = entities.build_context('brand', BRAND, AN, None)
+    ctx['trend'] = {}
+    buf = ppt_export.build_entity_ppt(ctx)
+    assert len(Presentation(buf).slides) == 2
+
+
+def test_old_named_builders_are_gone():
+    from exports import ppt_export
+    assert not hasattr(ppt_export, 'build_client_ppt')
+    assert not hasattr(ppt_export, 'build_agent_ppt')
+    assert not hasattr(ppt_export, '_slide_client_detail')
+    assert not hasattr(ppt_export, '_slide_agent_detail')
+
+
+# ── PPT route ────────────────────────────────────────────────────────────────
+
+PPT_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+
+PPT_QUERY = {
+    'client': f'cod_client={CLIENT}',
+    'agent': 'name=Agent+Test',
+    'brand': f'furnizor={BRAND}',
+    'produs': f'sku={SKU}',
+}
+
+
+@pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs'])
+def test_ppt_route_returns_openable_deck(client, entity):
+    rv = client.get(f'/export/ppt/{entity}?{PPT_QUERY[entity]}&an={AN}')
+    assert rv.status_code == 200
+    assert rv.mimetype == PPT_MIME
+    assert rv.data
+    prs = Presentation(io.BytesIO(rv.data))
+    assert len(prs.slides) == EXPECTED_SLIDES[entity]
+
+
+@pytest.mark.parametrize('entity', ['dashboard', 'profitabilitate'])
+def test_ppt_route_still_serves_overview_decks(client, entity):
+    rv = client.get(f'/export/ppt/{entity}?an={AN}')
+    assert rv.status_code == 200
+    assert rv.mimetype == PPT_MIME
+    assert len(Presentation(io.BytesIO(rv.data)).slides) >= 2
+
+
+def test_ppt_route_unknown_entity_is_404(client):
+    assert client.get('/export/ppt/nope').status_code == 404
+
+
+@pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs'])
+def test_ppt_route_missing_ident_is_404(client, entity):
+    assert client.get(f'/export/ppt/{entity}?an={AN}').status_code == 404
+
+
+@pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs'])
+def test_ppt_route_unknown_ident_is_404(client, entity):
+    param = PPT_QUERY[entity].split('=')[0]
+    rv = client.get(f'/export/ppt/{entity}?{param}=NU_EXISTA_XYZ&an={AN}')
+    assert rv.status_code == 404
+
+
+@pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs', 'dashboard'])
+def test_ppt_route_denies_role_without_nav_access(client, monkeypatch, entity):
+    import authz
+    monkeypatch.setattr(authz, 'can_access_nav', lambda role, key: False)
+    query = PPT_QUERY.get(entity, '')
+    rv = client.get(f'/export/ppt/{entity}?{query}&an={AN}')
+    assert rv.status_code == 403
+
+
+def test_old_ppt_endpoints_are_gone(flask_app):
+    endpoints = {r.endpoint for r in flask_app.url_map.iter_rules()}
+    assert 'reports.export_ppt' in endpoints
+    for old in ('reports.export_ppt_client', 'reports.export_ppt_agent',
+                'reports.export_ppt_dashboard', 'reports.export_ppt_profitabilitate'):
+        assert old not in endpoints
+
+
+def test_ppt_route_is_allowlisted_not_orphaned():
+    import nav_registry as nr
+    assert 'reports.export_ppt' in nr.UNGATED_ENDPOINTS
+    registered = {ep for item in nr.NAV_REGISTRY for ep in item.endpoints}
+    assert 'reports.export_ppt_client' not in registered
+    assert 'reports.export_ppt_agent' not in registered

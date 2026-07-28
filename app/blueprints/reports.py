@@ -5,7 +5,7 @@ from flask import Blueprint, render_template, request, abort, send_file
 from flask_login import current_user
 import authz
 import queries
-from exports import ppt_export
+from exports import entities, ppt_export
 from exports.excel_export import send_excel, timestamped_filename
 
 reports_bp = Blueprint('reports', __name__)
@@ -128,75 +128,80 @@ def profitabilitate():
 # Export PPT
 # ---------------------------------------------------------------------------
 
-@reports_bp.route('/export/ppt/dashboard')
-def export_ppt_dashboard():
-    an = int(request.args.get('an', datetime.date.today().year))
-    kpis_raw = queries.kpi_cards()
-    kpis = {r['an']: r for r in kpis_raw}
+# (nav key, request arg carrying the entity id — None for overview decks)
+_PPT_ENTITIES = {
+    'dashboard':       ('dashboard', None),
+    'profitabilitate': ('profitabilitate', None),
+    'client':          ('clients', 'cod_client'),
+    'agent':           ('team', 'name'),
+    'brand':           ('products', 'furnizor'),
+    'produs':          ('products', 'sku'),
+}
+
+
+def _dashboard_ppt(an):
+    kpis = {r['an']: r for r in queries.kpi_cards()}
     cy = kpis.get(an, {})
     py = kpis.get(an - 1, {})
-    delta_vn   = _delta_pct(cy.get('val_neta', 0), py.get('val_neta', 0))
-    delta_mb   = _delta_pct(cy.get('marja_bruta', 0), py.get('marja_bruta', 0))
-    delta_mn   = _delta_pct(cy.get('marja_neta', 0), py.get('marja_neta', 0))
+    delta_vn = _delta_pct(cy.get('val_neta', 0), py.get('val_neta', 0))
+    delta_mb = _delta_pct(cy.get('marja_bruta', 0), py.get('marja_bruta', 0))
+    delta_mn = _delta_pct(cy.get('marja_neta', 0), py.get('marja_neta', 0))
     delta_mpct = round((cy.get('marja_pct', 0) or 0) - (py.get('marja_pct', 0) or 0), 1)
-    agents   = queries.profitabilitate_agenti(an)
-    clients  = queries.profitabilitate_clienti(an, limit=15)
-    kaufland = queries.risk_kaufland(an)
-    bogdan   = queries.risk_agent(an, 'DRAGNEA BOGDAN')
-    churn    = queries.churn_clients(60)
-    trend_by_year = _build_trend_series(queries.monthly_trend())
-    brands   = queries.brand_mix(an)
-    channels = queries.channel_mix(an)
     buf = ppt_export.build_dashboard_ppt(
         an, cy, py, delta_vn, delta_mb, delta_mn, delta_mpct,
-        agents, clients, kaufland, bogdan, churn,
-        trend_by_year=trend_by_year,
-        brands_data=brands,
-        channels_data=channels,
+        queries.profitabilitate_agenti(an),
+        queries.profitabilitate_clienti(an, limit=15),
+        queries.risk_kaufland(an),
+        queries.risk_agent(an, 'DRAGNEA BOGDAN'),
+        queries.churn_clients(60),
+        trend_by_year=_build_trend_series(queries.monthly_trend()),
+        brands_data=queries.brand_mix(an),
+        channels_data=queries.channel_mix(an),
     )
-    return ppt_export.send_ppt(buf, ppt_export.timestamped_filename(f'dashboard_{an}'))
+    return buf, f'dashboard_{an}'
 
 
-@reports_bp.route('/export/ppt/agent')
-def export_ppt_agent():
-    name = request.args.get('name', '').strip()
-    an   = int(request.args.get('an', datetime.date.today().year))
-    if not name:
+def _profitabilitate_ppt(an):
+    buf = ppt_export.build_profitabilitate_ppt(
+        an,
+        queries.profitabilitate_agenti(an),
+        queries.profitabilitate_clienti(an),
+        queries.profitabilitate_produse(an),
+    )
+    return buf, f'profitabilitate_{an}'
+
+
+_OVERVIEW_PPT = {
+    'dashboard': _dashboard_ppt,
+    'profitabilitate': _profitabilitate_ppt,
+}
+
+
+@reports_bp.route('/export/ppt/<entity>')
+def export_ppt(entity):
+    """Generic multi-feature PPT export — gated per-entity here, which is why
+    this endpoint is allow-listed in nav_registry.UNGATED_ENDPOINTS."""
+    spec = _PPT_ENTITIES.get(entity)
+    if spec is None:
         abort(404)
-    kpi    = queries.agent_kpi(name, an) or {}
-    kpi_py = queries.agent_kpi(name, an - 1) or {}
-    clients = queries.agent_clients_full(name, an)
-    brands  = queries.agent_brands_full(name, an)
-    skus    = queries.agent_skus_full(name, an)
-    buf = ppt_export.build_agent_ppt(name, an, kpi, kpi_py, clients, brands, skus)
-    safe = name.replace(' ', '_').replace('/', '_')
-    return ppt_export.send_ppt(buf, ppt_export.timestamped_filename(f'agent_{safe}_{an}'))
+    nav, param = spec
+    if not authz.can_access_nav(current_user.role, nav):
+        abort(403)
 
-
-@reports_bp.route('/export/ppt/client')
-def export_ppt_client():
-    cod = request.args.get('cod_client', '').strip()
-    an  = int(request.args.get('an', datetime.date.today().year))
-    if not cod:
-        abort(404)
-    info = queries.client_info(cod)
-    if not info:
-        abort(404)
-    products = queries.client_products_full(cod, an)
-    yearly   = queries.client_yearly_full(cod)
-    buf = ppt_export.build_client_ppt(info['client'], an, dict(info), products, yearly)
-    safe = (info['client'] or cod).replace(' ', '_').replace('/', '_')[:25]
-    return ppt_export.send_ppt(buf, ppt_export.timestamped_filename(f'client_{safe}'))
-
-
-@reports_bp.route('/export/ppt/profitabilitate')
-def export_ppt_profitabilitate():
     an = int(request.args.get('an', datetime.date.today().year))
-    agents   = queries.profitabilitate_agenti(an)
-    clients  = queries.profitabilitate_clienti(an)
-    products = queries.profitabilitate_produse(an)
-    buf = ppt_export.build_profitabilitate_ppt(an, agents, clients, products)
-    return ppt_export.send_ppt(buf, ppt_export.timestamped_filename(f'profitabilitate_{an}'))
+
+    if param is None:
+        buf, base = _OVERVIEW_PPT[entity](an)
+        return ppt_export.send_ppt(buf, ppt_export.timestamped_filename(base))
+
+    ident = request.args.get(param, '').strip()
+    luna = request.args.get('luna', type=int)
+    ctx = entities.build_context(entity, ident, an, luna) if ident else None
+    if ctx is None:
+        abort(404)
+    buf = ppt_export.build_entity_ppt(ctx)
+    return ppt_export.send_ppt(
+        buf, ppt_export.timestamped_filename(ctx['filename_base']))
 
 
 # ---------------------------------------------------------------------------

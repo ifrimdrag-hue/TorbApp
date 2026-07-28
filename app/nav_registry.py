@@ -30,23 +30,20 @@ GROUP_COLLAPSIBLE = {"Comercial", "Operațional", "eCommerce", "Marketing"}
 NAV_REGISTRY = [
     NavItem("dashboard", "Dashboard", "speedometer2", "Analiză",
             "analytics.dashboard",
-            endpoints=("analytics.dashboard", "reports.export_ppt_dashboard")),
+            endpoints=("analytics.dashboard",)),
     NavItem("team", "Echipă", "people-fill", "Analiză",
             "analytics.team",
-            endpoints=("analytics.team", "analytics.agent_detail",
-                       "reports.export_ppt_agent")),
+            endpoints=("analytics.team", "analytics.agent_detail")),
     NavItem("clients", "Clienți", "building", "Analiză",
             "analytics.clients",
-            endpoints=("analytics.clients", "analytics.client_detail",
-                       "reports.export_ppt_client")),
+            endpoints=("analytics.clients", "analytics.client_detail")),
     NavItem("products", "Produse", "box-seam-fill", "Analiză",
             "analytics.products",
             endpoints=("analytics.products", "analytics.brand_detail",
                        "reports.produs_detail")),
     NavItem("profitabilitate", "Profitabilitate", "graph-up-arrow", "Analiză",
             "reports.profitabilitate",
-            endpoints=("reports.profitabilitate",
-                       "reports.export_ppt_profitabilitate")),
+            endpoints=("reports.profitabilitate",)),
     NavItem("pnl", "P&L", "cash-stack", "Analiză",
             "pnl.pnl", blueprint="pnl"),
 
@@ -186,6 +183,8 @@ UNGATED_ENDPOINTS = {
     "actualizare.api_actualizare_date_status",  # global import chip poll (every page)
     # generic multi-feature export — gated per-report inside the handler (see reports.export_excel)
     "reports.export_excel",
+    # generic multi-entity PPT export — gated per-entity inside the handler
+    "reports.export_ppt",
     "postari.postari_ai_generate",              # shared by Instagram + Facebook pages
     # dev-only testing checklist; SHOW_TESTING flag 404s it in prod, and its
     # sidebar link lives outside the nav registry (raw <a>, not a NavItem)

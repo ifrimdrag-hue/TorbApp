@@ -7,7 +7,7 @@
   <h4 class="mb-0 fw-bold"><i class="bi bi-speedometer2 text-primary"></i> Dashboard Executiv</h4>
   <div class="d-flex gap-2 align-items-center">
     <span class="text-muted small">An: <strong>{{ an }}</strong> &nbsp;|&nbsp; YTD vs {{ an - 1 }}</span>
-    <a href="{{ url_for('reports.export_ppt_dashboard', an=an) }}"
+    <a href="{{ url_for('reports.export_ppt', entity='dashboard', an=an) }}"
        class="btn btn-sm btn-outline-danger ms-2" title="Export PowerPoint">
       <i class="bi bi-file-earmark-slides"></i> Export PPT
     </a>
