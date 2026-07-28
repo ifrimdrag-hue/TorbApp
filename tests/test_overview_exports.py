@@ -1,6 +1,7 @@
 """Exports for the list/report pages: context, filters, period, Excel, PPT, authz."""
 
 import pytest
+from pptx import Presentation
 
 AN = 2026
 EMPTY_MONTH = 2  # the seed only has month 1, so month 2 yields no rows
@@ -164,3 +165,80 @@ def test_products_context_honours_luna(flask_app):
         empty = overviews.build_context('products', AN, EMPTY_MONTH, {})
     assert not _rows(empty['sheets']['Branduri'])
     assert not _rows(empty['sheets']['Top SKU'])
+
+
+def test_basilur_context_shape(flask_app):
+    from exports import overviews
+    with flask_app.app_context():
+        ctx = overviews.build_context('basilur', AN, None, {})
+    assert ctx['nav'] == 'basilur'
+    assert ctx['filename_base'] == f'raportare_basilur_{AN}_YTD'
+    assert list(ctx['sheets']) == [
+        'Brand KPIs', 'Monthly Sales', 'Stock by Brand', 'Stock Detail']
+    assert callable(ctx['ppt_builder'])
+    assert ctx['curs'] == overviews.BASILUR_DEFAULT_CURS
+    # The deck is bespoke, so the generic slide inputs stay empty.
+    assert ctx['cards'] == []
+    assert ctx['tables'] == []
+
+
+def test_basilur_filename_names_the_month(flask_app):
+    from exports import overviews
+    with flask_app.app_context():
+        ctx = overviews.build_context('basilur', AN, 1, {})
+    assert ctx['filename_base'] == f'raportare_basilur_Ian_{AN}'
+
+
+def test_basilur_curs_reaches_the_workbook(flask_app, monkeypatch):
+    import queries
+    from exports import overviews
+    monkeypatch.setattr(queries, 'basilur_kpi_per_brand', lambda *a, **kw: [
+        {'furnizor': 'Basilur', 'val_neta': 910.0, 'clienti_activi': 3,
+         'nr_sku': 7, 'val_neta_py': 455.0, 'delta_vn': 100.0},
+    ])
+    with flask_app.app_context():
+        ctx = overviews.build_context('basilur', AN, None, {'curs': 9.10})
+    row = _rows(ctx['sheets']['Brand KPIs'])[0]
+    assert row['Net Sales (USD)'] == 100     # 910 RON / 9.10
+    assert row['Net Sales PY (USD)'] == 50   # 455 RON / 9.10
+    assert ctx['curs'] == 9.10
+
+
+@pytest.mark.parametrize('bad', [0, -1, None])
+def test_basilur_falls_back_to_the_default_curs(flask_app, bad):
+    """A zero or missing rate would divide by zero in every USD figure."""
+    from exports import overviews
+    with flask_app.app_context():
+        ctx = overviews.build_context('basilur', AN, None, {'curs': bad})
+    assert ctx['curs'] == overviews.BASILUR_DEFAULT_CURS
+
+
+def test_build_basilur_ppt_uses_the_given_curs(flask_app):
+    """Regression: the deck hard-coded 4.55 and ignored ?curs, so the workbook
+    and the deck disagreed whenever the owner changed the rate."""
+    from exports import ppt_export
+    buf = ppt_export.build_basilur_ppt(
+        an=AN, period_label='2026 YTD', kpi_total={'val_neta': 910.0},
+        kpi_per_brand=[], monthly_data={}, stoc_per_brand=[], stoc_detail=[],
+        curs=9.10)
+    texts = [sh.text_frame.text for s in Presentation(buf).slides
+             for sh in s.shapes if sh.has_text_frame]
+    assert any('Rate: 1 USD = 9.1 RON' in t for t in texts)
+    assert any('$100' in t for t in texts)  # 910 RON / 9.10
+
+
+def test_build_basilur_ppt_lays_out_every_brand(flask_app):
+    """Regression: the KPI-by-brand slide indexed a three-slot x-position list
+    with four brands, so this builder raised IndexError on every call and
+    /raportare-basilur/export/ppt returned a 500."""
+    from exports import overviews, ppt_export
+    buf = ppt_export.build_basilur_ppt(
+        an=AN, period_label='2026 YTD', kpi_total={},
+        kpi_per_brand=[{'furnizor': b, 'val_neta': 100.0, 'delta_vn': None,
+                        'clienti_activi': 1, 'nr_sku': 1}
+                       for b in overviews.BASILUR_BRANDS],
+        monthly_data={}, stoc_per_brand=[], stoc_detail=[])
+    texts = [sh.text_frame.text for s in Presentation(buf).slides
+             for sh in s.shapes if sh.has_text_frame]
+    for brand in overviews.BASILUR_BRANDS:
+        assert brand.upper() in texts

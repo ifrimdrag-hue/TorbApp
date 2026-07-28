@@ -8,11 +8,29 @@ Unlike the entity builders, an empty result is not a 404 here: a filter that
 matches nothing is a valid answer and yields an empty sheet.
 """
 import queries
-from exports.context import SHEET_ROW_LIMIT, pct, period_label, table
+from exports import ppt_export
+from exports.context import (MONTHS_RO_FULL, MONTHS_RO_SHORT, SHEET_ROW_LIMIT,
+                             pct, period_label, table)
 from exports.ppt_export import fmt_pct, fmt_ron
 
 # One table filling the slide: left inset, usable width, in inches.
 FULL_WIDTH = (0.3, 12.7)
+
+BASILUR_BRANDS = ['Basilur', 'KingsLeaf', 'Tipson', 'Organsia']
+BASILUR_DEFAULT_CURS = 4.55
+MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+
+def basilur_monthly_matrix(rows):
+    """(furnizor, luna, val_neta) rows -> {furnizor: [12 values]}."""
+    out = {b: [0] * 12 for b in BASILUR_BRANDS}
+    for r in rows:
+        furn = r['furnizor']
+        luna = r['luna']
+        if furn in out and luna and 1 <= int(luna) <= 12:
+            out[furn][int(luna) - 1] = r['val_neta'] or 0
+    return out
 
 
 def _totals(rows):
@@ -153,11 +171,108 @@ def _products(an, luna, max_luna, filters):
         'trend': None,
     }
 
+def _basilur(an, luna, max_luna, filters):
+    """Supplier-facing report: English labels and USD figures by design, and a
+    bespoke deck. Only the plumbing is shared — one query pass feeds both
+    formats, which is what keeps their USD figures identical."""
+    curs = filters.get('curs') or BASILUR_DEFAULT_CURS
+    if curs <= 0:
+        curs = BASILUR_DEFAULT_CURS
+
+    kpi_total = queries.basilur_kpi_total(an, max_luna=max_luna, luna=luna) or {}
+    kpi_per_brand = [dict(r) for r in
+                     queries.basilur_kpi_per_brand(an, max_luna=max_luna, luna=luna)]
+    monthly = basilur_monthly_matrix(queries.basilur_monthly_per_brand(an))
+    stoc_per_brand = [dict(r) for r in queries.basilur_stoc_per_brand()]
+    stoc_detail = [dict(r) for r in queries.basilur_stoc_detail()]
+
+    if luna:
+        period = f"{MONTHS_EN[luna - 1]} {an}"
+        label = f"{MONTHS_RO_SHORT[luna - 1]}_{an}"
+        subtitle = f"{an} · {MONTHS_RO_FULL[luna - 1]}"
+    else:
+        ml = max_luna or 1
+        period = f"{an} YTD (ian–{MONTHS_RO_SHORT[ml - 1]})"
+        label = f"{an}_YTD"
+        subtitle = period
+
+    kpi_rows = [{
+        'Brand':              r['furnizor'],
+        'Net Sales (USD)':    round((r['val_neta'] or 0) / curs, 0),
+        'Active Clients':     r['clienti_activi'] or 0,
+        'Active SKUs':        r['nr_sku'] or 0,
+        'Net Sales PY (USD)': round((r['val_neta_py'] or 0) / curs, 0),
+        'YoY Delta %':        r['delta_vn'],
+    } for r in kpi_per_brand]
+
+    pivot_rows = []
+    for brand in BASILUR_BRANDS:
+        vals = monthly.get(brand, [0] * 12)
+        row = {'Brand': brand}
+        for i, m in enumerate(MONTHS_EN):
+            row[m] = round(vals[i] / curs, 0)
+        row['TOTAL'] = round(sum(vals) / curs, 0)
+        pivot_rows.append(row)
+    total_row = {'Brand': 'TOTAL'}
+    for i, m in enumerate(MONTHS_EN):
+        total_row[m] = round(
+            sum(monthly.get(b, [0] * 12)[i] for b in BASILUR_BRANDS) / curs, 0)
+    total_row['TOTAL'] = sum(total_row[m] for m in MONTHS_EN)
+    pivot_rows.append(total_row)
+
+    stoc_brand_rows = [{
+        'Brand':                   r['furnizor'],
+        'SKU Count':               r['nr_sku'] or 0,
+        'Total Units':             r['total_unitati'] or 0,
+        'Acquisition Value (USD)': round((r['valoare_achizitie'] or 0) / curs, 0),
+    } for r in stoc_per_brand]
+
+    stoc_sku_rows = [{
+        'Brand':                   r['furnizor'],
+        'Product Code':            r['cod_produs'],
+        'SKU':                     r['sku'],
+        'Quantity':                r['cantitate'] or 0,
+        'Unit Cost (USD)':         round((r['pret_achizitie'] or 0) / curs, 2),
+        'Acquisition Value (USD)': round((r['valoare_achizitie'] or 0) / curs, 0),
+        'Days in Stock':           r['nr_zile_stoc'],
+        'Entry Date':              r['data_intrare'],
+    } for r in stoc_detail]
+
+    def _deck():
+        return ppt_export.build_basilur_ppt(
+            an=an, period_label=period, kpi_total=dict(kpi_total),
+            kpi_per_brand=kpi_per_brand, monthly_data=monthly,
+            stoc_per_brand=stoc_per_brand, stoc_detail=stoc_detail, curs=curs)
+
+    return {
+        'nav': 'basilur',
+        'title': f"Basilur Group {an}",
+        'filename_base': f'raportare_basilur_{label}',
+        'cards': [],
+        'tables': [],
+        'extra_tables': [],
+        'sheets': {
+            'Brand KPIs':     {'rows': kpi_rows,
+                               'headers': list(kpi_rows[0]) if kpi_rows else []},
+            'Monthly Sales':  {'rows': pivot_rows,
+                               'headers': ['Brand'] + MONTHS_EN + ['TOTAL']},
+            'Stock by Brand': {'rows': stoc_brand_rows,
+                               'headers': list(stoc_brand_rows[0]) if stoc_brand_rows else []},
+            'Stock Detail':   {'rows': stoc_sku_rows,
+                               'headers': list(stoc_sku_rows[0]) if stoc_sku_rows else []},
+        },
+        'trend': None,
+        'curs': curs,
+        'ppt_builder': _deck,
+        'subtitle_override': subtitle,
+    }
+
 
 _BUILDERS = {
     'team': _team,
     'clients': _clients,
     'products': _products,
+    'basilur': _basilur,
 }
 
 REPORTS = tuple(_BUILDERS)
@@ -180,5 +295,6 @@ def build_context(report, an, luna=None, filters=None):
         return None
     max_luna = None if luna else queries.max_luna_for_year(an)
     ctx = builder(an, luna, max_luna, filters or {})
-    ctx['subtitle'] = period_label(an, luna, max_luna)
+    # A builder that renders its own period string (basilur) keeps it.
+    ctx['subtitle'] = ctx.pop('subtitle_override', None) or period_label(an, luna, max_luna)
     return ctx
