@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Export Excel/PPT on the list pages: team, clients, products, basilur (2026-07-28)
+
+The four remaining pages join the export standard the entity detail pages got last
+round. `team`, `clients` and `products` had Excel routes but no buttons — the
+exports were reachable only by typing the URL — and no deck at all.
+`raportare-basilur` had both, built by two bespoke routes that each re-ran the
+same six queries independently.
+
+- **Added** — Excel + PPT buttons on `/team`, `/clients`, `/products` and
+  `/raportare-basilur`. New PPT decks for the three list pages: KPI cards plus the
+  page's own table, `products` getting a second slide for Top SKU. Every link
+  carries the period and the page's active filters, so the download matches the
+  screen.
+- **Changed** — New `app/exports/context.py` holds the primitives that were
+  private to `entities.py`; `app/exports/overviews.py` adds four filter-keyed
+  builders beside the four ident-keyed ones. Both dispatchers (`/export/<report>`,
+  `/export/ppt/<entity>`) now serve either kind, and `export_ppt` reads its nav key
+  from `_EXPORT_NAV_KEY` like `export_excel` instead of keeping a second copy in
+  `_PPT_ENTITIES`. The hand-rolled `team`/`clients`/`products` branches in
+  `export_excel` are gone. `/raportare-basilur/export/excel` and `.../ppt` are kept
+  as 302 redirects to the dispatchers so bookmarked links survive.
+- **Fixed** — `/export/team` and `/export/clients` dropped `luna` entirely
+  (`team_table(an)` with no month filter), so the workbook covered a full year
+  while the page showed one month. `/export/products` ignored the page's `?q`
+  search. `build_basilur_ppt` laid four brands into a hard-coded three-slot
+  x-position list, so it raised `IndexError` on every call and
+  `/raportare-basilur/export/ppt` returned a 500 — positions are derived from
+  `len(BRANDS)` now. The same builder hard-coded 4.55 RON/USD while the Excel route
+  honoured `?curs`, so the deck and the workbook reported different USD figures for
+  the same period; `curs` is threaded through the shared context.
+- Files: `app/exports/context.py` (new), `app/exports/overviews.py` (new),
+  `app/exports/entities.py`, `app/exports/ppt_export.py`,
+  `app/blueprints/reports.py`, templates `team.html`/`clients.html`/
+  `products.html`/`raportare_basilur.html`, `tests/test_overview_exports.py` (new).
+  Spec: `docs/specs/2026-07-28-overview-exports-design.md`; plan:
+  `docs/plans/2026-07-28-overview-exports.md`. Tests: 487 passing.
+
 ### Export Excel/PPT unificat pentru paginile de entitate: brand, produs, agent, client (2026-07-28)
 
 Pagina de brand primește acum export Excel și PPT; pagina de produs primește export PPT (Excel exista deja). Ambele formate citesc acum din același strat de context (`app/exports/entities.py`), aplicat retroactiv și pentru client/agent, astfel încât fișierul descărcat nu mai poate diverge de ecran.

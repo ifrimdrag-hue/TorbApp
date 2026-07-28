@@ -540,6 +540,50 @@ with open('file.py', 'wb') as f:
 
 ---
 
+## Export architecture (Excel + PPT)
+
+Every page export is built from **one context dict per page and period**, so the
+workbook and the deck can never disagree about what they cover.
+
+| Module | Keyed by | Covers |
+|--------|----------|--------|
+| `app/exports/context.py` | — | Shared primitives: `period_label`, `slug`, `slug_with_year`, `table`, `trend`, `pct`, `SHEET_ROW_LIMIT` |
+| `app/exports/entities.py` | one identifier | `client`, `agent`, `brand`, `produs` |
+| `app/exports/overviews.py` | a set of filters | `team`, `clients`, `products`, `basilur` |
+
+Both builder modules return the same shape (`nav`, `title`, `subtitle`,
+`filename_base`, `cards`, `tables`, `extra_tables`, `sheets`, `trend`), so
+`ppt_export.build_entity_ppt` and `excel_export.send_excel` consume either without
+a branch. Two dispatchers in `app/blueprints/reports.py` serve everything:
+`/export/<report>` (Excel) and `/export/ppt/<entity>` (PPT). Both are in
+`nav_registry.UNGATED_ENDPOINTS` and gate per-report inside the handler, reading
+the nav key from the single `_EXPORT_NAV_KEY` map.
+
+Rules that hold across every export:
+
+- **`luna` semantics.** `luna=0` means "no month filter" (the underlying queries
+  disagree about a literal 0, so it is normalised in `build_context`); `luna`
+  outside 1–12 returns `None`, which the route turns into a 404. Without `luna`
+  the period is year-to-date up to `max_luna_for_year(an)`, exactly as the pages do.
+- **Excel is the full-data artifact** — sheets are never truncated. Queries that
+  bind `LIMIT :limit` are given `SHEET_ROW_LIMIT` because SQLite raises on a NULL
+  bind there.
+- **Deck tables truncate and say so.** A slide fits ~15 data rows at 8pt
+  (body starts at y=2.45" on a 7.5" slide, height `min(4.5, 0.4 * (rows + 1))`), so
+  `context.table` caps at `limit` and rewrites its caption to
+  `"<title> — top 15 din 342"`. A top-N is never readable as a total.
+- **Entity builders 404 on an unresolvable identifier; overview builders do not.**
+  A filter that matches nothing is a valid answer and yields an empty sheet.
+
+`raportare-basilur` is the one exception to the Romanian/RON house style: it is the
+supplier-facing report, so its sheets and deck are English and USD, converted at the
+`?curs` rate (default `overviews.BASILUR_DEFAULT_CURS`). Only its plumbing is shared
+— it supplies a `ppt_builder` callable instead of `cards`/`tables`, which is what
+keeps the deck's USD figures identical to the workbook's. Its two legacy URLs
+(`/raportare-basilur/export/{excel,ppt}`) survive as 302 redirects to the dispatchers.
+
+---
+
 ## Frontend conventions
 
 **Error display — always use the shared `AppError` modal.** `app/static/js/app-error.js`
