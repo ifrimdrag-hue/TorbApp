@@ -20,6 +20,7 @@ _EXPORT_NAV_KEY = {
     "client": "clients",
     "products": "products",
     "produs": "products",
+    "brand": "products",
     "forecast": "forecast",
     "preturi": "preturi",
     "conditii": "conditii",
@@ -328,53 +329,15 @@ def export_excel(report):
         }
         return send_excel(sheets, timestamped_filename(f'conditii_{an}'))
 
-    if report == 'agent':
-        name = request.args.get('name', '').strip()
-        if not name:
+    if report in entities.ENTITIES:
+        param = _PPT_ENTITIES[report][1]
+        ident = request.args.get(param, '').strip()
+        luna = request.args.get('luna', type=int)
+        ctx = entities.build_context(report, ident, an, luna) if ident else None
+        if ctx is None:
             abort(404)
-        sheets = {
-            'KPI Agent': [queries.agent_kpi(name, an) or {}],
-            f'Clienți {an}': queries.agent_clients(name, an),
-            f'Top SKU {an}': queries.agent_top_skus(name, an),
-            'Trend Lunar': queries.agent_monthly_trend(name),
-        }
-        safe_name = name.replace(' ', '_').replace('/', '_')
-        return send_excel(sheets, timestamped_filename(f'agent_{safe_name}_{an}'))
-
-    if report == 'client':
-        cod = request.args.get('cod_client', '').strip()
-        if not cod:
-            abort(404)
-        info = queries.client_info(cod)
-        if not info:
-            abort(404)
-        luna_exp = int(request.args.get('luna', 0)) or None
-        max_luna_exp = None if luna_exp else queries.max_luna_for_year(an)
-        sheets = {
-            'Informații': [dict(info)],
-            f'Produse {an}': queries.client_products_full(cod, an, luna=luna_exp, max_luna=max_luna_exp),
-            'Brand Mix': queries.client_brand_mix(cod, an),
-            'Evoluție Anuală': queries.client_yearly_full(cod),
-        }
-        safe_client = (info.get('client', cod) or cod).replace(' ', '_').replace('/', '_')[:30]
-        return send_excel(sheets, timestamped_filename(f'client_{safe_client}'))
-
-    if report == 'produs':
-        sku = request.args.get('sku', '').strip()
-        if not sku:
-            abort(404)
-        variants = queries.sku_variants(sku)
-        kpi = queries.product_kpi(variants, an)
-        if not kpi:
-            abort(404)
-        sheets = {
-            'KPI': [dict(kpi)],
-            f'Clienți {an}': queries.product_clients(variants, an),
-            'Evoluție Anuală': queries.product_yearly(variants),
-            'Trend Lunar': queries.product_monthly(variants),
-        }
-        safe_sku = sku.replace(' ', '_').replace('/', '_')[:30]
-        return send_excel(sheets, timestamped_filename(f'produs_{safe_sku}_{an}'))
+        return send_excel(ctx['sheets'],
+                          timestamped_filename(ctx['filename_base']))
 
     if report == 'profitabilitate':
         sheets = {

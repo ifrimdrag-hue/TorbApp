@@ -2,6 +2,7 @@
 
 import io
 
+import openpyxl
 import pytest
 from pptx import Presentation
 
@@ -253,3 +254,59 @@ def test_ppt_route_is_allowlisted_not_orphaned():
     registered = {ep for item in nr.NAV_REGISTRY for ep in item.endpoints}
     assert 'reports.export_ppt_client' not in registered
     assert 'reports.export_ppt_agent' not in registered
+
+
+# ── Excel route ──────────────────────────────────────────────────────────────
+
+XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+XLSX_QUERY = {
+    'client': f'cod_client={CLIENT}',
+    'agent': 'name=Agent+Test',
+    'brand': f'furnizor={BRAND}',
+    'produs': f'sku={SKU}',
+}
+
+EXPECTED_SHEETS = {
+    'client': ['Informații', f'Produse {AN}', 'Brand Mix', 'Evoluție Anuală'],
+    'agent': ['KPI Agent', f'Clienți {AN}', f'Top SKU {AN}', 'Trend Lunar'],
+    'brand': ['KPI', f'Clienți {AN}', f'Top SKU {AN}', 'Trend Lunar'],
+    'produs': ['KPI', f'Clienți {AN}', 'Evoluție Anuală', 'Trend Lunar'],
+}
+
+
+@pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs'])
+def test_excel_route_returns_openable_workbook(client, entity):
+    rv = client.get(f'/export/{entity}?{XLSX_QUERY[entity]}&an={AN}')
+    assert rv.status_code == 200
+    assert rv.mimetype == XLSX_MIME
+    wb = openpyxl.load_workbook(io.BytesIO(rv.data))
+    assert wb.sheetnames == EXPECTED_SHEETS[entity]
+
+
+@pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs'])
+def test_excel_route_honours_luna(client, entity):
+    """Month 2 has no seeded rows. The period sheet must be empty, proving the
+    filter reaches the query instead of the export silently returning the year."""
+    rv = client.get(
+        f'/export/{entity}?{XLSX_QUERY[entity]}&an={AN}&luna={EMPTY_MONTH}')
+    if rv.status_code == 404:
+        return  # entity does not resolve in an empty period — also correct
+    wb = openpyxl.load_workbook(io.BytesIO(rv.data))
+    sheet_name = f'Produse {AN}' if entity == 'client' else f'Clienți {AN}'
+    ws = wb[sheet_name]
+    assert ws['A1'].value == 'Nu există date pentru acest raport.'
+
+
+@pytest.mark.parametrize('entity', ['client', 'agent', 'brand', 'produs'])
+def test_excel_route_unknown_ident_is_404(client, entity):
+    param = XLSX_QUERY[entity].split('=')[0]
+    rv = client.get(f'/export/{entity}?{param}=NU_EXISTA_XYZ&an={AN}')
+    assert rv.status_code == 404
+
+
+def test_excel_brand_is_gated_on_products_nav(client, monkeypatch):
+    import authz
+    monkeypatch.setattr(authz, 'can_access_nav', lambda role, key: False)
+    rv = client.get(f'/export/brand?furnizor={BRAND}&an={AN}')
+    assert rv.status_code == 403
