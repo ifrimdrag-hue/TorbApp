@@ -3,7 +3,7 @@
 AI consulting for **Torb Logistic SRL**, a Romanian FMCG distributor. Goal: identify and implement AI/agentic automation to optimize business operations. This is a Flask + SQLite app.
 
 ## Working preferences
-- **English** for all developer communication (code, comments, commit messages, responses); **Romanian** for UI text, user-facing strings, and end-user manuals.
+- **Romanian** for chat responses to the user, UI text, user-facing strings, and end-user manuals; **English** for code, comments, commit messages, and documentation files.
 - Keep token usage minimal: concise code, no over-commenting, short responses, no "here's what I changed" summaries unless asked.
 - Before any batch operation (multi-file edits, bulk scripts), save progress to memory first so work can resume after a context reset.
 
