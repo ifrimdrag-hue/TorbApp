@@ -58,24 +58,24 @@
 </div>
 {% endif %}
 
-{% set ca = ytd_cy.get('CIFRA DE AFACERI NETA', 0) %}
-{% set ca_py = ytd_py.get('CIFRA DE AFACERI NETA', 0) %}
 <div class="row g-2 mb-3">
   {% for label, key, is_pct in [
-      ('CA Neta', 'CIFRA DE AFACERI NETA', false),
-      ('Marja Bruta %', 'Marja bruta %', true),
-      ('EBITDA %', 'EBITDA %', true),
-      ('Profit Net %', 'Profit net %', true)] %}
+      ('CA Netă', 'ca_neta', false),
+      ('Marjă brută %', 'marja_bruta_pct', true),
+      ('EBITDA %', 'ebitda_pct', true),
+      ('Profit net %', 'profit_net_pct', true)] %}
   {% set v = ytd_cy.get(key, 0) %}
   {% set vp = ytd_py.get(key, 0) %}
-  {% set delta = ((v - vp) / vp * 100) if vp else 0 %}
+  {# A ratio moves in percentage POINTS; only absolute figures take a % change. #}
+  {% set delta = (v - vp) if is_pct else (((v - vp) / vp * 100) if vp else 0) %}
   <div class="col-6 col-md-3">
     <div class="card border-0 shadow-sm">
       <div class="card-body py-2">
         <div class="text-muted small">{{ label }} YTD {{ cy }}</div>
         <div class="fw-bold fs-5">{% if is_pct %}{{ v | pct }}{% else %}{{ v | pnl_num }} RON{% endif %}</div>
         <div class="small {{ 'text-success' if delta >= 0 else 'text-danger' }}">
-          {{ '%+.1f' | format(delta) }}{% if not is_pct %}%{% endif %} vs {{ py }}
+          {% if vp %}{{ '%+.1f' | format(delta) }}{{ ' pp' if is_pct else '%' }} vs {{ py }}
+          {% else %}<span class="text-muted">fără bază {{ py }}</span>{% endif %}
         </div>
       </div>
     </div>
@@ -105,7 +105,7 @@
   </thead>
   <tbody>
   {% for row_type, label, key in structure %}
-    {% set is_pct_line = key.endswith('%') %}
+    {% set is_pct_line = row_type == 'pct' %}
     <tr class="{{ 'subtotal-row' if row_type == 'subtotal' else ('pct-row' if row_type == 'pct' else '') }}">
       <td>{{ label }}</td>
       {% for luna in luni_cy %}
@@ -114,7 +114,7 @@
         {% else %}
         {% set v = data_cy.get(luna, {}).get(key, 0) %}
         {% set vp = data_py.get(luna, {}).get(key, 0) %}
-        {% set delta = ((v - vp) / vp * 100) if vp else 0 %}
+        {% set delta = (v - vp) if is_pct_line else (((v - vp) / vp * 100) if vp else 0) %}
         {% set alarm = alarms.get((luna, key), {}) %}
         {% set sev = alarm.get('delta_severity') or alarm.get('prag_severity') %}
         {% set trend = alarm.get('trend', False) %}
@@ -122,7 +122,7 @@
         <td class="text-end {{ severity_class(sev) }} {{ 'alarm-trend' if trend else '' }}">
           {% if warn %}<span class="line-warn" title="Valoarea lunii ({{ warn.monthly | round(2) }}) diferă de Δrulcd ({{ warn.delta | round(2) }}) — posibilă corecție de perioadă anterioară în balanță">&#9888;</span> {% endif %}
           {% if show_pct and not is_pct_line %}
-            {% set ca_v = data_cy.get(luna, {}).get('CIFRA DE AFACERI NETA', 0) %}
+            {% set ca_v = data_cy.get(luna, {}).get('ca_neta', 0) %}
             {{ (v / ca_v * 100) | pct if ca_v else '&mdash;' | safe }}
           {% elif is_pct_line %}
             {{ v | pct }}
@@ -130,19 +130,21 @@
             {{ v | pnl_num }}
           {% endif %}
         </td>
-        <td class="text-end {{ 'text-success' if delta >= 2 else ('text-danger' if delta <= -2 else 'text-muted') }}">
-          {% if vp %}{{ '%+.1f' | format(delta) }}%{% else %}&mdash;{% endif %}
+        {% set thr = 0.5 if is_pct_line else 2 %}
+        <td class="text-end {{ 'text-success' if delta >= thr else ('text-danger' if delta <= -thr else 'text-muted') }}">
+          {% if vp %}{{ '%+.1f' | format(delta) }}{{ ' pp' if is_pct_line else '%' }}{% else %}&mdash;{% endif %}
         </td>
         {% endif %}
       {% endfor %}
       {% set ytd_v  = ytd_cy.get(key, 0) %}
       {% set ytd_vp = ytd_py.get(key, 0) %}
-      {% set ytd_delta = ((ytd_v - ytd_vp) / ytd_vp * 100) if ytd_vp else 0 %}
+      {% set ytd_delta = (ytd_v - ytd_vp) if is_pct_line else (((ytd_v - ytd_vp) / ytd_vp * 100) if ytd_vp else 0) %}
+      {% set ytd_thr = 0.5 if is_pct_line else 2 %}
       <td class="text-end fw-semibold">
         {% if is_pct_line %}{{ ytd_v | pct }}{% else %}{{ ytd_v | pnl_num }}{% endif %}
       </td>
-      <td class="text-end {{ 'text-success' if ytd_delta >= 2 else ('text-danger' if ytd_delta <= -2 else 'text-muted') }}">
-        {% if ytd_vp %}{{ '%+.1f' | format(ytd_delta) }}%{% else %}&mdash;{% endif %}
+      <td class="text-end {{ 'text-success' if ytd_delta >= ytd_thr else ('text-danger' if ytd_delta <= -ytd_thr else 'text-muted') }}">
+        {% if ytd_vp %}{{ '%+.1f' | format(ytd_delta) }}{{ ' pp' if is_pct_line else '%' }}{% else %}&mdash;{% endif %}
       </td>
     </tr>
   {% endfor %}

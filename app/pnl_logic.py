@@ -2,33 +2,60 @@
 import queries
 
 # Ordered display structure: (row_type, label, key). row_type: line|subtotal|pct
+# `key` is a stable identifier stored in pnl_mapping_conturi.pnl_line and
+# pnl_config.pnl_line; `label` is UI text and may change without a migration.
 PNL_STRUCTURE = [
-    ('line',     'Venituri marfuri',                      'Venituri marfuri'),
-    ('line',     'Venituri servicii',                     'Venituri servicii'),
-    ('line',     'Reduceri comerciale acordate',          'Reduceri comerciale acordate'),
-    ('subtotal', 'CIFRA DE AFACERI NETA',                 'CIFRA DE AFACERI NETA'),
-    ('line',     'Cost marfa',                            'Cost marfa'),
-    ('line',     'Reduceri comerciale primite',           'Reduceri comerciale primite'),
-    ('subtotal', 'COGS NET',                              'COGS NET'),
-    ('subtotal', 'MARJA BRUTA',                           'MARJA BRUTA'),
-    ('pct',      'Marja bruta %',                         'Marja bruta %'),
-    ('line',     'Consumabile / utilitati / combustibil', 'Consumabile / utilitati / combustibil'),
-    ('line',     'Servicii terti / logistica / marketing', 'Servicii terti / logistica / marketing'),
-    ('line',     'Cheltuieli personal',                   'Cheltuieli personal'),
-    ('line',     'Impozite si taxe',                      'Impozite si taxe'),
-    ('line',     'Alte cheltuieli exploatare',            'Alte cheltuieli exploatare'),
-    ('line',     'Alte venituri exploatare',              'Alte venituri exploatare'),
-    ('subtotal', 'EBITDA',                                'EBITDA'),
-    ('pct',      'EBITDA %',                              'EBITDA %'),
-    ('line',     'Amortizare',                            'Amortizare'),
-    ('subtotal', 'EBIT',                                  'EBIT'),
-    ('line',     'Venituri financiare',                   'Venituri financiare'),
-    ('line',     'Cheltuieli financiare',                 'Cheltuieli financiare'),
-    ('subtotal', 'PROFIT INAINTE DE IMPOZIT',             'PROFIT INAINTE DE IMPOZIT'),
-    ('line',     'Impozit profit',                        'Impozit profit'),
-    ('subtotal', 'PROFIT NET',                            'PROFIT NET'),
-    ('pct',      'Profit net %',                          'Profit net %'),
+    ('line',     'Venituri mărfuri',                'venituri_marfa'),
+    ('line',     'Venituri servicii și alte activități', 'venituri_servicii'),
+    ('line',     'Reduceri comerciale acordate',     'reduceri_acordate'),
+    ('subtotal', 'CIFRA DE AFACERI NETĂ',            'ca_neta'),
+    ('line',     'Cost marfă',                       'cost_marfa'),
+    ('line',     'Reduceri comerciale primite',      'reduceri_primite'),
+    ('subtotal', 'MARJA BRUTĂ',                      'marja_bruta'),
+    ('pct',      'Marjă brută %',                    'marja_bruta_pct'),
+    ('line',     'Cheltuieli personal',              'ch_personal'),
+    ('line',     'Transport și logistică',           'transport_logistica'),
+    ('line',     'Marketing și protocol',            'marketing_comercial'),
+    ('line',     'Chirii și utilități',              'chirii_utilitati'),
+    ('line',     'Servicii terți și administrativ',  'servicii_terti'),
+    ('line',     'Consumabile și obiecte de inventar', 'consumabile'),
+    ('line',     'Impozite și taxe',                 'impozite_taxe'),
+    ('line',     'Alte cheltuieli exploatare',       'alte_ch_exploatare'),
+    ('line',     'Alte venituri exploatare',         'alte_ven_exploatare'),
+    ('subtotal', 'EBITDA',                           'ebitda'),
+    ('pct',      'EBITDA %',                         'ebitda_pct'),
+    ('line',     'Amortizare și provizioane',        'amortizare_provizioane'),
+    ('subtotal', 'EBIT',                             'ebit'),
+    ('line',     'Venituri financiare',              'venituri_financiare'),
+    ('line',     'Cheltuieli financiare',            'cheltuieli_financiare'),
+    ('subtotal', 'PROFIT ÎNAINTE DE IMPOZIT',        'profit_brut'),
+    ('line',     'Impozit pe profit / venit',        'impozit'),
+    ('subtotal', 'PROFIT NET',                       'profit_net'),
+    ('pct',      'Profit net %',                     'profit_net_pct'),
 ]
+
+PNL_LABELS = {key: label for _t, label, key in PNL_STRUCTURE}
+PNL_ROW_TYPES = {key: row_type for row_type, _lbl, key in PNL_STRUCTURE}
+
+# Lines summed into EBITDA on top of the gross margin (operating block).
+_OPEX_KEYS = ('ch_personal', 'transport_logistica', 'marketing_comercial',
+              'chirii_utilitati', 'servicii_terti', 'consumabile',
+              'impozite_taxe', 'alte_ch_exploatare', 'alte_ven_exploatare')
+
+MIN_PREFIX_LEN = 3
+
+
+def resolve_cont(cont, mapping):
+    """(pnl_line, semn) for an account: exact match first, then the longest
+    mapped prefix of at least MIN_PREFIX_LEN chars, so analytic accounts follow
+    their synthetic parent (6221 -> 622). None when nothing matches."""
+    if cont in mapping:
+        return mapping[cont]
+    for n in range(len(cont) - 1, MIN_PREFIX_LEN - 1, -1):
+        parent = cont[:n]
+        if parent in mapping:
+            return mapping[parent]
+    return None
 
 
 def _entity_monthly(entitate, an, luna, mapping):
@@ -38,7 +65,8 @@ def _entity_monthly(entitate, an, luna, mapping):
     raw = queries.pnl_monthly_raw(entitate, an, luna)
     out = {}
     for cont, (rulld, rullc) in raw.items():
-        semn = mapping[cont][1] if cont in mapping else 1
+        resolved = resolve_cont(cont, mapping)
+        semn = resolved[1] if resolved else 1
         out[cont] = rulld if semn < 0 else rullc
     return out
 
@@ -68,39 +96,34 @@ def _build_lines(raw, mapping):
     """Assemble the full P&L dict (lines + subtotals + % lines) from {cont: amount}."""
     lines = {}
     for cont, amount in raw.items():
-        if cont not in mapping:
+        resolved = resolve_cont(cont, mapping)
+        if resolved is None:
             continue
-        pnl_line, semn = mapping[cont]
+        pnl_line, semn = resolved
         lines[pnl_line] = lines.get(pnl_line, 0.0) + semn * amount
 
-    ca_neta = (lines.get('Venituri marfuri', 0)
-               + lines.get('Venituri servicii', 0)
-               + lines.get('Reduceri comerciale acordate', 0))
-    cogs_net = (lines.get('Cost marfa', 0)
-                + lines.get('Reduceri comerciale primite', 0))
-    marja_bruta = ca_neta + cogs_net
-    opex = (lines.get('Consumabile / utilitati / combustibil', 0)
-            + lines.get('Servicii terti / logistica / marketing', 0)
-            + lines.get('Cheltuieli personal', 0)
-            + lines.get('Impozite si taxe', 0)
-            + lines.get('Alte cheltuieli exploatare', 0)
-            + lines.get('Alte venituri exploatare', 0))
-    ebitda = marja_bruta + opex
-    ebit = ebitda + lines.get('Amortizare', 0)
-    fin = lines.get('Venituri financiare', 0) + lines.get('Cheltuieli financiare', 0)
-    pbi = ebit + fin
-    profit_net = pbi + lines.get('Impozit profit', 0)
+    ca_neta = (lines.get('venituri_marfa', 0)
+               + lines.get('venituri_servicii', 0)
+               + lines.get('reduceri_acordate', 0))
+    marja_bruta = (ca_neta
+                   + lines.get('cost_marfa', 0)
+                   + lines.get('reduceri_primite', 0))
+    ebitda = marja_bruta + sum(lines.get(k, 0) for k in _OPEX_KEYS)
+    ebit = ebitda + lines.get('amortizare_provizioane', 0)
+    profit_brut = (ebit
+                   + lines.get('venituri_financiare', 0)
+                   + lines.get('cheltuieli_financiare', 0))
+    profit_net = profit_brut + lines.get('impozit', 0)
 
-    lines['CIFRA DE AFACERI NETA'] = ca_neta
-    lines['COGS NET'] = cogs_net
-    lines['MARJA BRUTA'] = marja_bruta
-    lines['Marja bruta %'] = (marja_bruta / ca_neta * 100) if ca_neta else 0.0
-    lines['EBITDA'] = ebitda
-    lines['EBITDA %'] = (ebitda / ca_neta * 100) if ca_neta else 0.0
-    lines['EBIT'] = ebit
-    lines['PROFIT INAINTE DE IMPOZIT'] = pbi
-    lines['PROFIT NET'] = profit_net
-    lines['Profit net %'] = (profit_net / ca_neta * 100) if ca_neta else 0.0
+    lines['ca_neta'] = ca_neta
+    lines['marja_bruta'] = marja_bruta
+    lines['marja_bruta_pct'] = (marja_bruta / ca_neta * 100) if ca_neta else 0.0
+    lines['ebitda'] = ebitda
+    lines['ebitda_pct'] = (ebitda / ca_neta * 100) if ca_neta else 0.0
+    lines['ebit'] = ebit
+    lines['profit_brut'] = profit_brut
+    lines['profit_net'] = profit_net
+    lines['profit_net_pct'] = (profit_net / ca_neta * 100) if ca_neta else 0.0
     return lines
 
 
@@ -112,9 +135,10 @@ def compute_pnl_month(entitate, an, luna):
 
 def compute_pnl_month_warnings(entitate, an, luna):
     """Cross-check: {pnl_line: {'monthly','delta'}} for lines where the own-month
-    figure diverges from the Δrulcd figure by >= 0.05. Only when the prior month
-    exists (else Δrulcd is meaningless). A divergence flags a source-data anomaly
-    (the accountant's monthly turnovers do not cumulate) — surfaced as ⚠ in the grid."""
+    figure diverges from the Delta-rulcd figure by >= 0.05. Only when the prior
+    month exists (else Delta-rulcd is meaningless). A divergence flags a
+    source-data anomaly (the accountant's monthly turnovers do not cumulate) —
+    surfaced as a warning icon in the grid."""
     if luna <= 1 or not queries.pnl_available_months(an, entitate) \
             or (luna - 1) not in queries.pnl_available_months(an, entitate):
         return {}
@@ -149,7 +173,7 @@ def compute_ytd(entitate, an, through_luna):
 
 
 def reconciliere_121(entitate, an, luna):
-    """Compare computed net-profit YTD (cumulative rulcd × semn) with the 121
+    """Compare computed net-profit YTD (cumulative rulcd x semn) with the 121
     balance carried in that entity+month. Returns {'pn','sold','diff','ok'} or
     None when 121 is absent. Grup sums both entities' 121."""
     if entitate == 'grup':
@@ -164,7 +188,11 @@ def reconciliere_121(entitate, an, luna):
                 'diff': diff, 'ok': abs(diff) < 0.05}
     mapping = queries.pnl_mapping()
     cum = queries.pnl_rulcd(entitate, an, luna)
-    pn = sum(mapping[c][1] * v for c, v in cum.items() if c in mapping)
+    pn = 0.0
+    for cont, val in cum.items():
+        resolved = resolve_cont(cont, mapping)
+        if resolved is not None:
+            pn += resolved[1] * val
     sold_121 = queries.pnl_sold_cont(entitate, an, luna, '121')
     if sold_121 is None:
         return None

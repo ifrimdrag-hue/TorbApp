@@ -493,3 +493,65 @@ upload/URL on `/preturi/<sku>`; for Basilur articles the UI links to a
 basilurtea.com product search (owner decision 2026-07-06: that site only covers
 Basilur; everything else is uploaded manually). URL-only photos are downloaded and
 cached on first offer generation.
+
+---
+
+## 11. P&L module (2026-07-07 → )
+
+Monthly profit & loss per legal entity, computed from imported Romanian trial
+balances (`.xls`, one file per entity per month). Redesign plan and owner
+decisions: `docs/plans/2026-07-08-pnl-redesign.md`; delivery history in
+`CHANGELOG.md`.
+
+**Entities** — `torb` (Torb Logistic), `tobra` (Tobra Invest), `grup` = the two
+summed per account. The group view does not eliminate intra-group trade; the two
+companies currently do not trade with each other (owner, 2026-07-08), so the plain
+sum is correct today.
+
+**The trial balance is the single source of truth.** No hand-adjustments: a
+correction is made in accounting and re-imported, and a re-import fully replaces
+that entity+month. Monthly figures come from the month's own turnover columns
+(`rulld` for expense accounts, `rullc` for revenue, chosen by the mapped sign), so
+any subset of months can be imported in any order. YTD comes from the cumulative
+`rulcd` at the through-month — the figure that reconciles with account 121.
+
+**Line structure (v2, migration 0042)** — 27 rows in `pnl_logic.PNL_STRUCTURE`,
+each a `(row_type, label, key)` triple. `row_type` is `line` (sums mapped
+accounts), `subtotal` or `pct` (computed). The `key` is stable and stored in the
+database; the Romanian `label` is UI text and can change without a migration.
+
+The subtotal chain:
+
+| Subtotal | = |
+|----------|---|
+| `ca_neta` | venituri mărfuri + servicii − reduceri acordate |
+| `marja_bruta` | `ca_neta` − cost marfă + reduceri primite |
+| `ebitda` | `marja_bruta` − the 8 operating lines + alte venituri exploatare |
+| `ebit` | `ebitda` − amortizare & provizioane |
+| `profit_brut` | `ebit` + venituri financiare − cheltuieli financiare |
+| `profit_net` | `profit_brut` − impozit |
+
+The eight operating lines are steered separately: `ch_personal`,
+`transport_logistica`, `marketing_comercial`, `chirii_utilitati`,
+`servicii_terti`, `consumabile`, `impozite_taxe`, `alte_ch_exploatare`. Before v2
+they collapsed into one bucket that mixed rent, transport, marketing and bank
+fees, which no distribution CFO can act on.
+
+**Mapping is data, not code** — `pnl_mapping_conturi` holds account → line + sign
+(`semn` +1 revenue, −1 expense), seeded with the standard Romanian class 6/7 chart
+at synthetic level. An account with no row of its own resolves to its **longest
+mapped prefix of at least 3 characters** (`pnl_logic.resolve_cont`), so analytic
+accounts follow their synthetic parent (`6221` → `622`) without needing a row.
+Anything that still does not resolve is listed on `/pnl/mapare` — never silently
+dropped from the statement, which is exactly how the 7583 gap was caught.
+
+**Ratios move in percentage points.** `marja_bruta_pct`, `ebitda_pct` and
+`profit_net_pct` are values / `ca_neta`. Their year-on-year delta is reported in
+**pp** (18.0% → 19.5% is +1.5 pp), not as a relative percentage change; only
+absolute figures take a % delta.
+
+**Reconciliation with account 121** — computed net profit YTD must equal the
+closing balance of account 121 in the same file, to the cent. The check runs on
+every import and shows as a badge per entity on `/pnl`. Remapping accounts moves
+amounts between lines but never changes signs or drops accounts, so it cannot
+change net profit — the 121 check is the guard that proves it.

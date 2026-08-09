@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P&L redesign F1: structure v2 with a steerable OPEX breakdown (2026-08-09)
+
+Phase F1 of `docs/plans/2026-07-08-pnl-redesign.md`. The statement now has lines a
+commercial director can act on, and the reference tables no longer key on display text.
+
+- **OPEX split into eight lines** — the old `Servicii terti / logistica / marketing`
+  bucket aggregated ten synthetic accounts (rent + transport + marketing + bank fees in
+  one figure). It is now `Cheltuieli personal`, `Transport și logistică`, `Marketing și
+  protocol`, `Chirii și utilități`, `Servicii terți și administrativ`, `Consumabile și
+  obiecte de inventar`, `Impozite și taxe`, `Alte cheltuieli exploatare`. The statement
+  grows from 25 to 27 rows and gains an explicit `EBIT` / `PROFIT ÎNAINTE DE IMPOZIT`
+  chain; the `COGS NET` intermediate subtotal is dropped (its two components stay).
+- **Stable line keys** — `pnl_mapping_conturi.pnl_line` and `pnl_config.pnl_line` store
+  a key (`transport_logistica`) instead of the Romanian label. Labels live in
+  `PNL_STRUCTURE` / `PNL_LABELS` and render through the templates, so renaming a line is
+  a code change rather than a migration. This also fixes a latent bug: three alarm rows
+  seeded in 0033 (`Cifra de afaceri neta`, `Marja bruta`, `Profit net`) never matched the
+  structure's uppercase keys, so those alarms could never fire. They do now.
+- **Mapping seed extended 35 → 90 accounts** — the standard Romanian class 6/7 chart at
+  synthetic level, plus a **prefix fallback** (`pnl_logic.resolve_cont`): an account with
+  no row of its own follows its longest mapped prefix of at least 3 characters, so
+  analytic accounts (`6221` → `622`) reach the P&L without a mapping row. `/pnl/mapare`
+  now separates "resolved through the parent account" (informational) from genuinely
+  unmapped accounts (warning).
+- **Ratio deltas in percentage points** — a margin moving 18.0% → 19.5% previously
+  displayed as `+8.3` (the relative change of a percentage). Ratio rows and KPI cards now
+  show `+1.5 pp`; absolute rows keep the % change. Same fix in the Excel export, whose
+  delta column headers drop the now-inaccurate `%`.
+- **Net profit is provably unchanged** — the remap keeps every account's sign and drops
+  none, so amounts move between lines but the total cannot shift; the account-121
+  reconciliation from F0 remains the guard. Verified on the seed: 0 dropped accounts, 0
+  sign flips, 0 accounts resolving to a line other than their own.
+- Migration **0042** translates existing rows by label, re-applies the seed with REPLACE
+  (so accounts that change line actually move), and rebuilds `pnl_config` on the new keys
+  — carrying over any thresholds tuned in `/pnl/alarm-config`, with the four lines split
+  out of the old bucket inheriting its settings.
+- Files: `migrations/0042_20260809_pnl_structure_v2.py` (new), `app/pnl_logic.py`,
+  `app/blueprints/pnl.py`, `app/exports/excel_export.py`, `app/templates/pnl/pnl.html`,
+  `app/templates/pnl/mapping.html`, `app/templates/pnl/alarm_config.html`, and the six
+  `tests/test_pnl_*.py` files. Tests: 494 passing (+11).
+- Documented in `docs/BUSINESS_LOGIC.md` §11 (new) and `docs/TECHNICAL.md` §Data.
+
+**Not yet validated against the owner's real balances** — `data/torb.db` is gitignored, so
+the 18-file re-validation the plan asks for (F1 step 4) must run after deploy: check that
+each entity's net profit and 121 badge are unchanged, and that `/pnl/mapare` shows an empty
+unmapped panel.
+
+
 ### Export Excel/PPT on the list pages: team, clients, products, basilur (2026-07-28)
 
 The four remaining pages join the export standard the entity detail pages got last

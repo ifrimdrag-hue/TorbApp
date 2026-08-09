@@ -17,7 +17,7 @@ def test_pnl_upload_rejects_non_xls(client):
 def test_pnl_page_renders(client):
     rv = client.get('/pnl')
     assert rv.status_code == 200
-    assert b'CIFRA DE AFACERI NETA' in rv.data
+    assert 'CIFRA DE AFACERI NETĂ'.encode() in rv.data
     assert b'EBITDA' in rv.data
 
 
@@ -25,6 +25,14 @@ def test_pnl_import_page_renders(client):
     rv = client.get('/pnl/import')
     assert rv.status_code == 200
     assert b'Import balante' in rv.data
+
+
+def test_pnl_mapping_page_renders(client):
+    rv = client.get('/pnl/mapare')
+    assert rv.status_code == 200
+    # v2 line labels come from PNL_STRUCTURE, not from the stored keys.
+    assert 'Transport și logistică'.encode() in rv.data
+    assert b'transport_logistica' not in rv.data
 
 
 def test_pnl_alarm_config_page_renders(client):

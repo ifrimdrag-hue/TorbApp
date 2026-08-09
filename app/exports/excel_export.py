@@ -300,8 +300,8 @@ def _pnl_write_sheet(ws, entitate, an):
 
     headers = ['Linie P&L']
     for luna in luni:
-        headers += [f'{_PNL_MONTHS_RO[luna - 1]} {an}', f'Delta% vs {py}']
-    headers += [f'YTD {an}', 'Delta% YTD']
+        headers += [f'{_PNL_MONTHS_RO[luna - 1]} {an}', f'Delta vs {py}']
+    headers += [f'YTD {an}', 'Delta YTD']
     ws.append(headers)
     for cell in ws[1]:
         cell.fill = _PNL_HEADER
@@ -309,16 +309,20 @@ def _pnl_write_sheet(ws, entitate, an):
         cell.alignment = Alignment(horizontal='center')
 
     for row_type, label, key in pnl_logic.PNL_STRUCTURE:
+        is_pct = row_type == 'pct'
         row_data = [label]
         for luna in luni:
             v = data_cy.get(luna, {}).get(key) or 0
             vp = data_py.get(luna, {}).get(key) or 0
-            delta = round((v - vp) / abs(vp) * 100, 1) if vp else None
-            row_data += [round(v, 2) if key.endswith('%') else round(v, 0), delta]
+            # A ratio moves in percentage points; absolute figures in percent.
+            delta = round(v - vp, 1) if is_pct else (
+                round((v - vp) / abs(vp) * 100, 1) if vp else None)
+            row_data += [round(v, 2) if is_pct else round(v, 0), delta]
         ytd_v = ytd_cy.get(key) or 0
         ytd_vp = ytd_py.get(key) or 0
-        ytd_delta = round((ytd_v - ytd_vp) / abs(ytd_vp) * 100, 1) if ytd_vp else None
-        row_data += [round(ytd_v, 2) if key.endswith('%') else round(ytd_v, 0), ytd_delta]
+        ytd_delta = round(ytd_v - ytd_vp, 1) if is_pct else (
+            round((ytd_v - ytd_vp) / abs(ytd_vp) * 100, 1) if ytd_vp else None)
+        row_data += [round(ytd_v, 2) if is_pct else round(ytd_v, 0), ytd_delta]
         ws.append(row_data)
 
         excel_row = ws.max_row
@@ -352,8 +356,8 @@ def _pnl_write_sheet(ws, entitate, an):
 def _pnl_write_kpi(ws, an):
     import pnl_logic
     py = an - 1
-    kpi_keys = ['CIFRA DE AFACERI NETA', 'MARJA BRUTA', 'Marja bruta %',
-                'EBITDA', 'EBITDA %', 'PROFIT NET', 'Profit net %']
+    kpi_keys = ['ca_neta', 'marja_bruta', 'marja_bruta_pct',
+                'ebitda', 'ebitda_pct', 'profit_net', 'profit_net_pct']
     ws.append(['KPI'] + [f'YTD {an}', f'YTD {py}', 'Delta', 'Delta %'] * 3)
     ws[1][0].font = Font(bold=True)
     for entitate, label in [('torb', 'Torb'), ('tobra', 'Tobra'), ('grup', 'Grup')]:
@@ -364,14 +368,16 @@ def _pnl_write_kpi(ws, an):
         ws.append([f'--- {label} ---'])
         ws[ws.max_row][0].font = Font(bold=True, italic=True)
         for key in kpi_keys:
+            is_pct = pnl_logic.PNL_ROW_TYPES.get(key) == 'pct'
             v = ytd_cy.get(key) or 0
             vp = ytd_py.get(key) or 0
             d = v - vp
-            dp = round((d / abs(vp)) * 100, 1) if vp else None
-            ws.append([key,
-                       round(v, 2) if key.endswith('%') else round(v, 0),
-                       round(vp, 2) if key.endswith('%') else round(vp, 0),
-                       round(d, 0), dp])
+            # Ratios: the delta is already in percentage points.
+            dp = round(d, 1) if is_pct else (round(d / abs(vp) * 100, 1) if vp else None)
+            ws.append([pnl_logic.PNL_LABELS.get(key, key),
+                       round(v, 2) if is_pct else round(v, 0),
+                       round(vp, 2) if is_pct else round(vp, 0),
+                       round(d, 2) if is_pct else round(d, 0), dp])
     ws.column_dimensions['A'].width = 30
     for col in ['B', 'C', 'D', 'E']:
         ws.column_dimensions[col].width = 15

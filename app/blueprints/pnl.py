@@ -89,11 +89,11 @@ def pnl():
     alarm_config = pnl_logic.load_alarm_config()
     alarms = {}
     for luna in luni_importate:
-        for _, _label, key in pnl_logic.PNL_STRUCTURE:
+        for row_type, _label, key in pnl_logic.PNL_STRUCTURE:
             cy_val = data_cy.get(luna, {}).get(key)
             py_val = data_py.get(luna, {}).get(key)
             cfg = alarm_config.get(key, {})
-            pct_val = cy_val if key.endswith('%') else None
+            pct_val = cy_val if row_type == 'pct' else None
             a = pnl_logic.compute_alarm(cy_val, py_val, pct_val, cfg)
             trend = pnl_logic.compute_trend_alarm(
                 entitate, key, cy, luna, int(cfg.get('alarma_trend_luni', 3) or 3))
@@ -137,8 +137,20 @@ def mapping_page():
     line_order = {key: i for i, (_t, _lbl, key) in enumerate(pnl_logic.PNL_STRUCTURE)}
     rows = sorted(queries.pnl_mapping_rows(),
                   key=lambda r: (line_order.get(r['pnl_line'], 99), r['cont']))
-    return render_template('pnl/mapping.html', rows=rows,
-                           unmapped=queries.pnl_unmapped_accounts())
+    # Accounts with no exact mapping row split into those the prefix fallback
+    # resolves (informational) and those genuinely missing from the P&L.
+    mapping = queries.pnl_mapping()
+    prin_prefix, unmapped = [], []
+    for r in queries.pnl_unmapped_accounts():
+        row = dict(r)
+        resolved = pnl_logic.resolve_cont(row['cont'], mapping)
+        if resolved is None:
+            unmapped.append(row)
+        else:
+            row['pnl_line'], row['semn'] = resolved
+            prin_prefix.append(row)
+    return render_template('pnl/mapping.html', rows=rows, unmapped=unmapped,
+                           prin_prefix=prin_prefix, labels=pnl_logic.PNL_LABELS)
 
 
 @pnl_bp.route('/pnl/api/scan', methods=['POST'])
@@ -170,7 +182,11 @@ def api_upload():
 
 @pnl_bp.route('/pnl/alarm-config')
 def alarm_config():
-    return render_template('pnl/alarm_config.html', rows=queries.pnl_config_rows())
+    line_order = {key: i for i, (_t, _lbl, key) in enumerate(pnl_logic.PNL_STRUCTURE)}
+    rows = sorted(queries.pnl_config_rows(),
+                  key=lambda r: line_order.get(r['pnl_line'], 99))
+    return render_template('pnl/alarm_config.html', rows=rows,
+                           labels=pnl_logic.PNL_LABELS)
 
 
 @pnl_bp.route('/pnl/api/alarm-config', methods=['POST'])

@@ -23,23 +23,22 @@ def test_month_subtotals():
     _seed([('torb', 2025, 1, '707', 0, 1000.0, 1000.0),
            ('torb', 2025, 1, '607', 400.0, 0, 400.0)])
     m = pnl_logic.compute_pnl_month('torb', 2025, 1)
-    assert m['CIFRA DE AFACERI NETA'] == 1000.0
-    assert m['COGS NET'] == -400.0
-    assert m['MARJA BRUTA'] == 600.0
-    assert round(m['Marja bruta %'], 1) == 60.0
+    assert m['ca_neta'] == 1000.0
+    assert m['marja_bruta'] == 600.0
+    assert round(m['marja_bruta_pct'], 1) == 60.0
 
 
 def test_month_uses_own_turnover_no_prior_dependency():
     # Only February exists (no January). The month must still read its OWN rullc,
     # never the cumulative — this is the C2 bug the redesign fixes.
     _seed([('torb', 2025, 2, '707', 0, 1500.0, 4000.0)])
-    assert pnl_logic.compute_pnl_month('torb', 2025, 2)['CIFRA DE AFACERI NETA'] == 1500.0
+    assert pnl_logic.compute_pnl_month('torb', 2025, 2)['ca_neta'] == 1500.0
 
 
 def test_grup_sums_entities():
     _seed([('torb', 2025, 1, '707', 0, 1000.0, 1000.0),
            ('tobra', 2025, 1, '707', 0, 500.0, 500.0)])
-    assert pnl_logic.compute_pnl_month('grup', 2025, 1)['CIFRA DE AFACERI NETA'] == 1500.0
+    assert pnl_logic.compute_pnl_month('grup', 2025, 1)['ca_neta'] == 1500.0
 
 
 def test_ytd_from_cumulative_rulcd():
@@ -48,7 +47,7 @@ def test_ytd_from_cumulative_rulcd():
     _seed([('torb', 2025, 1, '707', 0, 1000.0, 1000.0),
            ('torb', 2025, 3, '707', 0, 1200.0, 3300.0)])
     ytd = pnl_logic.compute_ytd('torb', 2025, 3)
-    assert ytd['CIFRA DE AFACERI NETA'] == 3300.0
+    assert ytd['ca_neta'] == 3300.0
 
 
 def test_reconciliere_121_ok():
@@ -76,8 +75,8 @@ def test_monthly_crosscheck_warns_on_divergence():
     _seed([('torb', 2025, 1, '628', 500.0, 500.0, 500.0),
            ('torb', 2025, 2, '628', 300.0, 300.0, 1300.0)])
     warns = pnl_logic.compute_pnl_month_warnings('torb', 2025, 2)
-    assert 'Servicii terti / logistica / marketing' in warns
-    assert abs(warns['Servicii terti / logistica / marketing']['monthly'] - -300.0) < 0.01
+    assert 'servicii_terti' in warns
+    assert abs(warns['servicii_terti']['monthly'] - -300.0) < 0.01
 
 
 def test_monthly_crosscheck_silent_when_consistent():
@@ -94,3 +93,62 @@ def test_monthly_crosscheck_skips_without_prior():
 def test_alarm_cost_direction():
     cfg = {'alarma_delta_warn': 0.15, 'alarma_delta_err': 0.30, 'directie': 'jos_bine'}
     assert pnl_logic.compute_alarm(150, 100, None, cfg)['delta_severity'] == 'error'
+
+
+# ── F1: prefix fallback + OPEX split ────────────────────────────────────────
+
+def test_prefix_fallback_resolves_analytic_account():
+    # 6221 has no mapping row of its own; it must follow its synthetic parent 622.
+    mapping = {'622': ('servicii_terti', -1)}
+    assert pnl_logic.resolve_cont('6221', mapping) == ('servicii_terti', -1)
+
+
+def test_prefix_fallback_prefers_exact_then_longest():
+    mapping = {'602': ('consumabile', -1), '6022': ('transport_logistica', -1)}
+    assert pnl_logic.resolve_cont('6022', mapping) == ('transport_logistica', -1)
+    assert pnl_logic.resolve_cont('60221', mapping) == ('transport_logistica', -1)
+    assert pnl_logic.resolve_cont('6023', mapping) == ('consumabile', -1)
+
+
+def test_prefix_fallback_ignores_prefixes_below_three_chars():
+    # '70' is too short to be a meaningful parent — stays unmapped, so the
+    # unmapped panel flags it instead of silently guessing a line.
+    assert pnl_logic.resolve_cont('70', {'7': ('venituri_marfa', 1)}) is None
+
+
+def test_analytic_account_reaches_the_pnl():
+    _seed([('torb', 2025, 1, '7071', 0, 1000.0, 1000.0)])
+    assert pnl_logic.compute_pnl_month('torb', 2025, 1)['ca_neta'] == 1000.0
+
+
+def test_opex_split_into_separate_lines():
+    # The four accounts used to collapse into one "Servicii terti / logistica /
+    # marketing" bucket; each must now land on its own steerable line.
+    _seed([('torb', 2025, 1, '707', 0, 10000.0, 10000.0),
+           ('torb', 2025, 1, '624', 500.0, 0, 500.0),    # transport
+           ('torb', 2025, 1, '623', 300.0, 0, 300.0),    # marketing
+           ('torb', 2025, 1, '612', 800.0, 0, 800.0),    # rent
+           ('torb', 2025, 1, '628', 200.0, 0, 200.0)])   # third-party services
+    m = pnl_logic.compute_pnl_month('torb', 2025, 1)
+    assert m['transport_logistica'] == -500.0
+    assert m['marketing_comercial'] == -300.0
+    assert m['chirii_utilitati'] == -800.0
+    assert m['servicii_terti'] == -200.0
+    assert m['ebitda'] == 10000.0 - 1800.0
+
+
+def test_subtotal_chain_down_to_net_profit():
+    _seed([('torb', 2025, 1, '707', 0, 10000.0, 10000.0),
+           ('torb', 2025, 1, '607', 7000.0, 0, 7000.0),
+           ('torb', 2025, 1, '641', 1000.0, 0, 1000.0),
+           ('torb', 2025, 1, '6811', 200.0, 0, 200.0),
+           ('torb', 2025, 1, '666', 100.0, 0, 100.0),
+           ('torb', 2025, 1, '691', 120.0, 0, 120.0)])
+    m = pnl_logic.compute_pnl_month('torb', 2025, 1)
+    assert m['ca_neta'] == 10000.0
+    assert m['marja_bruta'] == 3000.0
+    assert m['ebitda'] == 2000.0
+    assert m['ebit'] == 1800.0
+    assert m['profit_brut'] == 1700.0
+    assert m['profit_net'] == 1580.0
+    assert round(m['profit_net_pct'], 2) == 15.80

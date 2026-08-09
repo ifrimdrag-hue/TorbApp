@@ -54,13 +54,23 @@ price offers are imported at runtime via `/preturi/import-oferta`
 Domain rules: `docs/BUSINESS_LOGIC.md` §10.
 
 P&L-module tables (migration 0033, relocated from the former standalone `pnl_app`):
-`pnl_balante_raw` (raw trial-balance rows per `entitate`/`an`/`luna`/`cont`, unique on that
-tuple with `ON CONFLICT REPLACE`), `pnl_mapping_conturi` (account → P&L line + sign, **seeded**
-33 rows), `pnl_config` (per-line alarm thresholds, **seeded** 9 rows), `pnl_import_log` (import
-audit). Entities: `torb`, `tobra`, `grup` (= torb+tobra). Monthly amount is the `rulcd` delta
-vs. the prior month. Data loads at runtime by uploading Romanian `.xls` trial balances via
-`/pnl/import` (folder scan or single upload; `app/pnl_import.py`, host `xlrd`). Compute:
-`app/pnl_logic.py`; reads: `app/queries/pnl.py`; styled Excel (3 entity sheets + KPI):
+`pnl_balante_raw` (raw trial-balance rows per `entitate`/`an`/`luna`/`cont`, plain UNIQUE on
+that tuple since **0040** — the import DELETEs the entity+period and re-INSERTs in one
+transaction, so a corrected balance leaves no ghost accounts), `pnl_mapping_conturi`
+(account → P&L line key + sign, **seeded** 90 rows by **0042**), `pnl_config` (per-line alarm
+thresholds, **seeded** 12 rows by **0042**), `pnl_import_log` (import audit; `replaced` row
+count and `validari` JSON added by 0040). Entities: `torb`, `tobra`, `grup` (= torb+tobra).
+
+Both reference tables key on the **stable line key** (`transport_logistica`), not the display
+label — migration **0042** translated the pre-existing rows. Labels live only in
+`pnl_logic.PNL_STRUCTURE` / `PNL_LABELS`, so renaming one is a code change, never a migration.
+Accounts with no row of their own resolve to their longest mapped prefix (≥3 chars) via
+`pnl_logic.resolve_cont`. Domain rules: `docs/BUSINESS_LOGIC.md` §11.
+
+Monthly amounts come from the month's own `rulld`/`rullc` (since F0), YTD from cumulative
+`rulcd`. Data loads at runtime by uploading Romanian `.xls` trial balances via the Actualizare
+drop zone or `/pnl/import` (folder scan or single upload; `app/pnl_import.py`, host `xlrd`).
+Compute: `app/pnl_logic.py`; reads: `app/queries/pnl.py`; styled Excel (3 entity sheets + KPI):
 `build_pnl_xlsx` in `app/exports/excel_export.py`. Routes under `/pnl/*` (`app/blueprints/pnl.py`),
 folder config `pnl_torb_folder`/`pnl_tobra_folder` in `app/config.py`.
 

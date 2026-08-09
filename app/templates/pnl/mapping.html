@@ -28,6 +28,23 @@
 </div>
 {% endif %}
 
+{% if prin_prefix %}
+<div class="alert alert-info py-2">
+  <i class="bi bi-info-circle-fill me-1"></i>
+  <strong>{{ prin_prefix | length }} conturi analitice</strong> nu au mapare proprie, dar intră în P&amp;L
+  prin contul sintetic părinte:
+  <ul class="mb-0 mt-1">
+    {% for u in prin_prefix %}
+    <li><code>{{ u.cont }}</code> {{ u.dencont }} →
+      <span class="fw-semibold">{{ labels.get(u.pnl_line, u.pnl_line) }}</span>
+      {% if u.semn > 0 %}<span class="badge bg-success">+</span>
+      {% else %}<span class="badge bg-danger">−</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 <div class="card shadow-sm border-0">
   <div class="table-responsive">
     <table class="table table-sm table-hover mb-0" style="font-size:.9em">
@@ -45,7 +62,7 @@
         {% for r in rows %}
         <tr>
           <td class="ps-3 {% if r.pnl_line != ns.prev %}fw-semibold border-top{% else %}text-muted small{% endif %}">
-            {% if r.pnl_line != ns.prev %}{{ r.pnl_line }}{% endif %}
+            {% if r.pnl_line != ns.prev %}{{ labels.get(r.pnl_line, r.pnl_line) }}{% endif %}
           </td>
           <td><code>{{ r.cont }}</code></td>
           <td class="small">{{ r.dencont }}</td>

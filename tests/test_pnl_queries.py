@@ -30,9 +30,9 @@ def test_rulcd_and_mapping():
     _seed_rows()
     assert queries.pnl_rulcd('torb', 2025, 2) == {'707': 2500.0}
     mapping = queries.pnl_mapping()
-    assert mapping['707'] == ('Venituri marfuri', 1)
+    assert mapping['707'] == ('venituri_marfa', 1)
 
 
 def test_alarm_config_loaded():
     cfg = queries.pnl_alarm_config()
-    assert cfg['EBITDA']['alarma_delta_err'] == -0.40
+    assert cfg['ebitda']['alarma_delta_err'] == -0.40

@@ -106,5 +106,5 @@ def test_mapping_covers_asset_disposal_accounts():
     # 121 balance by exactly its 16,426.43 RON (migration 0039)
     mapping = {r['cont']: (r['pnl_line'], r['semn']) for r in db.query(
         "SELECT cont, pnl_line, semn FROM pnl_mapping_conturi WHERE cont IN ('7583','6583')")}
-    assert mapping['7583'] == ('Alte venituri exploatare', 1)
-    assert mapping['6583'] == ('Alte cheltuieli exploatare', -1)
+    assert mapping['7583'] == ('alte_ven_exploatare', 1)
+    assert mapping['6583'] == ('alte_ch_exploatare', -1)
