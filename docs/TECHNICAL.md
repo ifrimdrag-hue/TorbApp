@@ -94,7 +94,9 @@ Migrations are versioned in `migrations/` (`NNNN_YYYYMMDD_description.py`), appl
 
 **What** — `rebuild_db.main()` is a *partial* rebuild, not a full wipe:
 1. Backs up `torb.db` (`.bak.<ts>`, keeps 3), then drops & recreates **only** `tranzactii`, `stoc`, and the 6 views. All config/correction tables (`corr_vanzari_tobra`, `produse`, `preturi_vanzare`, `conditii_comerciale`, KPI/echipă tables, `corr_leonex_cod_mapping`, …) are preserved — `CREATE IF NOT EXISTS`, and seeds use `INSERT OR IGNORE`.
-2. Re-imports in order: Vânzări ERP → Tobra/Auchan cost override → Profi→Mega merge → stoc → config tables + seeds → echipă+KPI → comenzi în tranzit → gama assignment + stock reconciliation.
+2. Re-imports in order: Vânzări ERP → Tobra/Auchan cost override → client mergers (`etl/client_merges.py`, e.g. Profi→Mega) → stoc → config tables + seeds → echipă+KPI → comenzi în tranzit → gama assignment + stock reconciliation.
+
+Step 3's client-merger sweep also runs inside `import_vanzari_erp.py` and `import_solduri_neincasate.py`, so the single-script upload zones on `/actualizare` (which skip the rebuild) cannot reintroduce an absorbed client. Rules: `docs/BUSINESS_LOGIC.md` §3.
 
 So a rebuild refreshes sales/stock from the current Excel sources while keeping manually-maintained config and the accumulated `corr_vanzari_tobra` cost history.
 

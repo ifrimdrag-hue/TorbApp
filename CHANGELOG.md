@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Client mergers: Profi Rom Food → Mega Image, reapplied on every import (2026-08-17)
+
+Profi Rom Food SRL was acquired by Mega Image SRL, so Profi's whole sales history
+belongs to Mega Image. A merge script existed (`etl/merge_client_profi_mega.py`,
+`tranzactii` only, wired into `rebuild_db.py` step 4b) but it could be undone: the ERP
+re-exports the absorbed client code every day, and the `/actualizare` upload zones run a
+*single* import script rather than the full rebuild — so uploading `Vanzari*.xlsx` there
+brought Profi back and the merge never ran.
+
+- **Mapping centralised** — `CLIENT_MERGES` in `app/business_constants.py` (absorbed
+  `cod_client` → surviving identity), mechanics in the new `etl/client_merges.py`. Adding
+  a future merger is one dict entry plus a sweep migration.
+- **Rewritten at import time** — `apply_record()` runs inside
+  `import_vanzari_erp.process_rows()`, so every path that writes a transaction produces
+  the surviving client, whether or not it goes through `rebuild_db.py`.
+- **Plus an idempotent sweep** — `run(conn)` covers the rows a rebuild does not rewrite,
+  and now extends past `tranzactii` to `solduri_neincasate` (receivables were still
+  aging under Profi) and the client-keyed pricing/conditions tables. Called after the
+  ERP import, after the solduri import, and from rebuild step 4b.
+- **Conflicts resolve to the survivor** — on tables with a UNIQUE key on `cod_client`,
+  `UPDATE OR IGNORE` leaves the absorbed row behind and it is then deleted: if Mega Image
+  already has a price/condition for that key, Mega's is the one in force. `tranzactii`
+  has no such key, so no sales row can be lost this way.
+- **Client codes matched in every stored form** (`'973'`, `973`, `'973.0'`) — the ERP
+  exports a number and the import scripts write text, int or float depending on the
+  script; `solduri_neincasate.codcli` in particular held `'973.0'`, which the old script
+  would have missed.
+- **Location is preserved** — `oras_client` / `judet_client` / `adresa_client` are never
+  rewritten (the stores did not move). `targeturi_cantitativ` is deliberately left alone:
+  merging two clients' KPI targets is an owner decision, not a data fix.
+- Migration **0043** applies the same mapping to an existing database, for the config and
+  balance tables a rebuild never drops. `etl/merge_client_profi_mega.py` stays as a thin
+  compat shim over `client_merges.run()`.
+- Files: `etl/client_merges.py` + `migrations/0043_20260817_client_merge_profi_mega.py` +
+  `tests/test_client_merges.py` (new), `app/business_constants.py`,
+  `etl/import_vanzari_erp.py`, `etl/import_solduri_neincasate.py`, `etl/rebuild_db.py`,
+  `etl/merge_client_profi_mega.py`.
+- Documented in `docs/BUSINESS_LOGIC.md` §3 (Client mergers) and `docs/TECHNICAL.md`
+  §Data → Rebuild pipeline.
+
 ### P&L redesign F1: structure v2 with a steerable OPEX breakdown (2026-08-09)
 
 Phase F1 of `docs/plans/2026-07-08-pnl-redesign.md`. The statement now has lines a

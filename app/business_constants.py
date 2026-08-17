@@ -28,3 +28,25 @@ AUCHAN_AGENT = "Oana Filip"
 TOBRA_COD_CLIENT = "719"
 TOBRA_INVOICE_PREFIX = "TOBRA"
 TOBRA_COST_WINDOW_DAYS = 30
+
+# --- Client mergers (acquisitions / rebranding) -----------------------------
+# Profi Rom Food SRL was acquired by Mega Image SRL, so every Profi sale,
+# balance and commercial condition now belongs to Mega Image. The ERP still
+# exports the absorbed client code on historical rows, so the rewrite runs on
+# every import instead of once. Physical location (oras/judet/adresa) is left
+# untouched -- the stores did not move, only the commercial identity changed.
+#
+# Key = absorbed cod_client; value = the surviving client's identity.
+# Details: docs/BUSINESS_LOGIC.md section 3.
+#
+# Used by:
+#   etl/client_merges.py
+CLIENT_MERGES = {
+    "973": {
+        "sursa":      "PROFI ROM FOOD SRL",
+        "client":     "MEGA IMAGE SRL",
+        "cod_client": "4909",
+        "cui_client": "RO6719278",
+        "tip_client": "SUPERMARKET",
+    },
+}

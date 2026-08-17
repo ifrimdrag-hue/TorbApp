@@ -161,6 +161,48 @@ drop the 2026-07 buggy-run cohort instead of guessing in-place repairs).
   `val_achizitie` and `marja_bruta` are recomputed. Upload order matters:
   import Vânzări ERP before Vânzări Auchan so the cost table is fresh.
 
+### Client mergers (acquisitions / rebranding)
+
+When one client is absorbed by another, its whole sales history moves to the
+surviving client — the two are one commercial partner, so splitting them across
+two codes would understate the survivor everywhere (client ranking, forecast
+history, bonus base, receivables).
+
+**Current entry: Profi Rom Food SRL (cod_client 973) → Mega Image SRL (4909),
+`RO6719278`, SUPERMARKET.** The mapping lives in `CLIENT_MERGES`
+(`app/business_constants.py`); the mechanics in `etl/client_merges.py`.
+
+- **What is rewritten:** `client`, `cod_client`, `cui_client`, `tip_client`.
+  `oras_client` / `judet_client` / `adresa_client` are **not** touched — the
+  stores did not move, only the commercial identity changed. The agent stays as
+  the ERP exports it.
+- **Applied on every import, not once.** The ERP keeps exporting the absorbed
+  code on historical rows and the daily update rebuilds `tranzactii` from
+  scratch, so a one-off UPDATE would be undone the next morning. Two entry
+  points cover every path: `apply_record()` rewrites each row as it is imported
+  (so a standalone `import_vanzari_erp.py` run from the `/actualizare` upload
+  zone is covered, not just the full rebuild), and `run(conn)` sweeps the whole
+  database afterwards.
+- **Scope of the sweep:** `tranzactii`, `solduri_neincasate` (matched on
+  `codcli`/`numecli`/`cfcli`), and the client-keyed pricing/conditions tables
+  (`conditii_comerciale`, `cond_resolved`, `termene_plata`, `preturi_vanzare`,
+  `coduri_client_articol`, `clienti_pricing`, `propuneri_pret`). Where a UNIQUE
+  key on `cod_client` means the survivor already holds a row for the same key,
+  **the survivor's value wins** and the absorbed row is dropped — the absorbed
+  client no longer exists, so its negotiated price/condition cannot outrank the
+  one in force. Targets (`targeturi_cantitativ`, keyed by client *name*) are
+  deliberately out of scope: merging two clients' targets would change the KPI
+  base, which is an owner decision.
+- Codes are matched in every form the pipeline can store (`'973'`, `973`,
+  `'973.0'` — the ERP exports a number and the import scripts write text, int or
+  float depending on the script).
+- Rows written before the rule existed are repaired by migration `0043`, which
+  applies the same mapping to the tables a rebuild never drops.
+
+**To add a merger:** add one entry to `CLIENT_MERGES` and write a migration that
+sweeps the existing database (copy `0043`). Nothing else changes — every import
+path already reads the mapping.
+
 ---
 
 ## 4. Bonus calculation
