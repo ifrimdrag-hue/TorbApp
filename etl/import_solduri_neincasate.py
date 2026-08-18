@@ -8,10 +8,14 @@ Usage:
     python etl/import_solduri_neincasate.py <cale_fisier.xls>
 """
 
+import os
 import sys
 import sqlite3
 import xlrd
 from datetime import date
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import client_merges  # noqa: E402
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -193,6 +197,9 @@ def run(filepath):
            f"VALUES ({placeholders})")
     conn.executemany(sql, [[data_raport] + [r[c] for c in COLS] for r in rows])
     conn.commit()
+    # Raportul ERP inca emite soldurile pe clientul absorbit (Profi Rom Food);
+    # le mutam pe clientul supravietuitor la fiecare import.
+    client_merges.run(conn, verbose=False)
     conn.close()
     print(f"  → Solduri importate: {len(rows):,} randuri (raport {data_raport})")
     return len(rows)

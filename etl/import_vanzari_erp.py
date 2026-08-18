@@ -17,8 +17,10 @@ import sqlite3
 import openpyxl
 from datetime import datetime, date
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app"))
 from business_constants import TOBRA_COD_CLIENT  # noqa: E402
+import client_merges  # noqa: E402
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -248,6 +250,7 @@ def _tobra_record(raw):
 def process_rows(rows_raw, cp_lookup):
     records = []
     tobra_records = []
+    merged = 0
     for raw in rows_raw:
         # Divert Torb->Tobra lines to the cost table instead of tranzactii
         cod_cli_raw = raw.get("codcli")
@@ -336,8 +339,16 @@ def process_rows(rows_raw, cp_lookup):
         if record.get("agent") in AGENT_NAME_MAP:
             record["agent"] = AGENT_NAME_MAP[record["agent"]]
 
+        # Reatribuie clienții fuzionați (Profi Rom Food -> Mega Image). Se face
+        # aici, nu doar post-import, ca sa tina si la rularea directa a acestui
+        # script din pagina Actualizare Date (nu trece prin rebuild_db.py).
+        if client_merges.apply_record(record):
+            merged += 1
+
         records.append(record)
 
+    if merged:
+        print(f"    -> Clienti fuzionati rescrisi: {merged:,} randuri")
     if tobra_records:
         print(f"    -> Deviate in corr_vanzari_tobra: {len(tobra_records):,} randuri (cod_client={TOBRA_COD_CLIENT})")
     return records, tobra_records
@@ -439,6 +450,10 @@ def run(filepath=None):
     inserted = insert_rows(conn, records)
     skipped = len(records) - inserted
     print(f"    → Inserate: {inserted:,} | Duplicate ignorate: {skipped:,}")
+
+    # Rândurile noi vin deja rescrise din process_rows; trecerea asta prinde
+    # rândurile rămase din importurile anterioare (și restul tabelelor).
+    client_merges.run(conn, verbose=False)
 
     n_tobra = insert_tobra_rows(conn, tobra_records)
     if tobra_records:

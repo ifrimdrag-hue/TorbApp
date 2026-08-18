@@ -313,11 +313,11 @@ def main(vanzari_file=None):
     else:
         print("  SKIP: nu există fișier tobra-auchan în rapoarte/")
 
-    # 4b. Merge Profi Rom Food → Mega Image (achizitie)
-    print("\n[4b] Merge Profi Rom Food → Mega Image...")
-    import merge_client_profi_mega
+    # 4b. Fuziuni clienti (Profi Rom Food → Mega Image)
+    print("\n[4b] Fuziuni clienți...")
+    import client_merges
     merge_conn = sqlite3.connect(DB_PATH)
-    merge_client_profi_mega.run(merge_conn)
+    client_merges.run(merge_conn)
     merge_conn.close()
 
     # 5. Import stoc

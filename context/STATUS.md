@@ -1,6 +1,6 @@
 # Torb — Status Execuție Plan Strategic 2026–2030
 
-**Ultima actualizare:** 2026-07-28
+**Ultima actualizare:** 2026-08-17
 **Document referință:** `docs/BUSINESS.md` §7 — Plan Strategic 2026–2030 (v1.0)
 **Regulă:** actualizează acest fișier la fiecare schimbare de stare (nu la fiecare discuție). Legend: `[ ]` = neînceput · `[~]` = în lucru · `[x]` = livrat · `[!]` = blocat · `[↑]` = întârziat.
 **Istoric livrări:** rezumatele implementărilor livrate stau în `CHANGELOG.md`, nu aici — acest fișier ține doar starea curentă (decizii deschise, acțiuni 90 de zile, în curs/blocaje, pasul următor).
@@ -49,6 +49,7 @@
 
 ## Livrat recent (detalii în CHANGELOG)
 
+- `[x]` **Fuziune clienți Profi Rom Food → Mega Image, reaplicată la fiecare import** (2026-08-17) — reatribuirea exista doar pe `tranzactii` și doar la rebuild complet, deci uploadul de vânzări din `/actualizare` readucea Profi în bază. Maparea e acum centralizată (`CLIENT_MERGES`), se aplică la momentul importului plus o trecere idempotentă peste solduri și tabelele de prețuri/condiții; migrația 0043 repară baza existentă. Vezi CHANGELOG. **De verificat după deploy:** clientul Profi Rom Food nu mai apare în raportul de clienți, iar soldurile lui figurează pe Mega Image.
 - `[x]` **Export Excel/PPT pe paginile de listă — echipă, clienți, produse, basilur** (2026-07-28) — cele patru pagini primesc butoane Excel + PPT prin aceleași două dispatchere; exporturile respectă acum luna și filtrele active (`/export/team` și `/export/clients` ignorau complet `luna`, `/export/products` ignora `?q`). Fix: deck-ul Basilur dădea 500 la fiecare apel (listă de poziții cu 3 sloturi pentru 4 branduri) și folosea curs 4.55 hardcodat în timp ce Excel-ul respecta `?curs`. Vezi CHANGELOG.
 - `[x]` **Export Excel/PPT unificat pe pagini de entitate — brand, produs, agent, client** (2026-07-28) — pagina de brand primește export Excel + PPT, pagina de produs primește PPT; cele patru rute PPT numite au fost înlocuite cu dispatcherul unic `/export/ppt/<entity>`; exporturile respectă acum filtrul de lună (fix: cardurile de marjă din deck-ul de client, care afișau „—"). Vezi CHANGELOG; 2 itemi deferați în `docs/BACKLOG.md` (etichete coloane Excel, registru `export_excel`) + 1 discrepanță de agregare Brand Mix (item 19).
 - `[x]` **Bonus — treapta 0.8× mutată de la 95% la 90% realizare** (2026-07-28) — decizie owner, migrația 0041 (toate `agent_key`). Lunile închise păstrează snapshot-ul înghețat; lunile deschise (inclusiv din trecut) se recalculează cu noua grilă. La deploy: migrația rulează automat. Vezi CHANGELOG.
