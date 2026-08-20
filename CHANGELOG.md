@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Seasonality & peak-financing analysis tool (2026-08-20)
+
+Owner asked eight questions about how seasonal invoicing is and whether the company can
+finance a doubled pre-season stock. Answering them once by hand would have gone stale on
+the next import, so the answers ship as a read-only report generator plus a note on what
+the data cannot answer.
+
+- **`etl/analyze_seasonality.py`** — read-only CLI, Romanian markdown to stdout or
+  `--out`. Sections: quarterly split per channel with a linearity verdict (Q1), weakest
+  months ranked on complete years only, with invoiced value per agent and per TT client
+  (Q2), per-brand monthly seasonality index and counter-seasonal verdict (Q3), financing
+  need vs. liquid resources from the balance sheet (Q4), breakeven per agent in summer
+  (Q5), discount actually granted per channel and per brand against the margin floors
+  (Q6), the expiry data gap with its only measurable proxy (Q7), and credit-limit
+  headroom per client at the peak factor (Q8). `--sectiuni` runs a subset, `--an` moves
+  the year used by Q5/Q6.
+- **Channel mapping is explicit and fails loud** — `CANAL_GROUPS` maps the ERP's raw
+  `tip_client` onto TT / PHARMA / IKA / DISTRIBUITOR / …, seeded from the values
+  `app/forecast/data.py::_normalize_canal` already knew. Anything unmapped is reported as
+  NECLASIFICAT with its revenue instead of defaulting into a bucket; `--canale` prints the
+  full inventory, and it should be run first on real data.
+- **Follows the app's own P&L convention** — fixed costs come from `rulld` (the month's
+  own debit turnover), like `app/pnl_logic._entity_monthly`; `rulcd` is cumulative YTD and
+  summing it across months would have inflated OPEX, and the breakeven with it. Analytic
+  accounts resolve onto their mapped synthetic parent (6221 → 622) by the same rule as
+  `pnl_logic.resolve_cont`.
+- **`docs/analysis/2026-08-20-seasonality-and-peak-financing.md`** — which question each
+  table answers, the method choices that are judgement calls (fixed costs allocated by
+  revenue share, the counter-seasonal test, why partial years are ranked separately), and
+  the four data gaps: bank credit ceilings and the supplier payment schedule are nowhere
+  in the system, OPEX is not split fixed/variable, no maximum-discount rule exists in any
+  table, and lot/expiry data does not exist at all.
+- **`tests/test_analyze_seasonality.py`** — 15 tests over the channel mapping, account
+  resolution, the `rulld`/`rulcd` distinction, and degradation when a table is missing.
+  The module is loaded by path rather than through `sys.path`, because `etl/backup_db.py`
+  is a shim that shadows `app/backup_db.py` and breaks `test_backup_db` when `etl/` goes
+  on the path ahead of `app/`.
+
 ### Client mergers: Profi Rom Food → Mega Image, reapplied on every import (2026-08-17)
 
 Profi Rom Food SRL was acquired by Mega Image SRL, so Profi's whole sales history

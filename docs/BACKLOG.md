@@ -94,6 +94,13 @@ Deferred to dedicated implementations; none block the live forecast:
 - **Notifications (decision 14, umbrella)** — one component gathering all pushed-notification work: channel (in-app / email / other), alert types (late orders, unresolved exceptions, due receipts, expiring lots), frequency. Design alongside the Alert Center.
 - Still deferred from the spec: new-listing ramp-up (§6), manual delisting-confirmation UI + exception report (§10), the "an curent vs. an trecut" view (§9), and F2/F3 (order lifecycle, documents).
 
+### Financial-planning data gaps (found 2026-08-20 while answering the seasonality questions)
+Blocking analysis, not features — full context in `docs/analysis/2026-08-20-seasonality-and-peak-financing.md`.
+- **Bank credit ceilings and covenants are nowhere in the system.** The trial balance shows only what has been drawn (519, 162), so the unused headroom — the number that decides whether a pre-season stock build is financeable — cannot be computed. Needs a small owner-maintained table (bank, facility type, ceiling, drawn, maturity, covenants).
+- **No supplier payment schedule.** `solduri_neincasate` covers receivables only; nothing says when import invoices fall due, so "will we block payments to external suppliers" cannot be answered from data. Mirror of the receivables import, on the payables report.
+- **OPEX is not split fixed vs. variable.** `pnl_mapping_conturi` classifies accounts into P&L lines only, so any breakeven has to treat all OPEX as fixed and comes out overstated (sales bonuses and volume-driven transport do fall with volume). One extra column on the existing table plus an owner pass over ~90 accounts.
+- **No discount policy is modelled.** No table holds a maximum discount per agent / client / brand; the only formal bounds are the `pricing_config` margin floors (30% / 25% approval), which constrain a discount only through the margin left after it. Field discounts are therefore unenforceable by the system and only observable after the fact in `tranzactii.discount_pct`.
+
 ---
 
 ## Product / AI opportunity backlog
