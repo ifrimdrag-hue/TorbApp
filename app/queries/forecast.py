@@ -91,6 +91,9 @@ def forecast_stoc_brand(furnizor=None, gama=None, urgenta=None, search=None):
     [{nr_comanda, qty, eta}], ordonată după ETA crescător. Plus `in_tranzit_qty`
     (sumă totală) și `in_tranzit_eta_min` (cea mai apropiată ETA).
 
+    ETA = `data_estimata_livrare` (câmpul editabil din Comenzi furnizori), cu
+    fallback pe coloana `eta` populată doar de importurile ETL de tranzit.
+
     `search` filtrează pe cod_produs SAU sku (LIKE %search%)."""
     filters, params = [], {}
     if furnizor:
@@ -133,19 +136,20 @@ def forecast_stoc_brand(furnizor=None, gama=None, urgenta=None, search=None):
     # Build per-SKU in-transit detail from comenzi
     transit_by_sku = {}
     for r in query("""
-        SELECT l.sku, c.nr_comanda, c.eta, c.data_estimata_livrare,
+        SELECT l.sku, c.nr_comanda,
+               COALESCE(c.data_estimata_livrare, c.eta) AS eta,
                SUM(l.cantitate_comandata) AS qty
         FROM comenzi_furnizori_linii l
         JOIN comenzi_furnizori c ON c.id = l.comanda_id
         WHERE c.status IN ('confirmata', 'in_tranzit')
           AND l.cantitate_comandata > 0
-        GROUP BY l.sku, c.nr_comanda, c.eta, c.data_estimata_livrare
-        ORDER BY l.sku, c.eta
+        GROUP BY l.sku, c.nr_comanda, eta
+        ORDER BY l.sku, eta
     """):
         transit_by_sku.setdefault(r['sku'], []).append({
             'nr_comanda': r['nr_comanda'],
             'qty':        r['qty'],
-            'eta':        r['eta'] or r['data_estimata_livrare'],
+            'eta':        r['eta'],
         })
 
     for r in rows:
@@ -235,15 +239,16 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
     transit_by_sku = {}
     transit_sku_meta = {}  # {sku: {'furnizor': ..., 'cod_produs': ...}}
     for r in query("""
-        SELECT l.sku, c.nr_comanda, c.furnizor, COALESCE(c.eta, c.data_estimata_livrare) AS eta,
+        SELECT l.sku, c.nr_comanda, c.furnizor,
+               COALESCE(c.data_estimata_livrare, c.eta) AS eta,
                MAX(l.cod_furnizor) AS cod_produs,
                SUM(COALESCE(l.cantitate_confirmata, l.cantitate_comandata)) AS qty
         FROM comenzi_furnizori_linii l
         JOIN comenzi_furnizori c ON c.id = l.comanda_id
         WHERE c.status IN ('confirmata', 'in_tranzit')
           AND COALESCE(l.cantitate_confirmata, l.cantitate_comandata) > 0
-        GROUP BY l.sku, c.nr_comanda, c.data_estimata_livrare
-        ORDER BY l.sku, c.data_estimata_livrare
+        GROUP BY l.sku, c.nr_comanda, eta
+        ORDER BY l.sku, eta
     """):
         transit_by_sku.setdefault(r['sku'], []).append({
             'nr_comanda': r['nr_comanda'],

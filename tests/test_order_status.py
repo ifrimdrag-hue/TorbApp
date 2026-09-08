@@ -90,3 +90,30 @@ def test_comanda_delete_cascades_to_lines(db_path, client):
     ).fetchone()[0]
     conn.close()
     assert orphans == 0, "deleting the order header must cascade-delete its lines"
+
+
+def test_comanda_update_syncs_legacy_eta_column(db_path, client):
+    """Editing the ETA in Comenzi furnizori must also refresh the legacy `eta`
+    column seeded by the transit ETL imports."""
+    conn = sqlite3.connect(db_path)
+    conn.execute("""
+        INSERT INTO comenzi_furnizori
+               (nr_comanda, furnizor, status, data_estimata_livrare, eta)
+        VALUES ('CMD-ETA-SYNC', 'TestBrandEta', 'in_tranzit', '2026-08-01', '2026-08-01')
+    """)
+    cid = conn.execute(
+        "SELECT id FROM comenzi_furnizori WHERE nr_comanda='CMD-ETA-SYNC'"
+    ).fetchone()[0]
+    conn.commit()
+    conn.close()
+
+    import queries
+    queries.comanda_update(cid, data_estimata_livrare='2026-09-15')
+
+    conn = sqlite3.connect(db_path)
+    livrare, eta = conn.execute(
+        "SELECT data_estimata_livrare, eta FROM comenzi_furnizori WHERE id=?", (cid,)
+    ).fetchone()
+    conn.close()
+    assert livrare == '2026-09-15'
+    assert eta == '2026-09-15'

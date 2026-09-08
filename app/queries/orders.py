@@ -104,6 +104,11 @@ def comanda_update(comanda_id: int, **kwargs):
     if not fields:
         return
     sets = ', '.join(f"{k} = :{k}" for k in fields)
+    # `eta` is the legacy column seeded by the ETL transit imports; the UI only
+    # edits `data_estimata_livrare`. Keep them in sync so no reader can pick up
+    # a stale import-time ETA after the owner reschedules a delivery.
+    if 'data_estimata_livrare' in fields:
+        sets += ', eta = :data_estimata_livrare'
     fields['id'] = comanda_id
     import datetime as _dt
     fields['now'] = _dt.datetime.now().isoformat()

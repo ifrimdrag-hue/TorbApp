@@ -123,7 +123,10 @@ def test_zile_stoc_excludes_transit(db_path, client):
     )
 
 
-def test_transit_eta_prefers_eta_column(db_path, client):
+def test_transit_eta_prefers_data_estimata_livrare(db_path, client):
+    """`data_estimata_livrare` is the field the owner edits in Comenzi furnizori;
+    `eta` is only seeded by the transit ETL imports. Stoc & Comenzi must show the
+    edited date, not the stale import-time one."""
     conn = _conn(db_path)
     snap = _next_snapshot(conn)
     conn.execute("""
@@ -134,7 +137,7 @@ def test_transit_eta_prefers_eta_column(db_path, client):
     """, (snap,))
     conn.execute("""
         INSERT INTO comenzi_furnizori (nr_comanda, furnizor, status, data_estimata_livrare, eta)
-        VALUES ('CMD-B6-1', 'TestBrandB6', 'confirmata', '2026-06-02', '2026-07-21')
+        VALUES ('CMD-B6-1', 'TestBrandB6', 'confirmata', '2026-09-30', '2026-07-21')
     """)
     cid = conn.execute("SELECT id FROM comenzi_furnizori WHERE nr_comanda='CMD-B6-1'").fetchone()[0]
     conn.execute("""
@@ -145,11 +148,43 @@ def test_transit_eta_prefers_eta_column(db_path, client):
     conn.close()
 
     import queries
-    rows = queries.forecast_stoc_extended(furnizor='TestBrandB6')
+    for fn in (queries.forecast_stoc_extended, queries.forecast_stoc_brand):
+        rows = fn(furnizor='TestBrandB6')
+        assert len(rows) == 1
+        assert rows[0]['in_tranzit'][0]['eta'] == '2026-09-30', (
+            f"{fn.__name__} must use the edited `data_estimata_livrare`, "
+            "not the stale ETL `eta`"
+        )
+        assert rows[0]['in_tranzit_eta_min'] == '2026-09-30'
+
+
+def test_transit_eta_falls_back_to_eta_column(db_path, client):
+    """Orders imported before the UI ever touched them have data_estimata_livrare
+    NULL — the ETL `eta` must still show up."""
+    conn = _conn(db_path)
+    snap = _next_snapshot(conn)
+    conn.execute("""
+        INSERT INTO stoc (data_snapshot, cod_produs, cod_mare, sku, furnizor, gama,
+                           cantitate, pret_achizitie, data_intrare)
+        VALUES (?, 'B7-001', 'B7-001', 'SKU-B7-001', 'TestBrandB7', 'Ceai',
+                5, 10.0, '2026-06-01')
+    """, (snap,))
+    conn.execute("""
+        INSERT INTO comenzi_furnizori (nr_comanda, furnizor, status, data_estimata_livrare, eta)
+        VALUES ('CMD-B7-1', 'TestBrandB7', 'confirmata', NULL, '2026-07-21')
+    """)
+    cid = conn.execute("SELECT id FROM comenzi_furnizori WHERE nr_comanda='CMD-B7-1'").fetchone()[0]
+    conn.execute("""
+        INSERT INTO comenzi_furnizori_linii (comanda_id, sku, cantitate_comandata)
+        VALUES (?, 'SKU-B7-001', 10)
+    """, (cid,))
+    conn.commit()
+    conn.close()
+
+    import queries
+    rows = queries.forecast_stoc_extended(furnizor='TestBrandB7')
     assert len(rows) == 1
-    assert rows[0]['in_tranzit'][0]['eta'] == '2026-07-21', (
-        "should prefer the newer `eta` column over the stale `data_estimata_livrare`"
-    )
+    assert rows[0]['in_tranzit'][0]['eta'] == '2026-07-21'
 
 
 def test_pair_engine_survives_quote_in_client_code(db_path, client):

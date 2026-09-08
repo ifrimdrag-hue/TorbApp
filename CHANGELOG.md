@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fix: ETA din Comenzi furnizori nu se propaga in Stoc & Comenzi (2026-09-08)
+
+Editing a supplier order's estimated delivery date left the SKU rows in **Stoc &
+Comenzi** showing the old date. `comenzi_furnizori` carries two date columns:
+`data_estimata_livrare` (the only one the UI writes) and the legacy `eta`, seeded
+identically by the transit ETL imports (`etl/import_comenzi_tranzit_*.py`). Both
+in-transit queries in `app/queries/forecast.py` read `eta` first, so once an order had
+been imported the owner's edit was never visible.
+
+- **`data_estimata_livrare` is now authoritative** in `forecast_stoc_brand()` and
+  `forecast_stoc_extended()` — `COALESCE(c.data_estimata_livrare, c.eta)`, with the ETL
+  column kept only as the fallback for orders the UI has never touched. This matches what
+  `app/queries/export.py` already did.
+- **`eta` is kept in sync on edit** — `comanda_update()` writes both columns whenever
+  `data_estimata_livrare` changes, so no other reader can pick up a stale import-time ETA.
+- Regression tests in `tests/test_forecast_queries.py` (both precedence directions, both
+  query functions) and `tests/test_order_status.py` (column sync).
+
 ### Client mergers: Profi Rom Food → Mega Image, reapplied on every import (2026-08-17)
 
 Profi Rom Food SRL was acquired by Mega Image SRL, so Profi's whole sales history
