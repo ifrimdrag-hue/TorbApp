@@ -350,6 +350,17 @@ and `basilur_monthly_trend()`. `marja_bruta` / `marja_pct` are still computed
 against `val_neta` (a margin over cost would be meaningless) and are not
 displayed on the report.
 
+The basis survives data updates: `import_vanzari_erp.py` and
+`import_vanzari_tobra_auchan.py` both compute `val_achizitie` as
+`cantitate * pret_cumparare` on every row (the Auchan one then overrides it
+with the real Torb cost from `corr_vanzari_tobra`), and both keep it in the
+upsert's UPDATE set, so a corrected re-upload refreshes it. `import_stoc.py`
+is unaffected — the stock side was already at acquisition value. Only the
+legacy `etl/import_to_sqlite.py` path can leave `val_achizitie` NULL (its
+"raport Dragos" column variant has no `Val_Achiz`), so the queries fall back
+to `val_neta - marja_bruta` via `_BASILUR_COST`, which is the same figure by
+construction. Guarded by `tests/test_basilur_report_basis.py`.
+
 **Lead time:** all four share Basilur's 120-day (4-month) extra-EU lead time and
 Christmas seasonality — seeded in `termene_aprovizionare`.
 

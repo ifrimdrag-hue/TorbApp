@@ -22,6 +22,12 @@ worth. Every sales figure now sums `tranzactii.val_achizitie` (quantity x
   "Sales at Cost PY (USD)", sheet "Monthly Sales" renamed "Monthly Sales at Cost".
 - **PPT** (`app/exports/ppt_export.py`) — same relabelling on the cover, the
   per-brand KPI slide and the monthly evolution slide.
+- **Basis held stable across updates** — the four queries read
+  `_BASILUR_COST` = `COALESCE(val_achizitie, val_neta - marja_bruta)`, so a row
+  loaded through the legacy Excel path without a `Val_Achiz` column counts at
+  its implied cost instead of zero. Both live sales importers already write
+  `val_achizitie` and keep it in their upsert UPDATE set; the stock importer is
+  untouched. New `tests/test_basilur_report_basis.py` pins all of it.
 
 ### Fix: ETA din Comenzi furnizori nu se propaga in Stoc & Comenzi (2026-09-08)
 

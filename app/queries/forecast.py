@@ -509,6 +509,16 @@ def forecast_brands_list():
 BASILUR_BRANDS = ('Basilur', 'KingsLeaf', 'Tipson', 'Organsia')
 _BASILUR_IN    = "('Basilur','KingsLeaf','Tipson','Organsia')"
 
+# Sales on this report are valued at purchase price, not at selling price.
+# Every live importer writes val_achizitie (import_vanzari_erp.py and
+# import_vanzari_tobra_auchan.py both compute cantitate * pret_cumparare, and
+# the Auchan one then overrides it with the real Torb cost), so a stock or
+# sales update never changes the basis. The fallback covers rows the legacy
+# Excel path loaded without a Val_Achiz column: marja_bruta is
+# val_neta - val_achizitie by construction, so it reconstructs the same cost
+# instead of silently counting the row as zero.
+_BASILUR_COST = "COALESCE(val_achizitie, val_neta - marja_bruta)"
+
 
 def basilur_monthly_per_brand(an):
     """Vânzări lunare per brand Basilur-group pentru un an dat (12 luni).
@@ -518,7 +528,7 @@ def basilur_monthly_per_brand(an):
     """
     return query(f"""
         SELECT furnizor, luna,
-            ROUND(SUM(val_achizitie), 0) AS val_achizitie,
+            ROUND(SUM({_BASILUR_COST}), 0) AS val_achizitie,
             ROUND(SUM(marja_bruta), 0)   AS marja_bruta,
             COUNT(DISTINCT cod_client)   AS nr_clienti,
             ROUND(SUM(cantitate), 0)     AS cantitate
@@ -543,7 +553,7 @@ def basilur_kpi_per_brand(an, max_luna=None, luna=None):
     return query(f"""
         WITH cy AS (
             SELECT furnizor,
-                ROUND(SUM(val_achizitie), 0) AS val_achizitie,
+                ROUND(SUM({_BASILUR_COST}), 0) AS val_achizitie,
                 ROUND(SUM(marja_bruta), 0)   AS marja_bruta,
                 ROUND(SUM(marja_bruta)*100.0/NULLIF(SUM(val_neta),0),1) AS marja_pct,
                 COUNT(DISTINCT cod_client)  AS clienti_activi,
@@ -555,7 +565,7 @@ def basilur_kpi_per_brand(an, max_luna=None, luna=None):
         ),
         py AS (
             SELECT furnizor,
-                ROUND(SUM(val_achizitie), 0) AS val_achizitie_py
+                ROUND(SUM({_BASILUR_COST}), 0) AS val_achizitie_py
             FROM tranzactii
             WHERE an = :an_prev AND furnizor IN {_BASILUR_IN} {extra_py}
             GROUP BY furnizor
@@ -584,7 +594,7 @@ def basilur_kpi_total(an, max_luna=None, luna=None):
 
     return query_one(f"""
         WITH cy AS (
-            SELECT ROUND(SUM(val_achizitie),0) AS val_achizitie,
+            SELECT ROUND(SUM({_BASILUR_COST}),0) AS val_achizitie,
                    ROUND(SUM(marja_bruta),0) AS marja_bruta,
                    ROUND(SUM(marja_bruta)*100.0/NULLIF(SUM(val_neta),0),1) AS marja_pct,
                    COUNT(DISTINCT cod_client) AS clienti_activi,
@@ -593,7 +603,7 @@ def basilur_kpi_total(an, max_luna=None, luna=None):
             WHERE an = :an AND furnizor IN {_BASILUR_IN} {extra}
         ),
         py AS (
-            SELECT ROUND(SUM(val_achizitie),0) AS val_achizitie_py
+            SELECT ROUND(SUM({_BASILUR_COST}),0) AS val_achizitie_py
             FROM tranzactii
             WHERE an = :an_prev AND furnizor IN {_BASILUR_IN} {extra}
         )
@@ -676,7 +686,7 @@ def basilur_monthly_trend(years=None):
     params = _years_params(yrs)
     return query(f"""
         SELECT furnizor, an, luna,
-            ROUND(SUM(val_achizitie), 0) AS val_achizitie
+            ROUND(SUM({_BASILUR_COST}), 0) AS val_achizitie
         FROM tranzactii
         WHERE an IN (:y0,:y1,:y2) AND furnizor IN {_BASILUR_IN}
         GROUP BY furnizor, an, luna
