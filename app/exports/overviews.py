@@ -23,13 +23,13 @@ MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
 
 
 def basilur_monthly_matrix(rows):
-    """(furnizor, luna, val_neta) rows -> {furnizor: [12 values]}."""
+    """(furnizor, luna, val_achizitie) rows -> {furnizor: [12 values]}."""
     out = {b: [0] * 12 for b in BASILUR_BRANDS}
     for r in rows:
         furn = r['furnizor']
         luna = r['luna']
         if furn in out and luna and 1 <= int(luna) <= 12:
-            out[furn][int(luna) - 1] = r['val_neta'] or 0
+            out[furn][int(luna) - 1] = r['val_achizitie'] or 0
     return out
 
 
@@ -197,12 +197,12 @@ def _basilur(an, luna, max_luna, filters):
         subtitle = period
 
     kpi_rows = [{
-        'Brand':              r['furnizor'],
-        'Net Sales (USD)':    round((r['val_neta'] or 0) / curs, 0),
-        'Active Clients':     r['clienti_activi'] or 0,
-        'Active SKUs':        r['nr_sku'] or 0,
-        'Net Sales PY (USD)': round((r['val_neta_py'] or 0) / curs, 0),
-        'YoY Delta %':        r['delta_vn'],
+        'Brand':                 r['furnizor'],
+        'Sales at Cost (USD)':   round((r['val_achizitie'] or 0) / curs, 0),
+        'Active Clients':        r['clienti_activi'] or 0,
+        'Active SKUs':           r['nr_sku'] or 0,
+        'Sales at Cost PY (USD)': round((r['val_achizitie_py'] or 0) / curs, 0),
+        'YoY Delta %':           r['delta_vn'],
     } for r in kpi_per_brand]
 
     pivot_rows = []
@@ -254,7 +254,7 @@ def _basilur(an, luna, max_luna, filters):
         'sheets': {
             'Brand KPIs':     {'rows': kpi_rows,
                                'headers': list(kpi_rows[0]) if kpi_rows else []},
-            'Monthly Sales':  {'rows': pivot_rows,
+            'Monthly Sales at Cost': {'rows': pivot_rows,
                                'headers': ['Brand'] + MONTHS_EN + ['TOTAL']},
             'Stock by Brand': {'rows': stoc_brand_rows,
                                'headers': list(stoc_brand_rows[0]) if stoc_brand_rows else []},

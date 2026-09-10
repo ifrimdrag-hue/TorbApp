@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Basilur report: sales valued at purchase price (2026-09-10)
+
+The supplier-facing Basilur Group report showed sales at Torb's selling price
+(`val_neta`), which is Torb's resale revenue, not what the supplier's goods were
+worth. Every sales figure now sums `tranzactii.val_achizitie` (quantity x
+`pret_cumparare`).
+
+- **Queries** (`app/queries/forecast.py`) — `basilur_kpi_total()`,
+  `basilur_kpi_per_brand()`, `basilur_monthly_per_brand()` and
+  `basilur_monthly_trend()` return `val_achizitie` / `val_achizitie_py`; the YoY
+  delta is computed on those. `marja_bruta` / `marja_pct` keep `val_neta` as
+  their denominator and stay off the report.
+- **Report page** (`app/templates/raportare_basilur.html`) — cards relabelled
+  "Group Sales at Cost" / "Sales at Cost", chart "Monthly Sales at Cost".
+- **Excel** (`app/exports/overviews.py`) — columns "Sales at Cost (USD)" /
+  "Sales at Cost PY (USD)", sheet "Monthly Sales" renamed "Monthly Sales at Cost".
+- **PPT** (`app/exports/ppt_export.py`) — same relabelling on the cover, the
+  per-brand KPI slide and the monthly evolution slide.
+
 ### Fix: ETA din Comenzi furnizori nu se propaga in Stoc & Comenzi (2026-09-08)
 
 Editing a supplier order's estimated delivery date left the SKU rows in **Stoc &

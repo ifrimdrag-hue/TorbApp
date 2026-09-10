@@ -338,6 +338,18 @@ the reference example:
 in `app/blueprints/reports.py`, and `BRANDS` in `app/exports/ppt_export.py`.
 The Basilur report template is `app/templates/raportare_basilur.html`.
 
+**Sales are valued at purchase price, not at selling price** (since 2026-09-10):
+every sales figure on the report, its Excel workbook and its PPT deck sums
+`tranzactii.val_achizitie` (quantity x `pret_cumparare`) instead of `val_neta`.
+The report is supplier-facing — Basilur sees what its own goods sold for at
+cost, not Torb's resale revenue. This applies to the group and per-brand KPI
+cards, the YoY delta and the monthly chart; stock was already at acquisition
+value. Field names follow: `val_achizitie` / `val_achizitie_py` in
+`basilur_kpi_total()`, `basilur_kpi_per_brand()`, `basilur_monthly_per_brand()`
+and `basilur_monthly_trend()`. `marja_bruta` / `marja_pct` are still computed
+against `val_neta` (a margin over cost would be meaningless) and are not
+displayed on the report.
+
 **Lead time:** all four share Basilur's 120-day (4-month) extra-EU lead time and
 Christmas seasonality — seeded in `termene_aprovizionare`.
 

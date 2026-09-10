@@ -177,7 +177,7 @@ def test_basilur_context_shape(flask_app):
     assert ctx['nav'] == 'basilur'
     assert ctx['filename_base'] == f'raportare_basilur_{AN}_YTD'
     assert list(ctx['sheets']) == [
-        'Brand KPIs', 'Monthly Sales', 'Stock by Brand', 'Stock Detail']
+        'Brand KPIs', 'Monthly Sales at Cost', 'Stock by Brand', 'Stock Detail']
     assert callable(ctx['ppt_builder'])
     assert ctx['curs'] == overviews.BASILUR_DEFAULT_CURS
     # The deck is bespoke, so the generic slide inputs stay empty.
@@ -196,14 +196,14 @@ def test_basilur_curs_reaches_the_workbook(flask_app, monkeypatch):
     import queries
     from exports import overviews
     monkeypatch.setattr(queries, 'basilur_kpi_per_brand', lambda *a, **kw: [
-        {'furnizor': 'Basilur', 'val_neta': 910.0, 'clienti_activi': 3,
-         'nr_sku': 7, 'val_neta_py': 455.0, 'delta_vn': 100.0},
+        {'furnizor': 'Basilur', 'val_achizitie': 910.0, 'clienti_activi': 3,
+         'nr_sku': 7, 'val_achizitie_py': 455.0, 'delta_vn': 100.0},
     ])
     with flask_app.app_context():
         ctx = overviews.build_context('basilur', AN, None, {'curs': 9.10})
     row = _rows(ctx['sheets']['Brand KPIs'])[0]
-    assert row['Net Sales (USD)'] == 100     # 910 RON / 9.10
-    assert row['Net Sales PY (USD)'] == 50   # 455 RON / 9.10
+    assert row['Sales at Cost (USD)'] == 100     # 910 RON / 9.10
+    assert row['Sales at Cost PY (USD)'] == 50   # 455 RON / 9.10
     assert ctx['curs'] == 9.10
 
 
@@ -221,7 +221,7 @@ def test_build_basilur_ppt_uses_the_given_curs(flask_app):
     and the deck disagreed whenever the owner changed the rate."""
     from exports import ppt_export
     buf = ppt_export.build_basilur_ppt(
-        an=AN, period_label='2026 YTD', kpi_total={'val_neta': 910.0},
+        an=AN, period_label='2026 YTD', kpi_total={'val_achizitie': 910.0},
         kpi_per_brand=[], monthly_data={}, stoc_per_brand=[], stoc_detail=[],
         curs=9.10)
     texts = [sh.text_frame.text for s in Presentation(buf).slides
@@ -253,7 +253,7 @@ EXPECTED_SHEETS = {
     'team': [f'Echipa {AN}', f'Echipa {AN - 1}'],
     'clients': [f'Clienți {AN}'],
     'products': ['Branduri', 'Top SKU'],
-    'basilur': ['Brand KPIs', 'Monthly Sales', 'Stock by Brand', 'Stock Detail'],
+    'basilur': ['Brand KPIs', 'Monthly Sales at Cost', 'Stock by Brand', 'Stock Detail'],
 }
 
 

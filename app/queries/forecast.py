@@ -511,13 +511,17 @@ _BASILUR_IN    = "('Basilur','KingsLeaf','Tipson','Organsia')"
 
 
 def basilur_monthly_per_brand(an):
-    """Vânzări lunare per brand Basilur-group pentru un an dat (12 luni)."""
+    """Vânzări lunare per brand Basilur-group pentru un an dat (12 luni).
+
+    Sales are valued at purchase price (val_achizitie = qty x pret_cumparare),
+    not at selling price - this report is supplier-facing.
+    """
     return query(f"""
         SELECT furnizor, luna,
-            ROUND(SUM(val_neta), 0)    AS val_neta,
-            ROUND(SUM(marja_bruta), 0) AS marja_bruta,
-            COUNT(DISTINCT cod_client) AS nr_clienti,
-            ROUND(SUM(cantitate), 0)   AS cantitate
+            ROUND(SUM(val_achizitie), 0) AS val_achizitie,
+            ROUND(SUM(marja_bruta), 0)   AS marja_bruta,
+            COUNT(DISTINCT cod_client)   AS nr_clienti,
+            ROUND(SUM(cantitate), 0)     AS cantitate
         FROM tranzactii
         WHERE an = :an AND furnizor IN {_BASILUR_IN}
         GROUP BY furnizor, luna
@@ -526,7 +530,7 @@ def basilur_monthly_per_brand(an):
 
 
 def basilur_kpi_per_brand(an, max_luna=None, luna=None):
-    """KPI agregat CY vs PY per brand Basilur-group."""
+    """KPI agregat CY vs PY per brand Basilur-group (sales at purchase price)."""
     params = {'an': an, 'an_prev': an - 1}
     extra_cy = extra_py = ''
     if luna is not None:
@@ -539,8 +543,8 @@ def basilur_kpi_per_brand(an, max_luna=None, luna=None):
     return query(f"""
         WITH cy AS (
             SELECT furnizor,
-                ROUND(SUM(val_neta), 0)    AS val_neta,
-                ROUND(SUM(marja_bruta), 0) AS marja_bruta,
+                ROUND(SUM(val_achizitie), 0) AS val_achizitie,
+                ROUND(SUM(marja_bruta), 0)   AS marja_bruta,
                 ROUND(SUM(marja_bruta)*100.0/NULLIF(SUM(val_neta),0),1) AS marja_pct,
                 COUNT(DISTINCT cod_client)  AS clienti_activi,
                 COUNT(DISTINCT cod_produs)  AS nr_sku,
@@ -551,24 +555,24 @@ def basilur_kpi_per_brand(an, max_luna=None, luna=None):
         ),
         py AS (
             SELECT furnizor,
-                ROUND(SUM(val_neta), 0) AS val_neta_py
+                ROUND(SUM(val_achizitie), 0) AS val_achizitie_py
             FROM tranzactii
             WHERE an = :an_prev AND furnizor IN {_BASILUR_IN} {extra_py}
             GROUP BY furnizor
         )
-        SELECT cy.furnizor, cy.val_neta, cy.marja_bruta, cy.marja_pct,
+        SELECT cy.furnizor, cy.val_achizitie, cy.marja_bruta, cy.marja_pct,
                cy.clienti_activi, cy.nr_sku, cy.nr_tranzactii,
-               COALESCE(py.val_neta_py, 0) AS val_neta_py,
-               CASE WHEN COALESCE(py.val_neta_py,0) > 0
-                    THEN ROUND((cy.val_neta*1.0/py.val_neta_py - 1)*100, 1)
+               COALESCE(py.val_achizitie_py, 0) AS val_achizitie_py,
+               CASE WHEN COALESCE(py.val_achizitie_py,0) > 0
+                    THEN ROUND((cy.val_achizitie*1.0/py.val_achizitie_py - 1)*100, 1)
                     ELSE NULL END AS delta_vn
         FROM cy LEFT JOIN py ON cy.furnizor = py.furnizor
-        ORDER BY cy.val_neta DESC
+        ORDER BY cy.val_achizitie DESC
     """, params)
 
 
 def basilur_kpi_total(an, max_luna=None, luna=None):
-    """KPI total grup Basilur (toate brandurile sumate)."""
+    """KPI total grup Basilur, sumat (sales at purchase price)."""
     params = {'an': an, 'an_prev': an - 1}
     extra = ''
     if luna is not None:
@@ -580,7 +584,7 @@ def basilur_kpi_total(an, max_luna=None, luna=None):
 
     return query_one(f"""
         WITH cy AS (
-            SELECT ROUND(SUM(val_neta),0) AS val_neta,
+            SELECT ROUND(SUM(val_achizitie),0) AS val_achizitie,
                    ROUND(SUM(marja_bruta),0) AS marja_bruta,
                    ROUND(SUM(marja_bruta)*100.0/NULLIF(SUM(val_neta),0),1) AS marja_pct,
                    COUNT(DISTINCT cod_client) AS clienti_activi,
@@ -589,15 +593,15 @@ def basilur_kpi_total(an, max_luna=None, luna=None):
             WHERE an = :an AND furnizor IN {_BASILUR_IN} {extra}
         ),
         py AS (
-            SELECT ROUND(SUM(val_neta),0) AS val_neta_py
+            SELECT ROUND(SUM(val_achizitie),0) AS val_achizitie_py
             FROM tranzactii
             WHERE an = :an_prev AND furnizor IN {_BASILUR_IN} {extra}
         )
-        SELECT cy.val_neta, cy.marja_bruta, cy.marja_pct,
+        SELECT cy.val_achizitie, cy.marja_bruta, cy.marja_pct,
                cy.clienti_activi, cy.nr_sku,
-               COALESCE(py.val_neta_py,0) AS val_neta_py,
-               CASE WHEN COALESCE(py.val_neta_py,0) > 0
-                    THEN ROUND((cy.val_neta*1.0/py.val_neta_py - 1)*100,1)
+               COALESCE(py.val_achizitie_py,0) AS val_achizitie_py,
+               CASE WHEN COALESCE(py.val_achizitie_py,0) > 0
+                    THEN ROUND((cy.val_achizitie*1.0/py.val_achizitie_py - 1)*100,1)
                     ELSE NULL END AS delta_vn
         FROM cy, py
     """, params)
@@ -672,7 +676,7 @@ def basilur_monthly_trend(years=None):
     params = _years_params(yrs)
     return query(f"""
         SELECT furnizor, an, luna,
-            ROUND(SUM(val_neta), 0) AS val_neta
+            ROUND(SUM(val_achizitie), 0) AS val_achizitie
         FROM tranzactii
         WHERE an IN (:y0,:y1,:y2) AND furnizor IN {_BASILUR_IN}
         GROUP BY furnizor, an, luna

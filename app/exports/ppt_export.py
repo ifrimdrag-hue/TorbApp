@@ -623,13 +623,13 @@ def build_basilur_ppt(an, period_label, kpi_total, kpi_per_brand,
               0.5, 7.05, 12, 0.3, font_size=9, color=C_MGRAY, align=PP_ALIGN.LEFT)
 
     if kpi_total:
-        vn   = kpi_total.get("val_neta") or 0
+        vn   = kpi_total.get("val_achizitie") or 0
         dlt  = kpi_total.get("delta_vn")
         clnt = kpi_total.get("clienti_activi") or 0
         sku  = kpi_total.get("nr_sku") or 0
         stoc_val = sum((r.get("valoare_achizitie") or 0) for r in (stoc_per_brand or []))
         dlt_str = (f"{'+' if dlt >= 0 else ''}{dlt:.1f}% vs {an - 1}") if dlt is not None else None
-        _kpi_card(slide, 0.5,  3.8, 3.1, "Group Net Sales",
+        _kpi_card(slide, 0.5,  3.8, 3.1, "Group Sales at Cost",
                   _usd(vn), dlt_str, (dlt or 0) >= 0)
         _kpi_card(slide, 3.8,  3.8, 2.8, "Active Clients",  str(clnt))
         _kpi_card(slide, 6.8,  3.8, 2.6, "Active SKUs",     str(sku))
@@ -651,7 +651,7 @@ def build_basilur_ppt(an, period_label, kpi_total, kpi_per_brand,
     for col_i, brand in enumerate(BRANDS):
         k  = kpi_map.get(brand, {})
         st = stoc_map_s2.get(brand, {})
-        vn   = k.get("val_neta") or 0
+        vn   = k.get("val_achizitie") or 0
         dlt  = k.get("delta_vn")
         clnt = k.get("clienti_activi") or 0
         nsku = k.get("nr_sku") or 0
@@ -661,7 +661,7 @@ def build_basilur_ppt(an, period_label, kpi_total, kpi_per_brand,
         _add_text(slide, brand.upper(), cx + 0.1, 1.18, card_w - 0.2, 0.35,
                   font_size=14, bold=True, color=C_WHITE, align=PP_ALIGN.LEFT)
         dlt_str = (f"{'+' if (dlt or 0) >= 0 else ''}{dlt:.1f}%") if dlt is not None else None
-        _kpi_card(slide, cx, 1.65, card_w, "Net Sales",
+        _kpi_card(slide, cx, 1.65, card_w, "Sales at Cost",
                   _usd(vn), f"{dlt_str} vs {an - 1}" if dlt_str else None, (dlt or 0) >= 0)
         _kpi_card(slide, cx,              3.5, card_w / 2 - 0.05, "Clients",     str(clnt))
         _kpi_card(slide, cx + card_w / 2, 3.5, card_w / 2 - 0.05, "Active SKUs", str(nsku))
@@ -669,8 +669,8 @@ def build_basilur_ppt(an, period_label, kpi_total, kpi_per_brand,
 
     # ── Slide 3: Monthly sales evolution ──
     slide = _blank(prs)
-    _header_bar(slide, f"Monthly Net Sales Evolution  —  {an}",
-                "Net Sales USD per brand per month")
+    _header_bar(slide, f"Monthly Sales at Cost Evolution  —  {an}",
+                "Sales at purchase price, USD per brand per month")
     _footer(slide)
 
     if monthly_data and any(monthly_data.values()):

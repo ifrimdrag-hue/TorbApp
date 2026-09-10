@@ -388,9 +388,9 @@ def raportare_basilur():
     kpi_map = {r['furnizor']: dict(r) for r in kpi_per_brand}
     for b in overviews.BASILUR_BRANDS:
         if b not in kpi_map:
-            kpi_map[b] = {'furnizor': b, 'val_neta': 0, 'marja_bruta': 0,
+            kpi_map[b] = {'furnizor': b, 'val_achizitie': 0, 'marja_bruta': 0,
                           'marja_pct': 0, 'clienti_activi': 0, 'nr_sku': 0,
-                          'val_neta_py': 0, 'delta_vn': None}
+                          'val_achizitie_py': 0, 'delta_vn': None}
 
     stoc_map = {r['furnizor']: dict(r) for r in stoc_per_brand}
     for b in overviews.BASILUR_BRANDS:
