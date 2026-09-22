@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Bonus: global sales gate — under 80% of the sales target nothing pays (2026-09-22)
+
+Owner decision: the sales criterion is a precondition for the whole bonus, not
+just one weighted row. If an agent finishes the month under 80% of the sales
+target, **no KPI triggers** — every other criterion pays 0 even when fully
+achieved. The rule is permanent: it lives in the engine, applies to every month
+from now on, and needs no per-month setup or reset.
+
+- **Engine** (`app/bonus_calc.py`) — new `SALES_GATE = 0.80`, `sales_realizare()`
+  (aggregates the `vanzari` rows: sum actual / sum target) and
+  `sales_gate_blocked()`. `calc_agent_month()` zeroes `multiplier`/`weighted`
+  on every row when the gate is closed and marks each row `blocat_gate`; the
+  result carries `gate_vanzari` + `gate_prag`. `realizare` is left untouched, so
+  the UI still shows how much was actually achieved. The gate is **not** applied
+  when there is no sales objective (no `vanzari` row, or target 0) — nothing to
+  gate on. The threshold is a keyword argument (`gate=`) for future per-agent use.
+- **Applied everywhere the bonus is computed** — both call sites go through
+  `calc_agent_month()`: the live view (`/bonus`, `/bonus/inchidere`, Excel export)
+  and `inchidere_lock()`, which freezes the gated result into
+  `bonus_istoric.lunar_data`. Months closed before this change keep their frozen
+  snapshot; any open month — including past ones — is recalculated with the gate.
+- **UI** (`app/templates/bonus/_gate_info.html`, included on `/bonus`,
+  `/bonus/obiective`, `/bonus/inchidere`) — the rule is written into the rules
+  description next to the payout-grid legend, stating the 80% threshold and that
+  it applies automatically every month. Blocked agents get a red "Bonus blocat"
+  banner on their card and on the month-close page.
+- **Excel export** — new "Poartă vânzări" column on the Centralizare sheet
+  (`OK` / `BLOCAT (<80% din target)`).
+- **Tests** — `tests/test_bonus_calc.py` pins the gate: boundary at exactly 80%
+  (not blocked), everything zeroed below it even for an over-achieved KPI,
+  no gate without a sales target, and the `sales_realizare()` aggregation.
+
+Documented in `docs/BUSINESS_LOGIC.md` §4.
+
 ### Basilur report: sales valued at purchase price (2026-09-10)
 
 The supplier-facing Basilur Group report showed sales at Torb's selling price

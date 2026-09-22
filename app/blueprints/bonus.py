@@ -4,7 +4,7 @@ import logging
 import re
 from flask import Blueprint, render_template, request, jsonify
 import queries
-from bonus_calc import MONTHS_RO as BONUS_MONTHS_RO
+from bonus_calc import MONTHS_RO as BONUS_MONTHS_RO, SALES_GATE
 from exports.excel_export import send_excel, timestamped_filename
 import bonus_calc
 
@@ -17,6 +17,7 @@ DEFAULT_GAME = [
     ("Basilur", 0.30), ("Toras", 0.25), ("Leonex", 0.20),
     ("Celmar", 0.15), ("Delaviuda", 0.10),
 ]
+GATE_PCT = int(SALES_GATE * 100)   # poarta pe vanzari, afisata in legende
 ALL_GAME = ['Basilur', 'Toras', 'Celmar', 'Leonex', 'Delaviuda',
             'KingsLeaf', 'Solvex', 'Tipson', 'Cosmetice', 'Organsia']
 
@@ -122,7 +123,7 @@ def bonus():
     }
     # Grid shown in the UI legend = the '_default' one (per-agent overrides are rare)
     return render_template('bonus.html', agents=agents, an=an, luna=luna,
-                           team=team, months_ro=BONUS_MONTHS_RO,
+                           team=team, months_ro=BONUS_MONTHS_RO, gate_pct=GATE_PCT,
                            grid=queries.payout_grid('_default'))
 
 
@@ -136,6 +137,8 @@ def bonus_export():
         summary.append({
             'Agent': a['agent_key'], 'Bonus Lunar': out['monthly_bonus'],
             'Scor': round(out['scor'], 2), 'Bonus Realizat': round(out['total_bonus']),
+            'Poartă vânzări': ('BLOCAT (<%d%% din target)' % GATE_PCT)
+                              if out.get('gate_vanzari') else 'OK',
             'Închis': 'Da' if out.get('inchis') else 'Nu',
         })
         sheets[a['agent_key'][:31]] = [{
@@ -206,7 +209,7 @@ def obiective():
         })
     return render_template('bonus/obiective.html', agents=agents, an=an, luna=luna,
                            all_game=ALL_GAME, months_ro=BONUS_MONTHS_RO,
-                           grid=queries.payout_grid('_default'))
+                           gate_pct=GATE_PCT, grid=queries.payout_grid('_default'))
 
 
 @bonus_bp.route('/bonus/obiective/save', methods=['POST'])
@@ -254,7 +257,7 @@ def inchidere():
         agents.append({**out, 'db_agent': a['db_agent'],
                        'manual': manual, 'stare': (rec or {}).get('stare', 'deschis')})
     return render_template('bonus/inchidere.html', agents=agents, an=an, luna=luna,
-                           months_ro=BONUS_MONTHS_RO)
+                           months_ro=BONUS_MONTHS_RO, gate_pct=GATE_PCT)
 
 
 @bonus_bp.route('/bonus/inchidere/lock', methods=['POST'])

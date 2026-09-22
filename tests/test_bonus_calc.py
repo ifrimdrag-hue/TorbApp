@@ -6,7 +6,8 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
 
-from bonus_calc import payout_multiplier, calc_kpi, calc_agent_month
+from bonus_calc import (payout_multiplier, calc_kpi, calc_agent_month,
+                        sales_gate_blocked, sales_realizare, SALES_GATE)
 
 
 # ── payout_multiplier ─────────────────────────────────────────────────────────
@@ -86,3 +87,53 @@ def test_calc_agent_month_penalty():
     kpis = [{"tip": "vanzari", "target": 100.0, "actual": 100.0, "pondere": 1.0}]
     out = calc_agent_month(1000.0, 0.10, kpis, _GRID)
     assert out["total_bonus"] == 900.0
+
+
+# ── Poarta pe vânzări (gate global) ──────────────────────────────────────────
+
+def test_sales_realizare_none_without_target():
+    assert sales_realizare([{"tip": "marja", "target": 100.0, "actual": 100.0}]) is None
+    assert sales_realizare([{"tip": "vanzari", "target": 0.0, "actual": 50.0}]) is None
+
+def test_sales_realizare_aggregates_rows():
+    kpis = [{"tip": "vanzari", "target": 100.0, "actual": 40.0},
+            {"tip": "vanzari", "target": 100.0, "actual": 100.0}]
+    assert sales_realizare(kpis) == 0.7
+
+def test_sales_gate_blocked_below_threshold():
+    assert sales_gate_blocked([{"tip": "vanzari", "target": 100.0, "actual": 79.0}])
+    assert not sales_gate_blocked([{"tip": "vanzari", "target": 100.0, "actual": 80.0}])
+    # fără target de vânzări poarta nu se aplică
+    assert not sales_gate_blocked([{"tip": "marja", "target": 100.0, "actual": 10.0}])
+
+def test_gate_zeroes_every_kpi_even_when_achieved():
+    kpis = [
+        {"tip": "vanzari", "target": 100.0, "actual": 79.0, "pondere": 0.5},
+        {"tip": "marja",   "target": 100.0, "actual": 150.0, "pondere": 0.3},
+        {"tip": "brand",   "target": 100.0, "actual": 100.0, "pondere": 0.2},
+    ]
+    out = calc_agent_month(4000.0, 0.0, kpis, _GRID)
+    assert out["gate_vanzari"] is True
+    assert out["gate_prag"] == SALES_GATE
+    assert out["scor"] == 0.0
+    assert out["total_bonus"] == 0.0
+    assert all(k["multiplier"] == 0.0 and k["bonus"] == 0.0 for k in out["kpis"])
+    # realizarea rămâne vizibilă, doar plata e blocată
+    assert out["kpis"][1]["realizare"] == 1.5
+    assert all(k["blocat_gate"] for k in out["kpis"])
+
+def test_gate_not_applied_at_exactly_80():
+    kpis = [
+        {"tip": "vanzari", "target": 100.0, "actual": 80.0, "pondere": 0.5},
+        {"tip": "marja",   "target": 100.0, "actual": 100.0, "pondere": 0.5},
+    ]
+    out = calc_agent_month(1000.0, 0.0, kpis, _GRID)
+    assert out["gate_vanzari"] is False
+    assert out["scor"] == 0.75
+    assert out["total_bonus"] == 750.0
+
+def test_gate_ignored_when_no_sales_objective():
+    kpis = [{"tip": "marja", "target": 100.0, "actual": 100.0, "pondere": 1.0}]
+    out = calc_agent_month(1000.0, 0.0, kpis, _GRID)
+    assert out["gate_vanzari"] is False
+    assert out["total_bonus"] == 1000.0

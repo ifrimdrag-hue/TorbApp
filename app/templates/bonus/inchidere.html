@@ -8,6 +8,11 @@
 </div>
 {% include '_period_selector.html' %}
 
+<div class="alert alert-light border small mb-3 py-2">
+  <i class="bi bi-info-circle text-primary me-1"></i>
+  {% include 'bonus/_gate_info.html' %}
+</div>
+
 {% for a in agents %}
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-header bg-white d-flex justify-content-between">
@@ -16,6 +21,13 @@
     <span class="text-muted">Bonus provizoriu: <strong>{{ a.total_bonus | int }}</strong> RON</span>
   </div>
   <div class="card-body">
+    {% if a.gate_vanzari %}
+    <div class="alert alert-danger py-2 px-3 small mb-3">
+      <i class="bi bi-slash-circle-fill me-1"></i>
+      <strong>Bonus blocat</strong> — vânzările sunt sub poarta de {{ gate_pct }}%
+      din target; luna se închide cu bonus 0 pe toate criteriile.
+    </div>
+    {% endif %}
     {% if a.manual %}
     <p class="small text-muted mb-2">Introdu realizatul manual pentru criteriile fără date automate:</p>
     {% for k in a.manual %}

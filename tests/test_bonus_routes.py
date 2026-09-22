@@ -169,3 +169,43 @@ def test_bonus_tracker_renders(app_client, seed_bogdan):
     assert 'progress-bar' in html              # elemente vizuale de status
     assert 'Total bonus echip' in html         # total pe echipă (lună + YTD)
     assert 'Total bonus lun' in html           # footer total per agent
+
+
+def test_gate_blocks_whole_month_end_to_end(app_client, seed_bogdan):
+    """Vânzări 5000/10000 = 50% → toate KPI-urile se plătesc cu 0."""
+    import json
+    from queries.bonus import save_obiective, obiective, istoric_get
+    from blueprints.bonus import build_agent_month
+    save_obiective(2026, 6, 'Bogdan', 4000.0, 0.20, [
+        {"tip": "vanzari", "referinta": None, "target": 10000.0,
+         "unitate": "ron", "pondere": 0.5},
+        {"tip": "incasari", "referinta": None, "target": 1000.0,
+         "unitate": "ron", "pondere": 0.5},
+    ])
+    out = build_agent_month('Bogdan', 'DRAGNEA BOGDAN', 2026, 6)
+    assert out['gate_vanzari'] is True
+    assert out['total_bonus'] == 0.0
+
+    # pagina anunță blocajul
+    html = app_client.get('/bonus?an=2026&luna=6').get_data(as_text=True)
+    assert 'Bonus blocat' in html
+
+    # închiderea îngheață rezultatul blocat, chiar cu încasările la 100%
+    kpi_id = [k for k in obiective(2026, 6, 'Bogdan') if k['tip'] == 'incasari'][0]['id']
+    resp = app_client.post('/bonus/inchidere/lock', json={
+        "an": 2026, "luna": 6, "agent_key": "Bogdan", "penalty": 0.0,
+        "grad_incasare": 1.0, "note": "", "manual": {str(kpi_id): 1000.0}})
+    assert resp.status_code == 200 and resp.get_json()['ok'] is True
+    snap = json.loads(istoric_get(2026, 6, 'Bogdan')['lunar_data'])
+    assert snap['gate_vanzari'] is True
+    assert snap['total_bonus'] == 0.0
+    assert all(k['bonus'] == 0.0 for k in snap['kpis'])
+
+
+@pytest.mark.parametrize('url', ['/bonus?an=2026&luna=6', '/bonus/obiective?an=2026&luna=7',
+                                 '/bonus/inchidere?an=2026&luna=6'])
+def test_gate_rule_written_in_description(app_client, url):
+    from bonus_calc import SALES_GATE
+    html = app_client.get(url).get_data(as_text=True)
+    assert 'Poartă vânzări' in html
+    assert '%d%%' % int(SALES_GATE * 100) in html

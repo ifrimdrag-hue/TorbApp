@@ -1,6 +1,6 @@
 # Torb — Status Execuție Plan Strategic 2026–2030
 
-**Ultima actualizare:** 2026-08-17
+**Ultima actualizare:** 2026-09-22
 **Document referință:** `docs/BUSINESS.md` §7 — Plan Strategic 2026–2030 (v1.0)
 **Regulă:** actualizează acest fișier la fiecare schimbare de stare (nu la fiecare discuție). Legend: `[ ]` = neînceput · `[~]` = în lucru · `[x]` = livrat · `[!]` = blocat · `[↑]` = întârziat.
 **Istoric livrări:** rezumatele implementărilor livrate stau în `CHANGELOG.md`, nu aici — acest fișier ține doar starea curentă (decizii deschise, acțiuni 90 de zile, în curs/blocaje, pasul următor).
@@ -61,6 +61,8 @@
 - `[x]` **Solduri: navigare drill-down + pagină facturi client** (2026-07-05) — agent → clienți → pagină client cu toate facturile deschise (emitere, scadență, termen, sumă, zile întârziere, categorie), export Excel per client, link către fișa de vânzări. Cerere owner 2026-07-05.
 - `[x]` **Solduri: bucket-uri disjuncte + terminologie nouă** (2026-07-06) — intervale 1-7/8-30/31-60/>60 pe ambele părți (fără catch-all), redenumire „În termen” / „Scadență depășită” peste tot. Cerere owner 2026-07-06.
 - `[x]` **Solduri: unificare rânduri CEC în factura acoperită** (2026-07-07) — rândurile de cec (`cec=1`) dublau soldul facturii; importul le pliază pe factura corespondentă (`cec_doc` → `nrdl`) și le elimină (−60.742,40 RON fantomă pe fișierul real). Cerere owner. Vezi CHANGELOG.
+
+- `[x]` **Bonus: poartă pe vânzări** (2026-09-22) — sub 80% din targetul de vânzări niciun KPI nu se declanșează (regulă permanentă, în motor, fără resetare lunară); scrisă în descrierea regulilor de pe `/bonus`, `/bonus/obiective`, `/bonus/inchidere`. Decizie owner. Vezi CHANGELOG.
 
 ## În curs / blocaje active
 
