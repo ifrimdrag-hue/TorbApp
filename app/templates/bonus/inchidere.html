@@ -24,8 +24,9 @@
     {% if a.gate_vanzari %}
     <div class="alert alert-danger py-2 px-3 small mb-3">
       <i class="bi bi-slash-circle-fill me-1"></i>
-      <strong>Bonus blocat</strong> — vânzările sunt sub poarta de {{ gate_pct }}%
-      din target; luna se închide cu bonus 0 pe toate criteriile.
+      <strong>Bonus blocat</strong> — vânzările sunt sub poarta de
+      {{ ((a.gate_prag or 0) * 100) | round(0) | int }}% din target;
+      luna se închide cu bonus 0 pe toate criteriile.
     </div>
     {% endif %}
     {% if a.manual %}

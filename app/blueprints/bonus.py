@@ -68,7 +68,8 @@ def build_agent_month(agent_key, db_agent, an, luna):
             "pondere": r["pondere"] or 0.0, "actual": actual,
             "id": r["id"],
         })
-    out = bonus_calc.calc_agent_month(cfg["monthly_bonus"], penalty, kpis, grid)
+    out = bonus_calc.calc_agent_month(cfg["monthly_bonus"], penalty, kpis, grid,
+                                      queries.sales_gate(agent_key))
     out["agent_key"] = agent_key
     out["monthly_bonus"] = cfg["monthly_bonus"]
     out["an"] = an
@@ -137,7 +138,8 @@ def bonus_export():
         summary.append({
             'Agent': a['agent_key'], 'Bonus Lunar': out['monthly_bonus'],
             'Scor': round(out['scor'], 2), 'Bonus Realizat': round(out['total_bonus']),
-            'Poartă vânzări': ('BLOCAT (<%d%% din target)' % GATE_PCT)
+            'Poartă vânzări': ('BLOCAT (<%g%% din target)'
+                               % ((out.get('gate_prag') or 0) * 100))
                               if out.get('gate_vanzari') else 'OK',
             'Închis': 'Da' if out.get('inchis') else 'Nu',
         })
@@ -282,7 +284,8 @@ def inchidere_lock():
             if k['tip'] in ('incasari', 'scriptic'):
                 k['actual'] = float(manual.get(str(k['id']), k.get('actual') or 0))
         recalced = bonus_calc.calc_agent_month(
-            out['monthly_bonus'], float(d.get('penalty', 0.0)), out['kpis'], grid)
+            out['monthly_bonus'], float(d.get('penalty', 0.0)), out['kpis'], grid,
+            queries.sales_gate(key))
         recalced.update({'agent_key': key, 'monthly_bonus': out['monthly_bonus'],
                          'an': an, 'luna': luna, 'inchis': True})
         queries.istoric_lock(an, luna, key, json.dumps(recalced),
@@ -297,8 +300,32 @@ def inchidere_lock():
 @bonus_bp.route('/bonus/config')
 def config():
     agents = queries.bonus_agents(activ_only=False)
+    for a in agents:
+        # None → implicitul din cod; afișat ca procent în formular
+        a['gate_pct'] = round((a['gate_sales'] if a['gate_sales'] is not None
+                               else SALES_GATE) * 100, 2)
     candidati = queries.field_agents_in_tranzactii()
-    return render_template('bonus/config.html', agents=agents, candidati=candidati)
+    return render_template('bonus/config.html', agents=agents, candidati=candidati,
+                           gate_pct=GATE_PCT)
+
+
+@bonus_bp.route('/bonus/config/agent/<agent_key>/gate', methods=['POST'])
+def config_set_gate(agent_key):
+    """Salvează pragul poartă-vânzări al unui agent (procent, gol = implicit)."""
+    d = request.get_json(silent=True) or {}
+    raw = d.get('gate_pct')
+    try:
+        if raw is None or raw == '':
+            queries.set_agent_sales_gate(agent_key, None)
+            return jsonify({'ok': True, 'gate_pct': GATE_PCT})
+        pct = float(raw)
+        if not 0 <= pct <= 200:
+            return jsonify({'ok': False,
+                            'error': 'Pragul trebuie să fie între 0 și 200%.'}), 400
+        queries.set_agent_sales_gate(agent_key, pct / 100.0)
+        return jsonify({'ok': True, 'gate_pct': pct})
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'Prag invalid.'}), 400
 
 
 @bonus_bp.route('/bonus/config/agent', methods=['POST'])

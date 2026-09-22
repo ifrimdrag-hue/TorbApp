@@ -1,3 +1,4 @@
+from bonus_calc import SALES_GATE
 from db import query, get_db
 
 
@@ -37,7 +38,7 @@ def bonus_team():
 
 
 def bonus_agents(activ_only=True):
-    sql = ("SELECT agent_key, db_agent, tip_agent, growth_pct, activ "
+    sql = ("SELECT agent_key, db_agent, tip_agent, growth_pct, gate_sales, activ "
            "FROM bonus_config")
     if activ_only:
         sql += " WHERE activ = 1"
@@ -72,6 +73,25 @@ def payout_grid(agent_key):
             "SELECT threshold, multiplier FROM bonus_payout_grid "
             "WHERE agent_key='_default' ORDER BY threshold")
     return [(r["threshold"], r["multiplier"]) for r in rows]
+
+
+def sales_gate(agent_key):
+    """Pragul poartă-vânzări al agentului (fracție, ex. 0.80).
+
+    NULL / agent inexistent → `bonus_calc.SALES_GATE` (implicit 0.80).
+    0 = poartă dezactivată pentru agentul respectiv.
+    """
+    rows = query("SELECT gate_sales FROM bonus_config WHERE agent_key=:k",
+                 {"k": agent_key})
+    if not rows or rows[0]["gate_sales"] is None:
+        return SALES_GATE
+    return rows[0]["gate_sales"]
+
+
+def set_agent_sales_gate(agent_key, gate):
+    """Salvează pragul per agent; `None` îl readuce pe implicitul din cod."""
+    _write("UPDATE bonus_config SET gate_sales=:g WHERE agent_key=:k",
+           {"g": None if gate is None else float(gate), "k": agent_key})
 
 
 def realizat_auto(db_agent, an, luna):

@@ -62,7 +62,7 @@
 - `[x]` **Solduri: bucket-uri disjuncte + terminologie nouă** (2026-07-06) — intervale 1-7/8-30/31-60/>60 pe ambele părți (fără catch-all), redenumire „În termen” / „Scadență depășită” peste tot. Cerere owner 2026-07-06.
 - `[x]` **Solduri: unificare rânduri CEC în factura acoperită** (2026-07-07) — rândurile de cec (`cec=1`) dublau soldul facturii; importul le pliază pe factura corespondentă (`cec_doc` → `nrdl`) și le elimină (−60.742,40 RON fantomă pe fișierul real). Cerere owner. Vezi CHANGELOG.
 
-- `[x]` **Bonus: poartă pe vânzări** (2026-09-22) — sub 80% din targetul de vânzări niciun KPI nu se declanșează (regulă permanentă, în motor, fără resetare lunară); scrisă în descrierea regulilor de pe `/bonus`, `/bonus/obiective`, `/bonus/inchidere`. Decizie owner. Vezi CHANGELOG.
+- `[x]` **Bonus: poartă pe vânzări** (2026-09-22) — sub 80% din targetul de vânzări niciun KPI nu se declanșează (regulă permanentă, fără resetare lunară; prag configurabil per agent din Agenți, migrația 0044); scrisă în descrierea regulilor de pe `/bonus`, `/bonus/obiective`, `/bonus/inchidere`. Decizie owner. Vezi CHANGELOG.
 
 ## În curs / blocaje active
 

@@ -131,6 +131,7 @@ from queries.bonus import (
     lunar_config as lunar_config,
     obiective as obiective,
     payout_grid as payout_grid,
+    sales_gate as sales_gate,
     realizat_auto as realizat_auto,
     realizat_brand as realizat_brand,
     py_baseline as py_baseline,
@@ -143,6 +144,7 @@ from queries.bonus import (
     istoric_lock as istoric_lock,
     add_agent as add_agent,
     set_agent_active as set_agent_active,
+    set_agent_sales_gate as set_agent_sales_gate,
     field_agents_in_tranzactii as field_agents_in_tranzactii,
 )
 from queries.solduri import (

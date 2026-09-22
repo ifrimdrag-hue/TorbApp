@@ -10,13 +10,22 @@
   <div class="card-header bg-white fw-semibold">Agenți configurați</div>
   <div class="table-responsive">
     <table class="table mb-0">
-      <thead class="table-light"><tr><th>Cheie</th><th>Agent DB</th><th>Tip</th><th>Activ</th></tr></thead>
+      <thead class="table-light"><tr><th>Cheie</th><th>Agent DB</th><th>Tip</th>
+        <th style="width:190px">Poartă vânzări</th><th>Activ</th></tr></thead>
       <tbody>
         {% for a in agents %}
         <tr>
           <td class="fw-semibold">{{ a.agent_key }}</td>
           <td class="small text-muted">{{ a.db_agent }}</td>
           <td>{{ a.tip_agent }}</td>
+          <td>
+            <div class="input-group input-group-sm" style="width:170px">
+              <input type="number" class="form-control" min="0" max="200" step="1"
+                     value="{{ a.gate_pct }}" id="gate-{{ a.agent_key }}"
+                     onchange="setGate({{ a.agent_key | tojson }}, this.value)">
+              <span class="input-group-text">%</span>
+            </div>
+          </td>
           <td>
             <div class="form-check form-switch">
               <input class="form-check-input" type="checkbox" {{ 'checked' if a.activ else '' }}
@@ -28,6 +37,15 @@
       </tbody>
     </table>
   </div>
+</div>
+
+<div class="alert alert-light border small mb-3 py-2">
+  <i class="bi bi-info-circle text-primary me-1"></i>
+  <strong>Poartă vânzări:</strong> sub acest procent din targetul de vânzări,
+  niciun KPI al agentului nu se declanșează în luna respectivă — chiar dacă e
+  îndeplinit. Implicit {{ gate_pct }}%; pune <strong>0</strong> ca să dezactivezi
+  poarta pentru un agent. Se aplică automat în fiecare lună, fără resetare, și
+  afectează toate lunile încă deschise (cele închise rămân înghețate).
 </div>
 
 {% if candidati %}
@@ -53,6 +71,13 @@ function setActive(k, on){
     headers:{'Content-Type':'application/json'},body:JSON.stringify({activ:on?1:0})})
    .then(r=>{ if(!r.ok) throw new Error(r.status); })
    .catch(e=>{ alert('Eroare la salvare: '+e.message); location.reload(); });
+}
+function setGate(k, pct){
+  fetch('/bonus/config/agent/'+encodeURIComponent(k)+'/gate',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({gate_pct:pct})})
+   .then(r=>r.json().then(d=>{ if(!d.ok) throw new Error(d.error||r.status); }))
+   .catch(e=>{ AppError.show('Poartă vânzări · '+k, e.message, 'Eroare la salvare');
+               location.reload(); });
 }
 function addAgent(dbAgent){
   const key = prompt('Cheie scurtă pentru agent (ex. prenume):', dbAgent.split(' ')[0]);

@@ -9,8 +9,8 @@ All notable changes to this project will be documented in this file.
 Owner decision: the sales criterion is a precondition for the whole bonus, not
 just one weighted row. If an agent finishes the month under 80% of the sales
 target, **no KPI triggers** — every other criterion pays 0 even when fully
-achieved. The rule is permanent: it lives in the engine, applies to every month
-from now on, and needs no per-month setup or reset.
+achieved. The rule is permanent: it applies to every month from now on and
+needs no per-month setup or reset. The threshold is configurable per agent.
 
 - **Engine** (`app/bonus_calc.py`) — new `SALES_GATE = 0.80`, `sales_realizare()`
   (aggregates the `vanzari` rows: sum actual / sum target) and
@@ -19,7 +19,18 @@ from now on, and needs no per-month setup or reset.
   result carries `gate_vanzari` + `gate_prag`. `realizare` is left untouched, so
   the UI still shows how much was actually achieved. The gate is **not** applied
   when there is no sales objective (no `vanzari` row, or target 0) — nothing to
-  gate on. The threshold is a keyword argument (`gate=`) for future per-agent use.
+  gate on. `SALES_GATE` stays the code-side default for callers that pass no
+  threshold.
+- **Per-agent threshold** (migration **0044**) — `bonus_config.gate_sales`,
+  declared unused by migration 0011, becomes the live per-agent threshold
+  (added when an older DB lacks it, NULL rows backfilled to 0.80).
+  `queries.sales_gate(agent_key)` resolves it (NULL → `SALES_GATE`, `0` =
+  gate disabled for that agent) and `set_agent_sales_gate()` writes it.
+  `build_agent_month()` and `inchidere_lock()` pass the agent's own value.
+- **Editable from the UI** — new "Poartă vânzări" column on `/bonus/config`
+  (Agenți) with a % input per agent, saved through
+  `POST /bonus/config/agent/<key>/gate` (0–200%, empty = code default,
+  errors via `AppError.show()`).
 - **Applied everywhere the bonus is computed** — both call sites go through
   `calc_agent_month()`: the live view (`/bonus`, `/bonus/inchidere`, Excel export)
   and `inchidere_lock()`, which freezes the gated result into
@@ -31,10 +42,12 @@ from now on, and needs no per-month setup or reset.
   it applies automatically every month. Blocked agents get a red "Bonus blocat"
   banner on their card and on the month-close page.
 - **Excel export** — new "Poartă vânzări" column on the Centralizare sheet
-  (`OK` / `BLOCAT (<80% din target)`).
+  (`OK` / `BLOCAT (<80% din target)`, the agent's own threshold).
 - **Tests** — `tests/test_bonus_calc.py` pins the gate: boundary at exactly 80%
   (not blocked), everything zeroed below it even for an over-achieved KPI,
-  no gate without a sales target, and the `sales_realizare()` aggregation.
+  no gate without a sales target, and the `sales_realizare()` aggregation;
+  `tests/test_bonus_routes.py` covers the end-to-end close, the per-agent
+  roundtrip, the 0–200% validation and the disabled (`0`) case.
 
 Documented in `docs/BUSINESS_LOGIC.md` §4.
 

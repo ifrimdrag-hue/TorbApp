@@ -211,7 +211,7 @@ path already reads the mapping.
 
 Config-driven bonus module: monthly objectives per agent (vânzări, marjă, 9 game individuale, nr. clienți, clienți noi/gamă, încasări, scriptic), configurable weights + bonus value, payout grid with thresholds (gate 80%), default objective = +20% growth vs same month last year, month-close flow with frozen snapshot, agent management from the UI.
 
-- Tables: `bonus_config`, `bonus_lunar_config`, `bonus_obiective_strategice`, `bonus_payout_grid`, `bonus_istoric`
+- Tables: `bonus_config` (per-agent settings, incl. `gate_sales` — the sales gate), `bonus_lunar_config`, `bonus_obiective_strategice`, `bonus_payout_grid`, `bonus_istoric`
 - Pages: `/bonus`, `/bonus/obiective`, `/bonus/inchidere`, `/bonus/config`, `/bonus/clienti-noi-gama`
 - Full design + implementation plan: `docs/plans/2026-06-16-modul-bonus-redesign.md`
 
@@ -223,10 +223,14 @@ it was achieved. It is a precondition on top of the payout grid, not a grid
 step: the grid's own 80% gate only zeroes the row that missed, this one zeroes
 the whole month.
 
-- Threshold: `bonus_calc.SALES_GATE = 0.80`, applied inside
-  `calc_agent_month()`, so every caller (live view, Excel export, month close)
-  gets it. Standing rule — it applies to every month from now on and is never
-  reset or re-enabled per month.
+- Threshold: **per agent**, `bonus_config.gate_sales` (migration **0044**),
+  resolved by `queries.sales_gate(agent_key)` — NULL falls back to
+  `bonus_calc.SALES_GATE` (0.80), `0` disables the gate for that agent.
+  Editable as a percentage on `/bonus/config` (column "Poartă vânzări",
+  `POST /bonus/config/agent/<key>/gate`, accepted range 0–200%).
+  Applied inside `calc_agent_month()`, so every caller (live view, Excel
+  export, month close) gets it. Standing rule — it applies to every month
+  from now on and is never reset or re-enabled per month.
 - Sales realisation = Σ`actual` / Σ`target` over the `tip='vanzari'` rows.
   Exactly 80% passes (`< 0.80` blocks).
 - **Not applied when there is no sales objective** (no `vanzari` row, or its
@@ -262,7 +266,7 @@ bonus_kpi = bonus_lunar × pondere_kpi × multiplier_kpi × (1 − penalty)
 scor      = Σ (pondere_kpi × multiplier_kpi)
 total     = bonus_lunar × scor × (1 − penalty)
 
-# sales gate first: realizare_vanzari < 0.80  →  every multiplier_kpi = 0
+# sales gate first: realizare_vanzari < gate_sales  →  every multiplier_kpi = 0
 ```
 
 Call sites: `blueprints/bonus.build_agent_month()` (live view of `/bonus`, `/bonus/inchidere`, Excel export) and `blueprints/bonus.inchidere_lock()`, which recalculates with the manual KPI values and freezes the result into `bonus_istoric.lunar_data` — a closed month is read back from that snapshot, so a later grid change does not rewrite closed months. The grid is **not** versioned per month: any month still open — including past ones — is recalculated with the current grid. Close a month before changing the grid if its payout must stay frozen. The UI legend on `/bonus` and `/bonus/obiective` is rendered from the DB grid (`app/templates/bonus/_payout_grid_info.html`), never hardcoded.

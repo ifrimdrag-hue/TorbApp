@@ -209,3 +209,61 @@ def test_gate_rule_written_in_description(app_client, url):
     html = app_client.get(url).get_data(as_text=True)
     assert 'Poartă vânzări' in html
     assert '%d%%' % int(SALES_GATE * 100) in html
+
+
+@pytest.fixture
+def reset_gate():
+    """Readuce pragul lui Bogdan la implicit după test."""
+    yield
+    from queries.bonus import set_agent_sales_gate
+    set_agent_sales_gate('Bogdan', None)
+
+
+def test_sales_gate_per_agent_roundtrip(app_client, reset_gate):
+    from queries.bonus import sales_gate
+    from bonus_calc import SALES_GATE
+    assert sales_gate('Bogdan') == SALES_GATE          # fără setare → implicit
+    assert sales_gate('_inexistent_') == SALES_GATE
+
+    resp = app_client.post('/bonus/config/agent/Bogdan/gate', json={'gate_pct': 60})
+    assert resp.status_code == 200 and resp.get_json()['ok'] is True
+    assert sales_gate('Bogdan') == 0.60
+
+    # gol → revine la implicitul din cod
+    app_client.post('/bonus/config/agent/Bogdan/gate', json={'gate_pct': ''})
+    assert sales_gate('Bogdan') == SALES_GATE
+
+
+def test_sales_gate_rejects_out_of_range(app_client, reset_gate):
+    from queries.bonus import sales_gate
+    from bonus_calc import SALES_GATE
+    resp = app_client.post('/bonus/config/agent/Bogdan/gate', json={'gate_pct': 250})
+    assert resp.status_code == 400 and resp.get_json()['ok'] is False
+    resp = app_client.post('/bonus/config/agent/Bogdan/gate', json={'gate_pct': 'abc'})
+    assert resp.status_code == 400
+    assert sales_gate('Bogdan') == SALES_GATE
+
+
+def test_agent_gate_applied_in_calculation(app_client, seed_bogdan, reset_gate):
+    """Vânzări 5000/10000 = 50%: blocat la 80%, permis cu pragul agentului la 40%."""
+    from queries.bonus import save_obiective, set_agent_sales_gate
+    from blueprints.bonus import build_agent_month
+    save_obiective(2026, 6, 'Bogdan', 4000.0, 0.20, [
+        {"tip": "vanzari", "referinta": None, "target": 10000.0,
+         "unitate": "ron", "pondere": 1.0}])
+    assert build_agent_month('Bogdan', 'DRAGNEA BOGDAN', 2026, 6)['gate_vanzari'] is True
+
+    set_agent_sales_gate('Bogdan', 0.40)
+    out = build_agent_month('Bogdan', 'DRAGNEA BOGDAN', 2026, 6)
+    assert out['gate_vanzari'] is False
+    assert out['gate_prag'] == 0.40
+    assert out['total_bonus'] == 0.0   # 50% realizare → treapta 0 din grilă
+
+    set_agent_sales_gate('Bogdan', 0.0)   # 0 = poartă dezactivată
+    assert build_agent_month('Bogdan', 'DRAGNEA BOGDAN', 2026, 6)['gate_vanzari'] is False
+
+
+def test_config_page_shows_gate_input(app_client):
+    html = app_client.get('/bonus/config').get_data(as_text=True)
+    assert 'Poartă vânzări' in html
+    assert 'id="gate-Bogdan"' in html
