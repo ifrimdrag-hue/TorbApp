@@ -188,7 +188,7 @@ def test_gate_blocks_whole_month_end_to_end(app_client, seed_bogdan):
 
     # pagina anunță blocajul
     html = app_client.get('/bonus?an=2026&luna=6').get_data(as_text=True)
-    assert 'Bonus blocat' in html
+    assert 'Bonusul se va activa după depășirea vânzări' in html
 
     # închiderea îngheață rezultatul blocat, chiar cu încasările la 100%
     kpi_id = [k for k in obiective(2026, 6, 'Bogdan') if k['tip'] == 'incasari'][0]['id']
