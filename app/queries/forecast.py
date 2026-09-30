@@ -176,6 +176,22 @@ def piete_export_active():
         "WHERE activ = 1 AND UPPER(piata) != 'RO' ORDER BY piata")]
 
 
+# In-transit chip colors on Stoc & Comenzi: one color per order, the same on
+# every article it covers. Dark enough for white text (>= 5:1); no red, yellow
+# or green, which mean urgency on that page. Ordered so any three consecutive
+# slots stay distinct, also under color-vision deficiency.
+ORDER_COLORS = ('#4338ca', '#86198f', '#0f766e', '#92400e', '#6d28d9', '#0e7490', '#c2410c')
+
+
+def order_colors(orders):
+    """{nr_comanda: color} for (furnizor, eta, nr_comanda) tuples of the active
+    orders. Ranked by supplier, then ETA, so one supplier's orders take
+    consecutive slots and differ inside a cell. Built from every active order,
+    not the filtered rows, so filtering the page never repaints an order."""
+    ranked = sorted(set(orders), key=lambda o: (o[0] or '', o[1] or '9999-12-31', o[2] or ''))
+    return {nr: ORDER_COLORS[i % len(ORDER_COLORS)] for i, (_, _, nr) in enumerate(ranked)}
+
+
 def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
     """Ca forecast_stoc_brand + avg RO/piețe export + sugestii de comandă per SKU.
 
@@ -238,7 +254,7 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
 
     transit_by_sku = {}
     transit_sku_meta = {}  # {sku: {'furnizor': ..., 'cod_produs': ...}}
-    for r in query("""
+    transit_rows = query("""
         SELECT l.sku, c.nr_comanda, c.furnizor,
                COALESCE(c.data_estimata_livrare, c.eta) AS eta,
                MAX(l.cod_furnizor) AS cod_produs,
@@ -249,11 +265,14 @@ def forecast_stoc_extended(furnizor=None, gama=None, urgenta=None, search=None):
           AND COALESCE(l.cantitate_confirmata, l.cantitate_comandata) > 0
         GROUP BY l.sku, c.nr_comanda, eta
         ORDER BY l.sku, eta
-    """):
+    """)
+    colors = order_colors((r['furnizor'], r['eta'], r['nr_comanda']) for r in transit_rows)
+    for r in transit_rows:
         transit_by_sku.setdefault(r['sku'], []).append({
             'nr_comanda': r['nr_comanda'],
             'qty':        r['qty'],
             'eta':        r['eta'],
+            'color':      colors[r['nr_comanda']],
         })
         if r['sku'] not in transit_sku_meta:
             transit_sku_meta[r['sku']] = {

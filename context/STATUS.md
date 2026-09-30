@@ -1,6 +1,6 @@
 # Torb — Status Execuție Plan Strategic 2026–2030
 
-**Ultima actualizare:** 2026-09-22
+**Ultima actualizare:** 2026-09-30
 **Document referință:** `docs/BUSINESS.md` §7 — Plan Strategic 2026–2030 (v1.0)
 **Regulă:** actualizează acest fișier la fiecare schimbare de stare (nu la fiecare discuție). Legend: `[ ]` = neînceput · `[~]` = în lucru · `[x]` = livrat · `[!]` = blocat · `[↑]` = întârziat.
 **Istoric livrări:** rezumatele implementărilor livrate stau în `CHANGELOG.md`, nu aici — acest fișier ține doar starea curentă (decizii deschise, acțiuni 90 de zile, în curs/blocaje, pasul următor).
@@ -49,6 +49,7 @@
 
 ## Livrat recent (detalii în CHANGELOG)
 
+- `[x]` **Comenzi Celmar: cantitatea din coloana „Order pcs" + o singură culoare per comandă în Stoc & Comenzi** (2026-09-30) — formularul Celmar din aug. 2026 a pierdut o coloană, iar importul lua valoarea în PLN drept cantitate; coloanele se caută acum după antet, migrația 0045 repară comanda deja importată. Vezi CHANGELOG. **De verificat după deploy:** `NEW_ORDER_30_12.08.2026` arată cantitățile din fișier (ex. MUSETEL +36.000, total 118.800 buc), iar fiecare comandă Basilur are aceeași culoare pe toate articolele.
 - `[x]` **Fuziune clienți Profi Rom Food → Mega Image, reaplicată la fiecare import** (2026-08-17) — reatribuirea exista doar pe `tranzactii` și doar la rebuild complet, deci uploadul de vânzări din `/actualizare` readucea Profi în bază. Maparea e acum centralizată (`CLIENT_MERGES`), se aplică la momentul importului plus o trecere idempotentă peste solduri și tabelele de prețuri/condiții; migrația 0043 repară baza existentă. Vezi CHANGELOG. **De verificat după deploy:** clientul Profi Rom Food nu mai apare în raportul de clienți, iar soldurile lui figurează pe Mega Image.
 - `[x]` **Export Excel/PPT pe paginile de listă — echipă, clienți, produse, basilur** (2026-07-28) — cele patru pagini primesc butoane Excel + PPT prin aceleași două dispatchere; exporturile respectă acum luna și filtrele active (`/export/team` și `/export/clients` ignorau complet `luna`, `/export/products` ignora `?q`). Fix: deck-ul Basilur dădea 500 la fiecare apel (listă de poziții cu 3 sloturi pentru 4 branduri) și folosea curs 4.55 hardcodat în timp ce Excel-ul respecta `?curs`. Vezi CHANGELOG.
 - `[x]` **Export Excel/PPT unificat pe pagini de entitate — brand, produs, agent, client** (2026-07-28) — pagina de brand primește export Excel + PPT, pagina de produs primește PPT; cele patru rute PPT numite au fost înlocuite cu dispatcherul unic `/export/ppt/<entity>`; exporturile respectă acum filtrul de lună (fix: cardurile de marjă din deck-ul de client, care afișau „—"). Vezi CHANGELOG; 2 itemi deferați în `docs/BACKLOG.md` (etichete coloane Excel, registru `export_excel`) + 1 discrepanță de agregare Brand Mix (item 19).

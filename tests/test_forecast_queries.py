@@ -234,3 +234,55 @@ def test_listing_changes_keys_are_normalized(db_path, client):
         f"expected normalized key {normalized!r} in {list(changes.keys())} "
         "so build_suggestion's normalized-key lookup finds it"
     )
+
+
+def test_transit_order_has_one_color_on_every_article(db_path, client):
+    """BUG: a transit chip was colored by each article's own days of stock, so
+    one order showed green on a well-stocked SKU and red on a short one. The
+    color now identifies the order: the same on every article, and different
+    between orders shown in the same cell."""
+    import datetime
+    conn = _conn(db_path)
+    snap = _next_snapshot(conn)
+    skus = {'SKU-D1-001': 5, 'SKU-D1-002': 900}   # ~5 vs ~900 days of stock
+    for sku, stoc in skus.items():
+        conn.execute("""
+            INSERT INTO stoc (data_snapshot, cod_produs, cod_mare, sku, furnizor, gama,
+                               cantitate, pret_achizitie, data_intrare)
+            VALUES (?, ?, ?, ?, 'TestBrandD1', 'Ceai', ?, 10.0, '2026-06-01')
+        """, (snap, sku, sku, sku, stoc))
+        for k in range(12):
+            conn.execute("""
+                INSERT INTO tranzactii (luna, an, data_dl, sku, furnizor, cantitate,
+                                         cod_produs, client, cod_client, agent,
+                                         pret_vanzare, tva_pct, pret_cumparare,
+                                         val_bruta, val_neta, val_achizitie, marja_bruta, discount_pct)
+                VALUES (1, 2026, date('now', 'start of month', :mod, '+9 days'),
+                        :sku, 'TestBrandD1', 30,
+                        :sku, 'Client Test', 'C001', 'Agent Test',
+                        10, 0.09, 5, 300, 275, 150, 125, 0)
+            """, {'mod': f'-{k} months', 'sku': sku})
+    today = datetime.date.today()
+    for nr, days in (('CMD-D1-1', 60), ('CMD-D1-2', 120)):
+        cid = conn.execute(
+            "INSERT INTO comenzi_furnizori (nr_comanda, furnizor, status, data_estimata_livrare) "
+            "VALUES (?, 'TestBrandD1', 'in_tranzit', ?)",
+            (nr, (today + datetime.timedelta(days=days)).isoformat())).lastrowid
+        for sku in skus:
+            conn.execute(
+                "INSERT INTO comenzi_furnizori_linii (comanda_id, sku, cantitate_comandata) "
+                "VALUES (?, ?, 10)", (cid, sku))
+    conn.commit()
+    conn.close()
+
+    import queries
+    rows = queries.forecast_stoc_extended(furnizor='TestBrandD1')
+    colors = {r['sku']: {o['nr_comanda']: o['color'] for o in r['in_tranzit']} for r in rows}
+    assert colors['SKU-D1-001'] == colors['SKU-D1-002']
+    assert colors['SKU-D1-001']['CMD-D1-1'] != colors['SKU-D1-001']['CMD-D1-2']
+
+    html = client.get('/forecast?tab=stoc&brand=TestBrandD1').data.decode('utf-8')
+    for color in colors['SKU-D1-001'].values():
+        assert html.count(f'style="background:{color}"') == 2
+    # the short SKU's two chips still flag the arrival after its stock-out
+    assert html.count('sosește după epuizarea stocului') == 2

@@ -1,13 +1,16 @@
 """
 Import comenzi Celmar în tranzit din Order Form .xls.
 
-Format așteptat: Sheet 'Sheet1', header pe rândul 5 (index 5), date de la 6.
-Coloane:
-  [0] PRODUCT        → descriere (conține cuvânt RO în majuscule la final)
-  [1] Price/pcs PLN  → pret_valuta
-  [2] pcs / pallet   → pcs_per_pallet (3600 = 20 pcs/cutie, 1080 = 80 pcs/cutie)
-  [4] New order pal  → cantitate_baxuri (paleți)
-  [5] Order pcs      → cantitate_comandata
+Coloanele se găsesc după textul din antet (rândul care conține PRODUCT), nu
+după poziție: formularul își schimbă layout-ul între versiuni (din aug. 2026 a
+dispărut o coloană și 'Order pcs' a ajuns pe indexul fostei 'TOTAL Value').
+Antet → câmp:
+  PRODUCT                       → descriere (cuvânt RO în majuscule la final)
+  ...Price / pcs (PLN)          → pret_valuta
+  pcs / pallet                  → pcs_per_pallet (3600 = 20 pcs/cutie, 1080 = 80 pcs/cutie)
+  Order Pallets / New order pal → cantitate_baxuri (paleți)
+  Order pcs                     → cantitate_comandata
+Fără PRODUCT sau Order pcs în antet, importul se oprește cu eroare.
 
 Maparea produs→SKU: extrage cuvântul românesc (MUSETEL, SUNATOARE etc.) și
 caută 'CELMAR {keyword}' în stoc. Variantele cu pcs_per_pallet ≤ 1200
@@ -31,14 +34,8 @@ if sys.platform == "win32":
 
 DB_PATH     = "data/torb.db"
 DEFAULT_DIR = "docs_input/comenzi Celmar"
-SHEET_NAME  = "Sheet1"
-HEADER_ROW  = 5
-DATA_START  = 6
-COL_PRODUCT  = 0
-COL_PRICE    = 1
-COL_PCS_PAL  = 2
-COL_PAL_NEW  = 4
-COL_QTY_PCS  = 5
+HEADER_SCAN_ROWS = 20   # the PRODUCT header row is searched for in the first N rows
+REQUIRED_COLS = {"product": "PRODUCT", "qty_pcs": "Order pcs"}
 
 # Month names EN → number for title-row date parsing
 _MONTHS = {
@@ -61,6 +58,43 @@ def s(v):
         return None
     x = str(v).replace('\xa0', ' ').strip()
     return x if x else None
+
+
+def _norm(v):
+    return " ".join(str(v or "").replace("\xa0", " ").split()).lower()
+
+
+def column_role(header):
+    """Logical field of one Order Form header cell, or None.
+
+    Keyword match, not exact text: the supplier rewords and misspells headers
+    between versions ('pcs / pallet' vs 'pcs / plallet', 'New order pal' vs
+    'Order Pallets'). 'price' is tested before 'pcs' because the price header
+    also contains 'pcs'."""
+    h = _norm(header)
+    if h.startswith("product"):
+        return "product"
+    if "price" in h:
+        return "price"
+    if "pcs" in h:
+        return "qty_pcs" if "order" in h else "pcs_per_pallet"
+    if "order" in h and "pal" in h:
+        return "qty_pal"
+    return None
+
+
+def detect_columns(ws):
+    """(header_row, {role: [cols]}) for the first row holding a PRODUCT header,
+    or (None, {}) if there is none."""
+    for r in range(min(ws.nrows, HEADER_SCAN_ROWS)):
+        roles = [column_role(ws.cell_value(r, c)) for c in range(ws.ncols)]
+        if "product" in roles:
+            cols = {}
+            for c, role in enumerate(roles):
+                if role:
+                    cols.setdefault(role, []).append(c)
+            return r, cols
+    return None, {}
 
 
 def extract_romanian_keyword(product_name):
@@ -138,39 +172,54 @@ def map_celmar_to_sku(conn, product_name, pcs_per_pallet):
     return row[0] if row else None
 
 
-def read_order_lines(filepath):
-    print(f"  Citesc: {filepath}")
-    book = xlrd.open_workbook(filepath)
-    candidates = [n for n in book.sheet_names() if 'sheet' in n.lower() or 'order' in n.lower()]
-    sheet_name = SHEET_NAME if SHEET_NAME in book.sheet_names() else (candidates[0] if candidates else book.sheet_names()[0])
-    ws = book.sheet_by_name(sheet_name)
+def parse_order_sheet(ws):
+    """Order lines with a quantity > 0. Raises ValueError when the header row or
+    a required column is missing, or the quantity column is ambiguous, so a new
+    layout fails loudly instead of importing another column as the quantity."""
+    header_row, cols = detect_columns(ws)
+    if header_row is None:
+        raise ValueError("nu găsesc rândul de antet cu PRODUCT")
+    missing = [label for role, label in REQUIRED_COLS.items() if role not in cols]
+    if missing:
+        raise ValueError(f"lipsește coloana {', '.join(missing)} din antet")
+    if len(cols["qty_pcs"]) > 1:
+        raise ValueError("antetul are mai multe coloane de cantitate (Order pcs)")
+
+    def cell(r, role):
+        return ws.cell_value(r, cols[role][0]) if role in cols else None
 
     lines = []
-    order_date_from_sheet = parse_title_date(ws)
-    for r in range(DATA_START, ws.nrows):
-        qty_pcs = num(ws.cell_value(r, COL_QTY_PCS))
+    for r in range(header_row + 1, ws.nrows):
+        qty_pcs = num(cell(r, "qty_pcs"))
         if not qty_pcs or qty_pcs <= 0:
             continue
-        product = s(ws.cell_value(r, COL_PRODUCT))
+        product = s(cell(r, "product"))
         if not product:
             continue
 
-        pcs_per_pal = num(ws.cell_value(r, COL_PCS_PAL))
-        qty_pal = num(ws.cell_value(r, COL_PAL_NEW))
-        price = num(ws.cell_value(r, COL_PRICE))
-        total = round(price * qty_pcs, 2) if price and qty_pcs else None
+        pcs_per_pal = num(cell(r, "pcs_per_pallet"))
+        qty_pal = num(cell(r, "qty_pal"))
+        price = num(cell(r, "price"))
+        total = round(price * qty_pcs, 2) if price else None
 
         lines.append({
             'descriere':            product,
             'pcs_per_pallet':       int(pcs_per_pal) if pcs_per_pal else None,
             'cantitate_baxuri':     round(qty_pal, 4) if qty_pal else None,
-            'cantitate_comandata':  int(qty_pcs),
+            'cantitate_comandata':  int(round(qty_pcs)),
             'pret_valuta':          price,
             'total_valuta':         total,
         })
+    return lines
 
+
+def read_order_lines(filepath):
+    print(f"  Citesc: {filepath}")
+    sheets = xlrd.open_workbook(filepath).sheets()
+    ws = next((sh for sh in sheets if set(REQUIRED_COLS) <= set(detect_columns(sh)[1])), sheets[0])
+    lines = parse_order_sheet(ws)
     print(f"    → {len(lines)} linii cu cantitate > 0")
-    return lines, order_date_from_sheet
+    return lines, parse_title_date(ws)
 
 
 def import_file(filepath, force=False):
@@ -260,4 +309,8 @@ if __name__ == "__main__":
     force = '--force' in args
     args = [a for a in args if a != '--force']
     fp = args[0] if args else None
-    run(fp, force=force)
+    try:
+        run(fp, force=force)
+    except ValueError as exc:
+        print(f"EROARE: format necunoscut al comenzii Celmar — {exc}")
+        sys.exit(1)

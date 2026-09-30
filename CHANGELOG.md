@@ -4,6 +4,62 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Celmar in-transit orders: quantity read from "Order pcs" again (2026-09-30)
+
+Uploading a Celmar order put the order's PLN value in the quantity column: on
+`/forecast` (Stoc & comenzi) `NEW_ORDER_30_12.08.2026` showed MUSETEL +39,600
+instead of 36,000 pcs, MACESE +4,320 instead of 3,600, and so on. The Aug-2026
+Order Form dropped a column, so the importer's fixed index of `Order pcs` now
+held `TOTAL Value (PLN)` (and the real piece count landed in `cantitate_baxuri`).
+
+- **Importer** (`etl/import_comenzi_tranzit_celmar.py`) — columns are located by
+  header text instead of position: the header row is the one holding `PRODUCT`,
+  and `column_role()` maps each header by keyword (`price`, `pcs / pallet` —
+  also the supplier's `plallet` typo —, `order … pal`, `order pcs`), so both the
+  current and the legacy layout parse. The sheet is the first one that has the
+  required columns.
+- **Fails loudly** — a missing `PRODUCT` / `Order pcs` header, or more than one
+  `Order pcs`-like column, stops the import (`EROARE: format necunoscut…`,
+  exit 1 → error modal on `/actualizare`) instead of importing another column
+  as the quantity.
+- **Data repair** (migration **0045**) — Celmar lines already stored with the
+  shifted layout are recognisable from their own numbers
+  (`cantitate_comandata ≈ pret_valuta × cantitate_baxuri`, within the import's
+  `int()` truncation): the quantity, pallet count and line totals are
+  recomputed and the order's `total_usd` re-summed. Only file-imported Celmar
+  orders are touched; a correctly imported line cannot match. Re-uploading the
+  file is not needed (the upload skips a file already imported).
+- **Tests** — `tests/test_etl_parsers.py` parses the Aug-2026 and the legacy
+  layout and pins the loud failures; `tests/test_migration_0045.py` checks the
+  repair, that correct/manual/other-supplier orders are untouched, and
+  idempotency.
+
+Documented in `docs/BUSINESS_LOGIC.md` §8.
+
+### Stoc & Comenzi: one color per in-transit order (2026-09-30)
+
+The *În tranzit (comenzi)* chips were colored by comparing the order's ETA with
+each article's own days of stock, so one order showed green on one article and
+yellow or red on another. The color now identifies the order.
+
+- `queries.forecast.order_colors()` ranks every active order (`confirmata` /
+  `in_tranzit`) by supplier, then ETA, and assigns it a slot of the 7-color
+  `ORDER_COLORS` palette; `forecast_stoc_extended()` puts the color on each
+  chip. Ranking runs over all active orders, not the filtered rows, so brand /
+  search filters never repaint an order.
+- Palette: dark enough for the badge's white text (≥ 5:1), no red / yellow /
+  green (they mean urgency on that page), and ordered so any three consecutive
+  slots — a supplier's orders sit next to each other — stay distinct, also
+  under color-vision deficiency. Past seven active orders the colors repeat;
+  the order number on the chip still tells them apart.
+- The old "arrives after this article runs out" signal moved to the chip
+  tooltip ("sosește după epuizarea stocului").
+- **Tests** — `tests/test_forecast_queries.py`: same order → same color on two
+  articles with ~5 vs ~900 days of stock, two orders in one cell → two colors,
+  and the rendered page carries each color on both chips.
+
+Documented in `docs/BUSINESS_LOGIC.md` §8.
+
 ### Bonus: global sales gate — under 80% of the sales target nothing pays (2026-09-22)
 
 Owner decision: the sales criterion is a precondition for the whole bonus, not

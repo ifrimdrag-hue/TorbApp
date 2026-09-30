@@ -467,11 +467,20 @@ Parameters (window, seasonality gate, index caps, delisting threshold + auto-con
 
 ---
 
-## 8. Supplier order imports — code mapping (Leonex)
+## 8. Supplier order imports — code mapping (Leonex), layout drift (Celmar)
 
 In-transit supplier orders are imported per brand (`etl/import_comenzi_tranzit_*.py`)
 into `comenzi_furnizori` + `comenzi_furnizori_linii`, then merged into the
 stock/orders view (`/forecast`, Operational → Stoc & comenzi) **by `sku`**.
+
+**Display.** Every active order (`confirmata` / `in_tranzit`) is a chip in the
+*În tranzit (comenzi)* column of each article it covers. The chip color
+**identifies the order** — the same color on every article
+(`queries.forecast.order_colors`: active orders ranked by supplier, then ETA, over
+a 7-color palette; filters never repaint an order). It does not encode urgency;
+a chip whose ETA falls after that article's stock-out says so in its tooltip
+("sosește după epuizarea stocului"). Until 2026-09-30 the color compared the ETA
+with each article's days of stock, so one order showed different colors.
 
 **Leonex trap:** the Leonex Order Form uses the supplier's own article codes
 (`MK…`, e.g. `MK000928`) with English descriptions — these exist nowhere in
@@ -486,6 +495,21 @@ Torb identity (`cod_furnizor = cod_torb`, `sku`/`descriere` = Torb SKU name).
 - Lines whose MK code is **not in the mapping are skipped** (not stored) and
   reported via an `AVERTISMENT:` line, surfaced as an amber note in the upload UI
   so a new code can be added to the table.
+
+**Celmar trap:** the Celmar Order Form changes layout between versions. The
+Aug-2026 form (`NEW_ORDER_30_12.08.2026.xls`) dropped a column, so the importer's
+fixed index of `Order pcs` held `TOTAL Value (PLN)` and each line's PLN value was
+stored as its quantity (MUSETEL 39,600 instead of 36,000 pcs). Fix (delivered
+2026-09-30, migration 0045): the importer finds the header row (the one holding
+`PRODUCT`) and maps columns by header keywords, never by position.
+
+- A missing `PRODUCT` / `Order pcs` header, or more than one `Order pcs`-like
+  column, **stops the import with an error** instead of guessing.
+- Migration 0045 repaired the lines already stored with the shifted layout
+  (recognised by `cantitate_comandata ≈ pret_valuta × cantitate_baxuri`,
+  file-imported Celmar orders only).
+- The Leonex and Toras importers still read fixed positions (`docs/BACKLOG.md`
+  item 22); Basilur already locates columns by header text.
 
 ## 9. Solduri neîncasate (accounts-receivable aging)
 

@@ -249,25 +249,12 @@
               {% if r.in_tranzit %}
                 <div class="d-flex flex-column align-items-start gap-1">
                 {% for o in r.in_tranzit %}
-                  {# Color the chip based on ETA proximity vs days_of_stock:
-                     - green: ETA before stock-out (will arrive in time)
-                     - yellow: ETA close to stock-out
-                     - red: ETA after stock-out (gap risk)
-                     - secondary: no ETA known #}
+                  {# One color per order (queries.forecast.order_colors), the same on
+                     every article. Arriving after this article's stock-out is
+                     noted in the tooltip. #}
                   {% set days_to_eta = (o.eta | days_until) if o.eta else None %}
-                  {% if days_to_eta is none %}
-                    {% set chip_cls = 'bg-secondary' %}
-                  {% elif zile is not none and days_to_eta <= zile %}
-                    {% set chip_cls = 'bg-success' %}
-                  {% elif zile is not none and days_to_eta <= zile + 30 %}
-                    {% set chip_cls = 'bg-warning text-dark' %}
-                  {% elif zile is not none %}
-                    {% set chip_cls = 'bg-danger' %}
-                  {% else %}
-                    {% set chip_cls = 'bg-info text-dark' %}
-                  {% endif %}
-                  <span class="badge {{ chip_cls }}"
-                        title="Comanda {{ o.nr_comanda }} · {{ o.qty | int }} buc · ETA {{ o.eta or 'necunoscut' }}">
+                  <span class="badge" style="background:{{ o.color }}"
+                        title="Comanda {{ o.nr_comanda }} · {{ o.qty | int }} buc · ETA {{ o.eta or 'necunoscut' }}{% if days_to_eta is not none and zile is not none and days_to_eta > zile %} · sosește după epuizarea stocului{% endif %}">
                     {{ o.nr_comanda }} +{{ "{:,.0f}".format(o.qty).replace(",",".") }}
                     {% if o.eta %}<span class="ms-1 opacity-75">→ {{ o.eta }}</span>{% endif %}
                   </span>
